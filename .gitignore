@@ -1,0 +1,13 @@
+.DS_Store
+node_modules/
+dist/
+.vercel/
+__pycache__/
+*.pyc
+.venv/
+
+# 120MB of Mobbin screenshots — kept locally as design reference, not committed.
+# The distilled conventions live in .claude/skills/stage-times-design/
+_ref/Cash App ios Nov 2025/
+.vercel
+.env*

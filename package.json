@@ -1,0 +1,22 @@
+{
+  "name": "stage-times",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Set times, by stage. One iCalendar subscription feed per festival stage.",
+  "type": "module",
+  "scripts": {
+    "build": "tsx src/build.ts",
+    "test": "tsx --test tests/*.test.ts",
+    "smoke": "tsx tests/smoke.ts",
+    "vercel-build": "npm test && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "ical.js": "^2.1.0",
+    "luxon": "^3.5.0",
+    "@types/luxon": "^3.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "yaml": "^2.6.1"
+  }
+}

@@ -1,0 +1,482 @@
+# FIXTURE DATA — Harbor Lights Festival is not a real festival.
+#
+# This file exists so the pipeline and pages can be built and reviewed before real
+# lineup screenshots are ingested. It is also the golden-file fixture for the test
+# suite. It deliberately contains every edge case Phase 1 ingest will hit:
+#
+#   - post-midnight sets resolved to the following calendar date (see `# shifted` comments)
+#   - inferred end times (end_inferred: true)
+#   - stylized artist casing that must survive normalization (SOPHIE, black midi)
+#   - non-ASCII artist names (folding + escaping test)
+#   - artist names containing commas and ampersands (escaping test)
+#   - a very long artist name (75-octet line folding test)
+#   - a stage renamed since a previous year, proving id != name
+#
+# DO NOT publish this to the production apex.
+
+festival:
+  name: "Harbor Lights Festival"
+  slug: "harbor-lights"
+  year: 2026
+  timezone: "America/Chicago"
+  official_url: "https://example.com/harbor-lights/schedule"
+
+stages:
+  - id: "main"
+    name: "Lakefront Main Stage"      # renamed from "Main Stage" — id stays `main` forever
+    description: "The big one. Headliners each night."
+  - id: "grove"
+    name: "The Grove"
+    description: "Trees, shade, quieter bills."
+  - id: "warehouse"
+    name: "Warehouse"
+    description: "Dark room, loud system, runs latest."
+  - id: "canal"
+    name: "Canal Stage"
+    description: "Waterside. Sound carries."
+  - id: "porch"
+    name: "The Porch"
+    description: "Acoustic and spoken word. Afternoons only."
+  - id: "annex"
+    name: "Annex"
+    description: "New and local acts."
+
+sets:
+  # ─── FRIDAY 14 AUGUST ────────────────────────────────────────────────────────
+  - stage: "porch"
+    artist: "Wren Ashby"
+    start: "2026-08-14T13:00:00"
+    end: "2026-08-14T13:45:00"
+    end_inferred: false
+  - stage: "annex"
+    artist: "Cassette Sunday"
+    start: "2026-08-14T13:30:00"
+    end: "2026-08-14T14:15:00"
+    end_inferred: false
+  - stage: "grove"
+    artist: "Halden Reef"
+    start: "2026-08-14T14:00:00"
+    end: "2026-08-14T14:50:00"
+    end_inferred: false
+  - stage: "porch"
+    artist: "The Undersigned"
+    start: "2026-08-14T14:15:00"
+    end: "2026-08-14T15:00:00"
+    end_inferred: false
+  - stage: "canal"
+    artist: "Marisol Vega"
+    start: "2026-08-14T14:30:00"
+    end: "2026-08-14T15:20:00"
+    end_inferred: false
+  - stage: "main"
+    artist: "Paper Anchor"
+    start: "2026-08-14T15:00:00"
+    end: "2026-08-14T15:50:00"
+    end_inferred: false
+  - stage: "annex"
+    artist: "¡Aparato!"
+    start: "2026-08-14T15:00:00"
+    end: "2026-08-14T15:45:00"
+    end_inferred: false
+    notes: "Non-ASCII name — must survive folding and escaping intact."
+  - stage: "warehouse"
+    artist: "Nulltone"
+    start: "2026-08-14T15:30:00"
+    end: "2026-08-14T16:30:00"
+    end_inferred: false
+  - stage: "porch"
+    artist: "Ida Brant"
+    start: "2026-08-14T15:30:00"
+    end: "2026-08-14T16:15:00"
+    end_inferred: false
+  - stage: "grove"
+    artist: "black midi"
+    start: "2026-08-14T16:00:00"
+    end: "2026-08-14T17:00:00"
+    end_inferred: false
+    notes: "Lowercase styling is official — do not title-case."
+  - stage: "canal"
+    artist: "Two Rivers, One Bridge"
+    start: "2026-08-14T16:15:00"
+    end: "2026-08-14T17:10:00"
+    end_inferred: false
+    notes: "Comma in name — escaping test."
+  - stage: "main"
+    artist: "Verona Steel"
+    start: "2026-08-14T16:30:00"
+    end: "2026-08-14T17:30:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "SOPHIE"
+    start: "2026-08-14T17:00:00"
+    end: "2026-08-14T18:00:00"
+    end_inferred: false
+    notes: "All-caps styling is official."
+  - stage: "grove"
+    artist: "Sable & Sons"
+    start: "2026-08-14T17:30:00"
+    end: "2026-08-14T18:30:00"
+    end_inferred: false
+  - stage: "canal"
+    artist: "Nightporter"
+    start: "2026-08-14T18:00:00"
+    end: "2026-08-14T19:00:00"
+    end_inferred: false
+  - stage: "main"
+    artist: "Cold Harbour"
+    start: "2026-08-14T18:15:00"
+    end: "2026-08-14T19:15:00"
+    end_inferred: false
+  - stage: "annex"
+    artist: "Dry January"
+    start: "2026-08-14T18:30:00"
+    end: "2026-08-14T19:15:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "Kessler Drift"
+    start: "2026-08-14T18:45:00"
+    end: "2026-08-14T20:00:00"
+    end_inferred: false
+  - stage: "grove"
+    artist: "Junipero"
+    start: "2026-08-14T19:00:00"
+    end: "2026-08-14T20:00:00"
+    end_inferred: false
+  - stage: "main"
+    artist: "The Mechanical Hound Orchestra of Greater Saint Paul"
+    start: "2026-08-14T20:00:00"
+    end: "2026-08-14T21:15:00"
+    end_inferred: false
+    notes: "Deliberately long — exercises 75-octet line folding."
+  - stage: "canal"
+    artist: "Óskar Þórðarson"
+    start: "2026-08-14T20:00:00"
+    end: "2026-08-14T21:00:00"
+    end_inferred: false
+    notes: "Icelandic thorn/eth — multi-byte fold-boundary test."
+  - stage: "warehouse"
+    artist: "Ninefold"
+    start: "2026-08-14T20:30:00"
+    end: "2026-08-14T22:00:00"
+    end_inferred: false
+  - stage: "grove"
+    artist: "Tessellate"
+    start: "2026-08-14T20:45:00"
+    end: "2026-08-14T21:45:00"
+    end_inferred: false
+  - stage: "main"
+    artist: "ATLAS VEIL"
+    start: "2026-08-14T21:45:00"
+    end: "2026-08-14T23:15:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "Rue Mercier"
+    start: "2026-08-14T22:30:00"
+    end: "2026-08-15T00:00:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "Grid Fault"
+    start: "2026-08-15T00:00:00"      # shifted: printed under FRIDAY as "12:00 AM"
+    end: "2026-08-15T01:30:00"
+    end_inferred: false
+    notes: "Listed on the Friday schedule; resolves to Saturday's calendar date."
+  - stage: "warehouse"
+    artist: "Lowlight Machine"
+    start: "2026-08-15T01:30:00"      # shifted: printed under FRIDAY as "1:30 AM"
+    end: "2026-08-15T02:30:00"
+    end_inferred: true
+    notes: "Last set of the night, no printed end time — defaulted to 60 minutes."
+
+  # ─── SATURDAY 15 AUGUST ──────────────────────────────────────────────────────
+  - stage: "porch"
+    artist: "Ollie Frame"
+    start: "2026-08-15T12:30:00"
+    end: "2026-08-15T13:15:00"
+    end_inferred: false
+  - stage: "annex"
+    artist: "Sixth Borough"
+    start: "2026-08-15T13:00:00"
+    end: "2026-08-15T13:45:00"
+    end_inferred: false
+  - stage: "grove"
+    artist: "Meridian Bloom"
+    start: "2026-08-15T13:15:00"
+    end: "2026-08-15T14:05:00"
+    end_inferred: false
+  - stage: "canal"
+    artist: "Halcyon Ferry"
+    start: "2026-08-15T13:30:00"
+    end: "2026-08-15T14:20:00"
+    end_inferred: false
+  - stage: "porch"
+    artist: "Beatrice Lowe"
+    start: "2026-08-15T13:45:00"
+    end: "2026-08-15T14:30:00"
+    end_inferred: false
+  - stage: "main"
+    artist: "Fever Almanac"
+    start: "2026-08-15T14:00:00"
+    end: "2026-08-15T14:50:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "Static Provincial"
+    start: "2026-08-15T14:30:00"
+    end: "2026-08-15T15:45:00"
+    end_inferred: false
+  - stage: "annex"
+    artist: "Tiny Continent"
+    start: "2026-08-15T14:30:00"
+    end: "2026-08-15T15:15:00"
+    end_inferred: false
+  - stage: "porch"
+    artist: "Sam Okonkwo"
+    start: "2026-08-15T15:00:00"
+    end: "2026-08-15T15:45:00"
+    end_inferred: false
+  - stage: "grove"
+    artist: "Weatherhead"
+    start: "2026-08-15T15:00:00"
+    end: "2026-08-15T16:00:00"
+    end_inferred: false
+  - stage: "canal"
+    artist: "Delphine Roux"
+    start: "2026-08-15T15:15:00"
+    end: "2026-08-15T16:10:00"
+    end_inferred: false
+  - stage: "main"
+    artist: "Bright Hazard"
+    start: "2026-08-15T15:30:00"
+    end: "2026-08-15T16:30:00"
+    end_inferred: false
+  - stage: "annex"
+    artist: "Public Access"
+    start: "2026-08-15T16:00:00"
+    end: "2026-08-15T16:45:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "Bandwidth"
+    start: "2026-08-15T16:15:00"
+    end: "2026-08-15T17:30:00"
+    end_inferred: false
+  - stage: "grove"
+    artist: "Ravine Choir"
+    start: "2026-08-15T16:30:00"
+    end: "2026-08-15T17:30:00"
+    end_inferred: false
+  - stage: "canal"
+    artist: "The Longshoremen"
+    start: "2026-08-15T17:00:00"
+    end: "2026-08-15T18:00:00"
+    end_inferred: false
+  - stage: "main"
+    artist: "Yuki Tanabe"
+    start: "2026-08-15T17:15:00"
+    end: "2026-08-15T18:15:00"
+    end_inferred: false
+  - stage: "annex"
+    artist: "Hollow Coast"
+    start: "2026-08-15T17:30:00"
+    end: "2026-08-15T18:15:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "Perimeter"
+    start: "2026-08-15T18:00:00"
+    end: "2026-08-15T19:15:00"
+    end_inferred: false
+  - stage: "grove"
+    artist: "Saint Elm"
+    start: "2026-08-15T18:00:00"
+    end: "2026-08-15T19:00:00"
+    end_inferred: false
+  - stage: "canal"
+    artist: "Ferry & The Tide"
+    start: "2026-08-15T18:30:00"
+    end: "2026-08-15T19:30:00"
+    end_inferred: false
+  - stage: "main"
+    artist: "NOVA CENTURY"
+    start: "2026-08-15T19:00:00"
+    end: "2026-08-15T20:15:00"
+    end_inferred: false
+  - stage: "grove"
+    artist: "Wolf Parade Avenue"
+    start: "2026-08-15T19:30:00"
+    end: "2026-08-15T20:30:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "Concrete Sky"
+    start: "2026-08-15T19:45:00"
+    end: "2026-08-15T21:15:00"
+    end_inferred: false
+  - stage: "canal"
+    artist: "Isla Moreau"
+    start: "2026-08-15T20:00:00"
+    end: "2026-08-15T21:00:00"
+    end_inferred: false
+  - stage: "main"
+    artist: "THE GOLDEN HOUR"
+    start: "2026-08-15T21:00:00"
+    end: "2026-08-15T22:45:00"
+    end_inferred: false
+    notes: "Saturday headliner."
+  - stage: "warehouse"
+    artist: "Faultline"
+    start: "2026-08-15T21:45:00"
+    end: "2026-08-15T23:15:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "Neon Ossuary"
+    start: "2026-08-15T23:30:00"
+    end: "2026-08-16T01:00:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "Deep Field"
+    start: "2026-08-16T01:00:00"      # shifted: printed under SATURDAY as "1:00 AM"
+    end: "2026-08-16T02:30:00"
+    end_inferred: false
+    notes: "Listed on the Saturday schedule; resolves to Sunday's calendar date."
+  - stage: "warehouse"
+    artist: "Aster Null"
+    start: "2026-08-16T02:30:00"      # shifted: printed under SATURDAY as "2:30 AM"
+    end: "2026-08-16T03:30:00"
+    end_inferred: true
+    notes: "Last set of the night, no printed end time — defaulted to 60 minutes."
+
+  # ─── SUNDAY 16 AUGUST ────────────────────────────────────────────────────────
+  - stage: "porch"
+    artist: "Marguerite Vale"
+    start: "2026-08-16T12:00:00"
+    end: "2026-08-16T12:45:00"
+    end_inferred: false
+  - stage: "annex"
+    artist: "Softbank Sunset"
+    start: "2026-08-16T12:30:00"
+    end: "2026-08-16T13:15:00"
+    end_inferred: false
+  - stage: "grove"
+    artist: "Coriander Field"
+    start: "2026-08-16T12:45:00"
+    end: "2026-08-16T13:35:00"
+    end_inferred: false
+  - stage: "canal"
+    artist: "Amos Ledger"
+    start: "2026-08-16T13:00:00"
+    end: "2026-08-16T13:50:00"
+    end_inferred: false
+  - stage: "porch"
+    artist: "The Reading Room"
+    start: "2026-08-16T13:15:00"
+    end: "2026-08-16T14:00:00"
+    end_inferred: false
+  - stage: "main"
+    artist: "Harrow Bay"
+    start: "2026-08-16T13:30:00"
+    end: "2026-08-16T14:20:00"
+    end_inferred: false
+  - stage: "annex"
+    artist: "Fenwick"
+    start: "2026-08-16T14:00:00"
+    end: "2026-08-16T14:45:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "Copper Wire"
+    start: "2026-08-16T14:00:00"
+    end: "2026-08-16T15:15:00"
+    end_inferred: false
+  - stage: "porch"
+    artist: "Nadia Salem"
+    start: "2026-08-16T14:30:00"
+    end: "2026-08-16T15:15:00"
+    end_inferred: false
+  - stage: "grove"
+    artist: "Lantern Method"
+    start: "2026-08-16T14:45:00"
+    end: "2026-08-16T15:45:00"
+    end_inferred: false
+  - stage: "canal"
+    artist: "Bellweather"
+    start: "2026-08-16T15:00:00"
+    end: "2026-08-16T15:55:00"
+    end_inferred: false
+  - stage: "main"
+    artist: "Cinder & Vale"
+    start: "2026-08-16T15:15:00"
+    end: "2026-08-16T16:15:00"
+    end_inferred: false
+  - stage: "annex"
+    artist: "Room Tone"
+    start: "2026-08-16T15:30:00"
+    end: "2026-08-16T16:15:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "Substrata"
+    start: "2026-08-16T15:45:00"
+    end: "2026-08-16T17:00:00"
+    end_inferred: false
+  - stage: "grove"
+    artist: "Pale Cartographer"
+    start: "2026-08-16T16:00:00"
+    end: "2026-08-16T17:00:00"
+    end_inferred: false
+  - stage: "canal"
+    artist: "Solveig Aune"
+    start: "2026-08-16T16:15:00"
+    end: "2026-08-16T17:15:00"
+    end_inferred: false
+  - stage: "main"
+    artist: "Ruthless Optimist"
+    start: "2026-08-16T16:45:00"
+    end: "2026-08-16T17:45:00"
+    end_inferred: false
+  - stage: "annex"
+    artist: "Kite String Theory"
+    start: "2026-08-16T17:00:00"
+    end: "2026-08-16T17:45:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "Dead Reckoning"
+    start: "2026-08-16T17:30:00"
+    end: "2026-08-16T18:45:00"
+    end_inferred: false
+  - stage: "grove"
+    artist: "Orphan Wing"
+    start: "2026-08-16T17:30:00"
+    end: "2026-08-16T18:30:00"
+    end_inferred: false
+  - stage: "canal"
+    artist: "The Quiet Fleet"
+    start: "2026-08-16T17:45:00"
+    end: "2026-08-16T18:45:00"
+    end_inferred: false
+  - stage: "main"
+    artist: "Signal Fire"
+    start: "2026-08-16T18:15:00"
+    end: "2026-08-16T19:30:00"
+    end_inferred: false
+  - stage: "grove"
+    artist: "Everlong Avenue"
+    start: "2026-08-16T19:00:00"
+    end: "2026-08-16T20:00:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "Terminal Velocity"
+    start: "2026-08-16T19:15:00"
+    end: "2026-08-16T20:30:00"
+    end_inferred: false
+  - stage: "canal"
+    artist: "Last Light Ferry"
+    start: "2026-08-16T19:15:00"
+    end: "2026-08-16T20:15:00"
+    end_inferred: false
+  - stage: "main"
+    artist: "HARBOUR MASTER"
+    start: "2026-08-16T20:15:00"
+    end: "2026-08-16T22:00:00"
+    end_inferred: false
+    notes: "Closing headliner."
+  - stage: "warehouse"
+    artist: "Afterparty Protocol"
+    start: "2026-08-16T22:15:00"
+    end: "2026-08-16T23:30:00"
+    end_inferred: true
+    notes: "Closing set, no printed end time."

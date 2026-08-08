@@ -1,0 +1,66 @@
+# FIXTURE DATA — "DST Check" is not a real festival and must never be published.
+#
+# Purpose: validation gate 5. It is a two-stage, four-set festival deliberately
+# straddling the US autumn daylight-saving transition:
+#
+#   America/Chicago, Sunday 1 November 2026
+#   01:59:59 CDT (UTC-05:00)  ->  01:00:00 CST (UTC-06:00)
+#   i.e. the transition instant is 2026-11-01T07:00:00Z
+#
+# Two sets fall on the CDT side and two on the CST side, so a feed that emits
+# floating local time, a wrong VTIMEZONE, or a single fixed offset produces a
+# demonstrably wrong UTC instant for at least one of them.
+#
+# Expected resolved instants (asserted in tests/gates.test.ts):
+#   Before the Fallback              2026-10-31T22:00 CDT -> 2026-11-01T03:00:00Z
+#   Óskar Þórðarson ...              2026-11-01T00:15 CDT -> 2026-11-01T05:15:00Z
+#   After the Fallback               2026-11-01T03:00 CST -> 2026-11-01T09:00:00Z
+#   Sunday Matinée, Part Two         2026-11-01T12:00 CST -> 2026-11-01T18:00:00Z
+#
+# No set is placed inside 01:00–02:00 local on 1 November: that hour occurs twice
+# and any assertion about it would be testing our tie-break, not our timezone.
+#
+# This file is also the golden-file fixture (gate 2), so its artist names carry
+# the escaping and folding edge cases: a comma, an ampersand, combining
+# diacritics, and non-ASCII letters that are not diacritics (þ, ð, ǫ).
+
+festival:
+  name: "DST Check"
+  slug: "dst-check"
+  year: 2026
+  timezone: "America/Chicago"
+  official_url: "https://example.com/dst-check/schedule"
+
+stages:
+  - id: "hall"
+    name: "Fallback Hall"
+    description: "Runs through the transition."
+  - id: "yard"
+    name: "The Yard"
+    description: "Opens after the clocks go back."
+
+sets:
+  - stage: "hall"
+    artist: "Before the Fallback"
+    start: "2026-10-31T22:00:00"
+    end: "2026-10-31T23:00:00"
+    end_inferred: false
+    notes: "CDT side, UTC-05:00."
+  - stage: "hall"
+    artist: "Óskar Þórðarson & the Ǫld Ǫrchard Ballroom Ensemble Ǫrkestrǫ"
+    start: "2026-11-01T00:15:00"      # shifted: printed under SATURDAY as "12:15 AM"
+    end: "2026-11-01T00:45:00"
+    end_inferred: true
+    notes: "Still CDT. Long non-ASCII name — folding and escaping test."
+  - stage: "yard"
+    artist: "After the Fallback"
+    start: "2026-11-01T03:00:00"
+    end: "2026-11-01T04:00:00"
+    end_inferred: false
+    notes: "CST side, UTC-06:00."
+  - stage: "yard"
+    artist: "Sunday Matinée, Part Two"
+    start: "2026-11-01T12:00:00"
+    end: "2026-11-01T13:00:00"
+    end_inferred: false
+    notes: "Comma in the name — escaping test."

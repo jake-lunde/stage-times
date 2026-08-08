@@ -1,0 +1,30 @@
+{
+  "$comment": [
+    "COMMITTED STATE — the published URL surface. Read the URL contract before editing.",
+    "`festivals[key].stages` records every stage slug that has ever been served at",
+    "https://stagetimes.app/<key>/<stage>.ics. The build APPENDS to this list and never removes.",
+    "If a slug listed here is missing from the YAML the build refuses to run, because that URL is",
+    "still being polled by every subscriber who ever tapped it and no redirect will save them.",
+    "`publishedAt` is the revision stamp for this publish. Bump it whenever you change a data file;",
+    "it becomes DTSTAMP / LAST-MODIFIED on every event the build touches and `lastUpdated` in feeds.json.",
+    "It exists so the build never reads the wall clock — output must be byte-identical across runs.",
+    "",
+    "NOTE: `festivals` is intentionally empty. Nothing has been deployed to the production apex yet,",
+    "so no URL is being polled by anyone and gate 4 has nothing to protect. The build appends the",
+    "stage slugs on the first production build; from that moment they are frozen forever."
+  ],
+  "publishedAt": "20260808T000000Z",
+  "default": "capitol-hill-block-party-2026",
+  "festivals": {
+    "capitol-hill-block-party-2026": {
+      "slug": "capitol-hill-block-party",
+      "year": 2026,
+      "stages": [
+        "barboza",
+        "daydream",
+        "main",
+        "neumos"
+      ]
+    }
+  }
+}
