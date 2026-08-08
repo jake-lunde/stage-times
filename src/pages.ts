@@ -197,6 +197,13 @@ h3{font-size:var(--t-large); line-height:1.1; font-weight:800; letter-spacing:-0
 .btn--sm{height:var(--h-btn-sm); border-radius:var(--r-btn-sm)}
 .btn:active{transform:scale(.99)}
 
+/* Loading state. A webcal tap hands off to the OS and nothing visibly happens for a
+   second or two — the button must acknowledge the press or people tap again. Text
+   swap plus a gentle pulse; no spinner, because nothing ever goes inside a button
+   except its label. pointer-events off so a double-tap can't fire twice. */
+.btn.is-loading{pointer-events:none; animation:btn-pulse 1.1s ease-in-out infinite}
+@keyframes btn-pulse{0%,100%{opacity:1}50%{opacity:.6}}
+
 .btn-row{display:flex; gap:var(--gap-1); margin-top:var(--gap-1)}
 .btn-row .btn{flex:1}
 .btn--ghost-on-color{
@@ -405,21 +412,44 @@ ${cards}
     <p>Updated ${esc(humanStamp(m.lastUpdated))}. Times are ${esc(f.timezone.replace('_', ' '))} local.</p>
     <p>Unofficial. Not affiliated with ${esc(f.name)}.</p>
     <p>Source: <a href="${esc(f.officialUrl)}">the official schedule</a>.</p>
-    <p>Found an error? <a href="https://github.com/jakelunde/stage-times/issues">Open an issue</a>.</p>
+    <p>Found an error? <a href="https://github.com/jake-lunde/stage-times/issues">Open an issue</a>.</p>
   </footer>
 </main>
 
 <script>
 document.addEventListener('click', function (e) {
-  var b = e.target.closest('[data-copy]');
-  if (!b) return;
-  var url = b.getAttribute('data-copy');
-  var done = function () {
-    var was = b.textContent;
-    b.textContent = 'Copied';
-    setTimeout(function () { b.textContent = was; }, 1600);
-  };
-  if (navigator.clipboard) { navigator.clipboard.writeText(url).then(done, function(){}); }
+  var copy = e.target.closest('[data-copy]');
+  if (copy) {
+    var url = copy.getAttribute('data-copy');
+    var done = function () {
+      var was = copy.textContent;
+      copy.classList.add('is-loading');
+      copy.textContent = 'Copied';
+      setTimeout(function () {
+        copy.textContent = was;
+        copy.classList.remove('is-loading');
+      }, 1600);
+    };
+    if (navigator.clipboard) { navigator.clipboard.writeText(url).then(done, function () {}); }
+    return;
+  }
+
+  // Subscribe: the OS takes over and for a second or two nothing visible happens.
+  // Acknowledge the tap, block re-fires, then restore — if Calendar opened, the
+  // restore happens offscreen; if the platform silently ignored webcal:// (Android),
+  // the button comes back and the "Not on iPhone?" section is the answer.
+  var sub = e.target.closest('a[href^="webcal:"]');
+  if (sub && !sub.classList.contains('is-loading')) {
+    var was = sub.textContent;
+    sub.classList.add('is-loading');
+    sub.setAttribute('aria-busy', 'true');
+    sub.textContent = 'Opening Calendar\\u2026';
+    setTimeout(function () {
+      sub.textContent = was;
+      sub.classList.remove('is-loading');
+      sub.removeAttribute('aria-busy');
+    }, 2500);
+  }
 });
 </script>`;
 
@@ -459,7 +489,7 @@ export function renderLandingPage(m: Manifest): string {
 
   <footer>
     <p>Unofficial. Not affiliated with any festival.</p>
-    <p>Found an error? <a href="https://github.com/jakelunde/stage-times/issues">Open an issue</a>.</p>
+    <p>Found an error? <a href="https://github.com/jake-lunde/stage-times/issues">Open an issue</a>.</p>
   </footer>
 </main>`;
 
