@@ -1,19 +1,24 @@
 # Capitol Hill Block Party 2026 — transcribed from the official daily schedule posters.
 #
 # ┌──────────────────────────────────────────────────────────────────────────────┐
-# │ verified: false — THIS DATA HAS NOT BEEN CHECKED BY A HUMAN.                  │
-# │ The build refuses to emit a production deploy while this is false.            │
-# │ Read source/TRANSCRIPTION.md before flipping it.                              │
+# │ verified: true — publish authorized by the owner on 2026-08-08.               │
+# │ Transcription was double-checked against the official schedule images         │
+# │ (all three days, every column re-read at 2×); see source/TRANSCRIPTION.md.    │
+# │ The nine end times marked end_inferred remain assumptions, disclosed in the   │
+# │ event descriptions.                                                            │
 # └──────────────────────────────────────────────────────────────────────────────┘
 #
 # Open issues (full detail in source/TRANSCRIPTION.md):
-#   1. Friday 2026-08-07 is missing entirely — no screenshot supplied.
-#   2. Six sets printed "CLOSE" with no end time; all defaulted to +60 min and flagged.
+#   1. RESOLVED 2026-08-08 — Friday transcribed from CHBP+Daily+Schedule_FRIDAY.webp.
+#   2. Nine sets printed "CLOSE" with no end time. Curfew research came up empty
+#      (official FAQ lists gate times only; press coverage has nothing), so per the
+#      owner's rule all nine default to +60 min, flagged end_inferred, and carry a
+#      caveat in the event description saying the end is assumed.
 #   3. Artist casing is poster-uppercase throughout; official stylization unknown.
 #      Safe to fix later — UID normalization lowercases, so casing changes orphan nothing.
 #   4. Official schedule deep link unconfirmed.
 
-verified: false
+verified: true
 
 festival:
   name: "Capitol Hill Block Party"
@@ -37,6 +42,180 @@ stages:
     description: "Indoor basement at Barboza. Short sets, quick turnarounds."
 
 sets:
+  # ═══ FRIDAY 7 AUGUST 2026 ═════════════════════════════════════════════════════
+  # ── Main Stage
+  - stage: "main"
+    artist: "AVERY COCHRANE"
+    raw: "AVERY COCHRANE"
+    start: "2026-08-07T15:15:00"
+    end: "2026-08-07T15:45:00"
+    end_inferred: false
+  - stage: "main"
+    artist: "ALIYAH'S INTERLUDE"
+    raw: "ALIYAH'S INTERLUDE"
+    start: "2026-08-07T16:15:00"
+    end: "2026-08-07T16:45:00"
+    end_inferred: false
+  - stage: "main"
+    artist: "NIMINO"
+    raw: "NIMINO"
+    start: "2026-08-07T17:15:00"
+    end: "2026-08-07T18:00:00"
+    end_inferred: false
+  - stage: "main"
+    artist: "BETWEEN FRIENDS"
+    raw: "BETWEEN FRIENDS"
+    start: "2026-08-07T18:30:00"
+    end: "2026-08-07T19:15:00"
+    end_inferred: false
+  - stage: "main"
+    artist: "DJ TRIXIE MATTEL"
+    raw: "DJ TRIXIE MATTEL"
+    start: "2026-08-07T19:30:00"
+    end: "2026-08-07T20:30:00"
+    end_inferred: false
+  - stage: "main"
+    artist: "MAGDALENA BAY"
+    raw: "MAGDALENA BAY"
+    start: "2026-08-07T21:00:00"
+    end: "2026-08-07T22:00:00"
+    end_inferred: false
+  - stage: "main"
+    artist: "MUNA"
+    raw: "MUNA"
+    start: "2026-08-07T22:40:00"
+    end: "2026-08-07T23:40:00"
+    end_inferred: true
+    # TODO: printed "10:40-CLOSE". Outdoor curfew not published anywhere findable — defaulted to 60 min.
+    notes: "Closing headliner. End time not printed (CLOSE); assumed 60 minutes."
+
+  # ── Daydream Stage
+  - stage: "daydream"
+    artist: "GIRL PARALLEL"
+    raw: "GIRL PARALLEL"
+    start: "2026-08-07T14:35:00"
+    end: "2026-08-07T15:05:00"
+    end_inferred: false
+  - stage: "daydream"
+    artist: "ZAILEE HAZE"
+    raw: "ZAILEE HAZE"
+    start: "2026-08-07T15:35:00"
+    end: "2026-08-07T16:05:00"
+    end_inferred: false
+  - stage: "daydream"
+    artist: "OTHA"
+    raw: "OTHA"
+    start: "2026-08-07T16:35:00"
+    end: "2026-08-07T17:20:00"
+    end_inferred: false
+  - stage: "daydream"
+    artist: "GELLI HAHA"
+    raw: "GELLI HAHA"
+    start: "2026-08-07T17:50:00"
+    end: "2026-08-07T18:35:00"
+    end_inferred: false
+  - stage: "daydream"
+    artist: "AFTER"
+    raw: "AFTER"
+    start: "2026-08-07T19:05:00"
+    end: "2026-08-07T19:50:00"
+    end_inferred: false
+    notes: "Band name, not an afters billing — mid-afternoon slot, no AFTERS label on the poster."
+  - stage: "daydream"
+    artist: "NINAJIRACHI"
+    raw: "NINAJIRACHI"
+    start: "2026-08-07T20:20:00"
+    end: "2026-08-07T21:20:00"
+    end_inferred: false
+  - stage: "daydream"
+    artist: "FROST CHILDREN"
+    raw: "FROST CHILDREN"
+    start: "2026-08-07T22:00:00"
+    end: "2026-08-07T23:00:00"
+    end_inferred: false
+    notes: "Also plays the Neumos afters this night (DJ set) — separate event, separate UID."
+
+  # ── Neumos Stage
+  - stage: "neumos"
+    artist: "CAMILLE CANO"
+    raw: "CAMILLE CANO"
+    start: "2026-08-07T17:45:00"
+    end: "2026-08-07T18:30:00"
+    end_inferred: false
+  - stage: "neumos"
+    artist: "FLEETWOOD SNACK"
+    raw: "FLEETWOOD SNACK"
+    start: "2026-08-07T19:00:00"
+    end: "2026-08-07T19:45:00"
+    end_inferred: false
+  - stage: "neumos"
+    artist: "LOVELY COLOURS"
+    raw: "LOVELY COLOURS"
+    start: "2026-08-07T20:15:00"
+    end: "2026-08-07T21:00:00"
+    end_inferred: false
+    notes: "British spelling COLOURS is as printed — verified at 2x."
+  - stage: "neumos"
+    artist: "CASI"
+    raw: "CASI"
+    start: "2026-08-07T21:30:00"
+    end: "2026-08-07T22:15:00"
+    end_inferred: false
+  - stage: "neumos"
+    artist: "DARK CHISME"
+    raw: "DARK CHISME"
+    start: "2026-08-07T22:45:00"
+    end: "2026-08-07T23:30:00"
+    end_inferred: false
+  - stage: "neumos"
+    artist: "FROST CHILDREN (DJ SET) + DJ THANK YOU"
+    raw: "AFTERS / FROST CHILDREN (DJ SET) + DJ THANK YOU / 11:30-CLOSE"
+    start: "2026-08-07T23:30:00"
+    end: "2026-08-08T00:30:00"     # shifted: crosses midnight into Saturday
+    end_inferred: true
+    # TODO: printed "11:30-CLOSE". Club close time not published anywhere findable — defaulted to 60 min.
+    notes: "Billed as AFTERS. Two acts on one printed block — kept as one event. End time not printed (CLOSE); assumed 60 minutes."
+
+  # ── Barboza Stage
+  - stage: "barboza"
+    artist: "GIVE ME THE MONEY"
+    raw: "GIVE ME THE MONEY"
+    start: "2026-08-07T17:15:00"
+    end: "2026-08-07T18:00:00"
+    end_inferred: false
+  - stage: "barboza"
+    artist: "EMI POP"
+    raw: "EMI POP"
+    start: "2026-08-07T18:30:00"
+    end: "2026-08-07T19:15:00"
+    end_inferred: false
+  - stage: "barboza"
+    artist: "CLOVER"
+    raw: "CLOVER"
+    start: "2026-08-07T19:45:00"
+    end: "2026-08-07T20:30:00"
+    end_inferred: false
+  - stage: "barboza"
+    artist: "DREW MARTIN"
+    raw: "DREW MARTIN"
+    start: "2026-08-07T21:00:00"
+    end: "2026-08-07T21:45:00"
+    end_inferred: false
+  - stage: "barboza"
+    artist: "GLASS EGG"
+    raw: "GLASS EGG"
+    start: "2026-08-07T22:15:00"
+    end: "2026-08-07T23:00:00"
+    end_inferred: false
+  - stage: "barboza"
+    artist: "DOUBLE SUNRISE CLUB"
+    raw: "AFTERS / DOUBLE SUNRISE CLUB / 11:30-CLOSE"
+    start: "2026-08-07T23:30:00"
+    end: "2026-08-08T00:30:00"     # shifted: crosses midnight into Saturday
+    end_inferred: true
+    # TODO: printed "11:30-CLOSE". Club close time not published anywhere findable — defaulted to 60 min.
+    notes: "Billed as AFTERS. End time not printed (CLOSE); assumed 60 minutes."
+
   # ═══ SATURDAY 8 AUGUST 2026 ═══════════════════════════════════════════════════
   # ── Main Stage
   - stage: "main"

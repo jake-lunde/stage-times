@@ -18,7 +18,7 @@ import {
   type BuildResult,
   type PublishedFile,
 } from '../src/build.js';
-import { MAX_LINE_OCTETS, UID_DOMAIN } from '../src/ics.js';
+import { END_INFERRED_CAVEAT, MAX_LINE_OCTETS, UID_DOMAIN } from '../src/ics.js';
 import { SchemaError, loadFestival, validateDoc, wallToUtc } from '../src/schema.js';
 import { parse as parseYaml } from 'yaml';
 import {
@@ -189,7 +189,7 @@ test('gate 1: the end_inferred caveat appears only where the YAML says so', () =
     const summary = String(ve.getFirstPropertyValue('summary'));
     const description = String(ve.getFirstPropertyValue('description'));
     assert.equal(
-      description.includes('inferred'),
+      description.includes(END_INFERRED_CAVEAT),
       inferredArtists.has(summary),
       `${summary}: end_inferred caveat mismatch`,
     );
@@ -580,7 +580,7 @@ test('gate 6: a folded DESCRIPTION whose continuation begins with a real space r
     String(parsed.getFirstPropertyValue('description')),
     'Fallback Hall\n' +
       'Sun 1 Nov 2026, 12:15 AM – 12:45 AM\n' +
-      'End time not printed on the official schedule; inferred from the next set on this stage. Treat it as approximate.\n' +
+      'End time not printed on the official schedule; assumed to be one hour after the start. Treat it as approximate.\n' +
       'Official schedule: https://example.com/dst-check/schedule',
   );
 });

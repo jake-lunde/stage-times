@@ -53,9 +53,9 @@ SUMMARY:Óskar Þórðarson & the Ǫld Ǫrchard Ballroom Ensemble Ǫrkestr
  ǫ
 LOCATION:Fallback Hall
 DESCRIPTION:Fallback Hall\nSun 1 Nov 2026\, 12:15 AM – 12:45 AM\nEnd time
-  not printed on the official schedule\; inferred from the next set on this
-  stage. Treat it as approximate.\nOfficial schedule: https://example.com/d
- st-check/schedule
+  not printed on the official schedule\; assumed to be one hour after the s
+ tart. Treat it as approximate.\nOfficial schedule: https://example.com/dst
+ -check/schedule
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 SEQUENCE:0

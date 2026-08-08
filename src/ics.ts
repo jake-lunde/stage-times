@@ -322,7 +322,7 @@ export function formatSetTimeRange(start: WallTime, end: WallTime): string {
 // ---------------------------------------------------------------------------
 
 export const END_INFERRED_CAVEAT =
-  'End time not printed on the official schedule; inferred from the next set on this stage. Treat it as approximate.';
+  'End time not printed on the official schedule; assumed to be one hour after the start. Treat it as approximate.';
 
 /** Everything about an event that a subscriber can see. Hashed to drive SEQUENCE. */
 export interface EventContent {

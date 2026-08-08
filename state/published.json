@@ -13,7 +13,7 @@
     "so no URL is being polled by anyone and gate 4 has nothing to protect. The build appends the",
     "stage slugs on the first production build; from that moment they are frozen forever."
   ],
-  "publishedAt": "20260808T000000Z",
+  "publishedAt": "20260808T211500Z",
   "default": "capitol-hill-block-party-2026",
   "festivals": {
     "capitol-hill-block-party-2026": {

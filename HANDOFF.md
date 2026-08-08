@@ -8,6 +8,14 @@
 Status: **first pass complete and deployed to preview.** Nothing is in production, and the build
 physically refuses to publish until a human verifies the set times.
 
+> **Update, later on 8 Aug 2026:** decisions 1 and 2 below are resolved — Friday's 26 sets are
+> transcribed (79 total), and all nine `CLOSE` end times fall back to start + 60 min with a
+> caveat in the event description, since no published curfew could be found. Details in
+> `source/TRANSCRIPTION.md`. Also discovered: the GoDaddy A records now point at Vercel, but
+> `stagetimes.app` is not attached to the `stage-times` project — attach the apex (not `www`)
+> in the Vercel dashboard before publishing. Remaining: casing (deferrable), human verify →
+> `verified: true`, prod deploy.
+
 ---
 
 ## What exists now

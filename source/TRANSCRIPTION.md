@@ -1,18 +1,71 @@
 # Transcription log — Capitol Hill Block Party 2026
 
-Source images: `_ref/set-screenshots/CHBP+Daily+Schedule_SATURDAY.webp`, `…_SUNDAY.webp`
-(1000×1333 each). Every column was cropped and re-read at 2× before transcription; nothing
-below is a single-pass read.
+Source images: `_ref/set-screenshots/CHBP+Daily+Schedule_FRIDAY.webp`, `…_SATURDAY.webp`,
+`…_SUNDAY.webp` (1000×1333 each). Every column was cropped and re-read at 2× before
+transcription; nothing below is a single-pass read. Friday was supplied and transcribed
+2026-08-08, after the first pass; the Saturday/Sunday data was re-checked against the new
+cleaner images at the same time and matched exactly.
 
-Verified independently: **2026-08-08 is a Saturday** and **2026-08-09 is a Sunday**, matching the
-poster headers. Seattle is **PDT (UTC−7)** across the whole festival — no DST transition falls
-inside the window, so gate 5's DST case is exercised by a separate fixture, not by this data.
+Verified independently: **2026-08-07 is a Friday**, **2026-08-08 is a Saturday** and
+**2026-08-09 is a Sunday**, matching the poster headers. Seattle is **PDT (UTC−7)** across the
+whole festival — no DST transition falls inside the window, so gate 5's DST case is exercised by
+a separate fixture, not by this data.
 
 ---
 
 ## Verbatim transcription
 
 Times are exactly as printed. `CLOSE` is reproduced literally — it is not a time.
+
+### FRIDAY AUGUST 7, 2026
+
+**MAIN STAGE**
+```
+AVERY COCHRANE       3:15-3:45PM
+ALIYAH'S INTERLUDE   4:15-4:45PM
+NIMINO               5:15-6:00PM
+BETWEEN FRIENDS      6:30-7:15PM
+DJ TRIXIE MATTEL     7:30-8:30PM
+MAGDALENA BAY        9:00-10:00PM
+MUNA                 10:40-CLOSE
+```
+
+**DAYDREAM STAGE**
+```
+GIRL PARALLEL        2:35-3:05PM
+ZAILEE HAZE          3:35-4:05PM
+OTHA                 4:35-5:20PM
+GELLI HAHA           5:50-6:35PM
+AFTER                7:05-7:50PM
+NINAJIRACHI          8:20-9:20PM
+FROST CHILDREN       10:00-11:00PM
+```
+
+**NEUMOS STAGE**
+```
+CAMILLE CANO         5:45-6:30PM
+FLEETWOOD SNACK      7:00-7:45PM
+LOVELY COLOURS       8:15-9:00PM
+CASI                 9:30-10:15PM
+DARK CHISME          10:45-11:30PM
+AFTERS: FROST CHILDREN (DJ SET) + DJ THANK YOU   11:30-CLOSE
+```
+
+**BARBOZA STAGE**
+```
+GIVE ME THE MONEY    5:15-6:00PM
+EMI POP              6:30-7:15PM
+CLOVER               7:45-8:30PM
+DREW MARTIN          9:00-9:45PM
+GLASS EGG            10:15-11:00PM
+AFTERS: DOUBLE SUNRISE CLUB   11:30-CLOSE
+```
+
+Friday quirks, all checked at 2×: the Daydream act **AFTER** is a band name in an ordinary
+7:05 PM slot, not an afters billing — the poster's afters blocks are labelled `AFTERS` in italic
+and sit at the bottom of the column. **FROST CHILDREN** plays twice (Daydream live set, then the
+Neumos afters as a DJ set) — two stages, so two UIDs, same as NICKCHEO on Saturday.
+**LOVELY COLOURS** is the British spelling as printed.
 
 ### SATURDAY AUGUST 8, 2026
 
@@ -103,28 +156,35 @@ HENRY MANSFIELD      8:30-9:00PM
 FATAL FEMMES         9:30-10:00PM
 ```
 
-**Totals:** 29 Saturday (7 main + 7 daydream + 7 neumos + 8 barboza) + 24 Sunday (6 per stage)
-= **53 sets** across 4 stages. This matches the count the build reports; if the two ever diverge,
-the build is right and this document is stale.
+**Totals:** 26 Friday (7 main + 7 daydream + 6 neumos + 6 barboza) + 29 Saturday
+(7 main + 7 daydream + 7 neumos + 8 barboza) + 24 Sunday (6 per stage) = **79 sets** across
+4 stages. This matches the count the build reports; if the two ever diverge, the build is right
+and this document is stale.
 
 ---
 
 ## Ambiguities — every one of these needs a human decision before publish
 
-### 1. Friday is missing — BLOCKING for a complete feed
-Only Saturday and Sunday were supplied. Capitol Hill Block Party runs Friday–Sunday; Friday would
-be **2026-08-07**. The feeds currently published from this data are a two-day festival. If Friday
-exists, subscribers who add now will silently never see Friday sets — the feed will update when
-the YAML does, so this is recoverable, but it should be resolved before the URL is shared.
-**Action: send the Friday schedule image.**
+### 1. Friday is missing — RESOLVED 2026-08-08
+The Friday schedule image was supplied (`CHBP+Daily+Schedule_FRIDAY.webp`) and its 26 sets are
+transcribed above and in the YAML. The feed now covers all three days.
 
-### 2. Six sets have no printed end time (`CLOSE`)
-Per the brief's rule, each was resolved to **start + 60 minutes** and marked `end_inferred: true`.
-Every one of these is a guess and several are probably wrong — a main-stage headliner slot is
-usually longer than an hour, and a club afters is usually much longer.
+### 2. Nine sets have no printed end time (`CLOSE`) — fallback accepted 2026-08-08
+Each is resolved to **start + 60 minutes** and marked `end_inferred: true`, which puts a caveat
+in the subscriber-visible event description saying the end time is assumed.
+
+Real end times were searched for on 2026-08-08 and **could not be determined**: the official FAQ
+(capitolhillblockparty.com/faq) lists gate-opening times only, the official schedule page prints
+the same posters, and press coverage (EverOut, CHS, Dance Music NW, Music Festival Wizard) states
+no closing times. The owner's rule for this case: fall back to 60 minutes and say so in the
+event. If a real curfew ever surfaces, update the ends in the YAML and the feed will push the
+correction to subscribers.
 
 | Stage | Artist | Printed | Assumed end |
 |---|---|---|---|
+| Main (Fri) | MUNA | 10:40–CLOSE | 23:40 Fri |
+| Neumos (Fri) | AFTERS: FROST CHILDREN (DJ SET) + DJ THANK YOU | 11:30–CLOSE | 00:30 **Sat** |
+| Barboza (Fri) | AFTERS: DOUBLE SUNRISE CLUB | 11:30–CLOSE | 00:30 **Sat** |
 | Main (Sat) | DISCO LINES | 10:40–CLOSE | 23:40 Sat |
 | Neumos (Sat) | AFTERS: NICKCHEO | 11:15–CLOSE | 00:15 **Sun** |
 | Barboza (Sat) | AFTERS: DJ_DAVE + MGNA CRRRTA | 11:00–CLOSE | 00:00 **Sun** |
@@ -132,11 +192,9 @@ usually longer than an hour, and a club afters is usually much longer.
 | Daydream (Sun) | MPH | 9:00–CLOSE | 22:00 Sun |
 | Neumos (Sun) | AFTERS: DJ100PROOF + THE LAST SKEPTIK | 10:00–CLOSE | 23:00 Sun |
 
-The two marked **Sun** cross midnight and were resolved to the following calendar date — that is
-the post-midnight rule from the brief applied to an inferred end rather than a printed start.
-
-**Action: supply real curfew times, or accept 60 minutes.** My recommendation is to find the
-outdoor curfew (one number covers both main-stage cases) and treat club afters as ending at 02:00.
+The rows marked with a following day cross midnight and were resolved to the next calendar
+date — the post-midnight rule from the brief applied to an inferred end rather than a printed
+start.
 
 ### 3. Artist casing cannot be derived from this source
 The poster is set entirely in uppercase, so it carries **no information about official
@@ -164,8 +222,9 @@ that are not printed anywhere.
 The `AFTERS` label and the `(DJ SETS)` annotation are recorded in `notes`, not folded into the
 artist name — they are programming metadata, not part of anyone's name.
 
-### 5. `MGNA CRRRTA` and `NICKCHEO` each play twice
-Both appear on two different stages on Saturday. This is correctly two separate events with
+### 5. `MGNA CRRRTA`, `NICKCHEO` and `FROST CHILDREN` each play twice
+The first two appear on two different stages on Saturday; Frost Children plays the Daydream
+stage and then the Neumos afters on Friday. Each case is correctly two separate events with
 different UIDs, because stage id is part of the UID. **It would have been a silent collision had
 either played the same stage twice** — the brief's UID formula has no set-index component. The
 build now hard-fails on duplicate UIDs rather than letting one event overwrite the other.
