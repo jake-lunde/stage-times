@@ -155,6 +155,30 @@ uploaders ("my times changed" → re-upload → diff → SEQUENCE bump), maybe d
 
 ---
 
+## Task: analytics (owner approved 2026-08-08)
+
+Goal: answer *"is anyone finding this?"* and *"are they subscribing?"* — aggregate only,
+cookieless, nothing stored about individuals. No per-subscriber URLs, ever — one canonical URL
+per feed is a design invariant, and tokenized URLs are the creepy version of this feature.
+
+1. **Pages:** enable Vercel Web Analytics on the project and add its snippet to the rendered
+   HTML (`src/pages.ts` — pages are static, so use the plain `/_vercel/insights/script.js`
+   script tag, not the React package). Track one custom event: subscribe-button taps, with
+   `{festival, stage}` as properties. That tap is the best available "tried to subscribe"
+   signal; the calendar app takes over after it.
+2. **Feeds:** calendar clients don't run JS, so feed polls are invisible to Web Analytics.
+   Read them from Vercel's request logs / observability (short retention). Only if history
+   proves wanted: add a log drain (e.g. Axiom free tier) — do not build anything custom first.
+3. **Interpretation notes** (so future sessions don't over-promise): Google Calendar fetches
+   server-side — one poll may represent any number of subscribers. Apple devices poll directly
+   (`REFRESH-INTERVAL` PT12H ⇒ ~2 polls/device/day), but rotating mobile IPs and iCloud Private
+   Relay make unique-IP counts an estimate, not a census. 200-vs-304 ratio shows how many
+   subscribers are on current bytes; polls stopping is the only churn signal that exists.
+4. Keep the smoke test honest: the analytics script must appear on HTML pages only — never in
+   `.ics` responses.
+
+---
+
 ## Design system
 
 `.claude/skills/stage-times-design/` — load before touching any HTML/CSS/copy. The upload and
