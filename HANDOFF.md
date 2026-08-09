@@ -1,96 +1,94 @@
 # Stage Times — session handoff
 
-**Date:** 8 August 2026 (evening — supersedes the morning handoff)
+**Date:** 9 August 2026 (supersedes the 8 Aug evening handoff)
 **Repo:** `/Users/jake/Documents/github/stage-times`
 **Production:** https://stagetimes.app — **LIVE**
 **Vercel project:** `stage-times` @ LUNDE OS (`prj_mbuC9M3JFa5BMrEajeneh0vtLeHJ`)
 **GitHub:** https://github.com/jake-lunde/stage-times (git push to `main` triggers a production deploy)
 
-Status: **launched.** CHBP 2026 is in production, the owner is subscribed on his own phone, and
-the smoke test passes 5/5 against the apex. The URL contract is now real: every slug in
-`state/published.json` is frozen forever.
+Status: **launched, redesigned, instrumented, and Phase 1 of self-serve is proven.** CHBP 2026
+wraps tonight (Sunday); after that the feeds are historical record and need nothing. The next
+build is **Phase 2: the upload flow** — everything below points at it.
 
 ---
 
-## What happened since the morning handoff
+## What happened 2026-08-09
 
-1. **Friday transcribed** from `_ref/set-screenshots/CHBP+Daily+Schedule_FRIDAY.webp` — 26 sets,
-   bringing the total to **79 across three days**. Saturday/Sunday were re-checked against the
-   cleaner official images and matched exactly.
-2. **All nine `CLOSE` end times resolved by fallback**: no published curfew or club close time
-   exists anywhere findable (official FAQ has gate times only; EverOut/CHS/DMNW have nothing).
-   Owner's rule, applied: start + 60 min, `end_inferred: true`, and the event description now
-   says plainly *"assumed to be one hour after the start"* (the old caveat text falsely claimed
-   inference from the next set — fixed, goldens regenerated).
-3. **`verified: true`** — publish authorized by the owner 2026-08-08. `publishedAt` bumped to
-   `20260808T211500Z`.
-4. **Domain finished.** The morning mystery resolved: DNS was fine; the domain pair was attached
-   with **www as primary**. Flipped via the Vercel API (PATCH project-domains — order matters:
-   clear the apex redirect first, then set `www → apex 308`, because Vercel refuses redirect
-   chains). Canonical host is now the bare apex, as the webcal contract requires.
-5. **Deployed to production** via `npx vercel deploy --prod --scope lunde-os`. Test gates ran in
-   Vercel's build. Subscription confirmed working end-to-end on the owner's phone.
+1. **Design refresh shipped** (owner-directed, live in production). Archivo (variable width,
+   expanded caps for display) + Fragment Mono (fine detail), both self-hosted woff2 in
+   `assets/fonts/` — zero third-party requests still holds. Landing got an Apple-style media
+   card with the committed CHBP banner (`assets/festivals/<key>.webp`). Subscribe page: stage
+   cards became a CSS scroll-snap carousel with deterministic procedural capsule art and
+   per-day headliner previews; copy-link is a 44pt icon button; text buttons exist; everything
+   tappable shrinks on press. **The skill was rewritten to match**
+   (`.claude/skills/stage-times-design/`) — it is current and binding; the old "no webfont /
+   no icons in buttons" rules are superseded in place.
+2. **Analytics live.** Vercel Web Analytics snippet on both pages (plain-HTML pattern, stub
+   before deferred script), one custom event: `subscribe` with `{festival, stage}`. Web
+   Analytics was already enabled on the project (4 Aug). Tests pin the snippet into HTML and
+   out of every `.ics`, both statically and in the live smoke test. **Caveat:** Vercel gates
+   *custom events* to Pro/Enterprise — pageviews work on any plan; if `lunde-os` is Hobby the
+   subscribe panel stays empty (the code is harmless either way).
+3. **Phase 1 ingest CLI built and eval'd — the transcription question is answered.**
+   `npm run ingest -- <image>` (branch `feat/ingest-cli`, **not yet merged**) transcribes a
+   poster via Claude vision into festival YAML + a TRANSCRIPTION-style ambiguity log, reusing
+   `src/schema.ts` for validation. The eval re-transcribed all three CHBP posters and diffed
+   against the 79 hand-verified sets: **79/79 exact** (stage, artist, raw, start, end,
+   end_inferred), 9/9 CLOSE-inferred ends flagged, 41 reviewer observations logged. Cost:
+   **$0.74 for all three posters** (~25¢ each) on Opus. Artifacts:
+   `stage-times-ingest` worktree, `_ref/ingest-eval/`.
+4. **`build.ts` manifest gained `headliners`** per stage (the closer of each calendar day) —
+   feeds.json consumers can rely on it.
 
-Known cosmetic: the `webcal://` first hop is plain http, so Apple shows a one-time "Insecure
-Connection" prompt before following the 308 to https. If it grates, switch the subscribe buttons
-in `src/pages.ts` (~line 300) to `webcals://` — decide deliberately; `webcal://` has wider
-client recognition.
+## Housekeeping for the next session
+
+- **Merge `feat/ingest-cli`.** It sits in the `../stage-times-ingest` worktree with one
+  uncommitted edit to `src/ingest.ts` — review, commit, merge, then
+  `git worktree remove ../stage-times-ingest`. The `../stage-times-analytics` worktree is
+  merged and can be removed.
+- **Vision calls need a real API key.** The eval fell back to the local `claude` CLI
+  (`claude -p --model opus`), which bills the owner's *subscription session usage* — fine
+  once, wrong for anything recurring. Phase 2's serverless function needs `ANTHROPIC_API_KEY`
+  (Vercel env var). Also worth an eval rerun on a cheaper vision model against the same 79-set
+  ground truth before wiring Phase 2's default — the eval harness makes that a one-liner.
+- Known cosmetic: `webcal://` first hop is plain http → one-time "Insecure Connection" prompt
+  on Apple devices. Deliberate; see 8 Aug handoff reasoning (`webcals://` is the alternative).
+- Carry-over, all safe: artist casing is poster-uppercase; nine inferred CLOSE ends stand
+  unless a real curfew surfaces (fix YAML → SEQUENCE bumps propagate); official schedule deep
+  link unconfirmed.
 
 ---
 
-## Small carry-over items (all safe, none urgent)
-
-- **Artist casing** is poster-uppercase throughout. Fix against the official lineup page
-  whenever; UIDs lowercase before hashing, so nobody's event gets orphaned.
-- **If a real curfew ever surfaces**, correct the nine inferred ends in the YAML and rebuild —
-  SEQUENCE bumps push the fix to every subscriber. (Bump `publishedAt` when you do.)
-- **Official schedule deep link** still unconfirmed; event descriptions link the homepage.
-- After the festival ends (Sunday night), nothing needs doing — feeds are historical record.
-
----
-
-## NEXT: self-serve pipeline — upload a screenshot, get a webcal, publish to the site
+## NEXT: Phase 2 — upload a screenshot, get a webcal, publish to the site
 
 Owner's ask (2026-08-08): *"users can upload a screenshot and create a webcal and then those
-are published to the site for ease of access for new users."*
+are published to the site for ease of access for new users."* Phase 1 de-risked transcription;
+what remains is the product surface and the publish pipeline.
 
-### The core tension to resolve first
+### Working agreement (owner, 2026-08-09)
 
-Everything trustworthy about this codebase comes from two properties the self-serve idea
-threatens:
+**Delegate non-taste builds to agents; taste work stays in the main session.** The upload and
+review screens are *new design surfaces* — they are taste work. The serverless plumbing,
+GitHub-API commit flow, rate limiting, and slug collision logic are not — delegate them.
+Parallel agents get their own git worktrees and commit to branches; merge/push decisions stay
+with the owner (or with explicit approval).
 
-1. **The human verification gate.** Ingest (image → YAML) is the one non-deterministic step. For
-   CHBP the owner was the human. For self-serve, **the uploader must become the verifier of
-   their own festival** — they review the transcription against their image and confirm. That's
-   a weaker guarantee than owner review, so it must be a visible *tier*, not a silent
-   equivalence.
-2. **Committed state + deterministic build.** `state/published.json` and `state/sequences.json`
-   live in git; the build never reads a clock; goldens pin bytes. A dynamic pipeline must not
-   quietly abandon this.
+### Recommended architecture: git-backed ingest (unchanged, now half-built)
 
-### Recommended architecture: git-backed ingest (keep the static core)
-
-Don't build a database. Make the pipeline **write to the repo** through a serverless endpoint:
+Don't build a database. The pipeline writes to the repo through a serverless endpoint:
 
 ```
-upload (web) ──► transcribe (Claude vision, serverless fn)
-             ──► validate (reuse src/schema.ts — it's already a library)
+upload (web) ──► transcribe (Phase 1 pipeline as a library, real API key)
+             ──► validate (src/schema.ts)
              ──► review screen (uploader confirms against their own image)
-             ──► commit YAML + state to git via GitHub API, on a branch or straight to main
-             ──► Vercel auto-deploys (git integration already active)
+             ──► commit YAML + state via GitHub API
+             ──► Vercel auto-deploys (~60–90s; show it honestly: "being pressed…")
              ──► feed live at stagetimes.app/<slug>-<year>/<stage>.ics
 ```
 
-Why this shape wins:
-- **Every existing gate keeps firing** — the 69 tests run on every deploy via `vercel-build`.
-- **Determinism survives** — the build still reads only committed files; `publishedAt` is
-  stamped at commit time by the endpoint, not by the build.
-- **Audit + rollback for free** — every published festival is a commit with the source image
-  hash in the message. A bad publish is `git revert`.
-- Costs: one Claude vision call per upload (~cents), zero infra beyond Vercel functions.
-- Accepted tradeoff: ~60–90 s from "confirm" to live feed (a deploy). Show it honestly in the
-  UI ("Your calendar is being pressed…"). If that's ever unacceptable, revisit — but do not
-  start with a database for a latency complaint nobody has made yet.
+Every existing gate keeps firing (75 tests run in `vercel-build`); determinism survives
+(`publishedAt` stamped at commit time by the endpoint, never by the build); audit and rollback
+are git. One vision call per upload ≈ $0.25.
 
 ### Trust tiers (make verification visible)
 
@@ -100,88 +98,46 @@ Why this shape wins:
 | uploader-verified | uploader confirmed against their image | live feed, listed nowhere yet |
 | listed | owner approved for the public directory | homepage directory |
 
-Publishing a feed ≠ listing it on the site. **Directory listing stays owner-curated at first** —
-that's the moderation model, and it's one owner-click per festival, not a moderation queue to
-build.
+Publishing a feed ≠ listing it. Directory listing stays owner-curated — one owner-click per
+festival, not a moderation queue.
 
-### Phases (each independently shippable)
+### Phase 2 scope (independently shippable)
 
-**Phase 1 — internal CLI (de-risk transcription).** `npm run ingest -- <image>` → Claude vision
-→ YAML + TRANSCRIPTION-style ambiguity log. This automates exactly what was done by hand for
-CHBP, with the now-proven rules (raw strings preserved, `CLOSE` → +60 + caveat, post-midnight
-date shifting, uppercase-casing disclaimer, duplicate-UID hard fail). Run it on the three CHBP
-posters and diff against the hand transcription — **that's the eval, and it's already built.**
-No product surface, pure leverage, do this first.
+Public upload page (design system: one decision per screen — a single huge "Upload schedule"
+button). Serverless: image → ingest pipeline → validation. Review screen: their image beside
+the parsed schedule, per-set, inferred ends flagged, in the carousel/card idiom of the new
+design. Confirm → commit → deploy → subscribe page at an unlisted URL. Needs:
 
-**Phase 2 — upload → draft feed.** Public upload page (design system: one decision per screen —
-a single huge "Upload schedule" button). Serverless: image → Phase 1 pipeline → validation. The
-uploader lands on a review screen: their image beside the parsed schedule, per-set, with
-inferred ends flagged. Confirm → commit → deploy → subscribe page at an unlisted URL they can
-share. Needs: slug collision handling (`<slug>-<year>` already taken → error, ask them to pick
-a suffix; slugs are forever, so never auto-mint variants of an existing one), image constraints
-(size/type), rate limiting (IP-based, low — this is not a growth product yet), and an
-`uploaded_by` email field for takedowns/corrections (unauthenticated otherwise).
+- **Slug collision handling** — `<slug>-<year>` taken → error, ask for a suffix. Slugs are
+  forever; never auto-mint variants.
+- Image constraints (size/type), IP-based rate limiting (low), `uploaded_by` email field for
+  takedowns/corrections.
+- The Phase 1 CLI refactored into an importable library (it validates already; the CLI wrapper
+  stays for local use and eval reruns).
 
-**Phase 3 — public directory.** Homepage lists **listed**-tier festivals. Owner approves via a
-one-line change (a `listed: true` in the YAML, or a curated list file) — a git commit, same as
-everything else. Draft/unlisted feeds keep working regardless.
+Phase 3 (public directory: `listed: true` in curated state) and Phase 4 (ops hardening:
+`blocked` state that empties a feed but never 404s a published slug, correction flow via
+re-upload → diff → SEQUENCE bump) are unchanged from the 8 Aug handoff.
 
-**Phase 4 — ops hardening.** Only what reality demands: abuse response (a `blocked` state that
-empties a feed but keeps the URL serving — never 404 a published slug), correction flow for
-uploaders ("my times changed" → re-upload → diff → SEQUENCE bump), maybe draft expiry.
+### Decisions that need the owner — collect BEFORE building Phase 2
 
-### Decisions that need the owner (collect before building Phase 2)
-
-1. **Who can publish?** Anyone anonymous with rate limits, or email-gated? (Recommend: email
-   field, no auth wall, revisit if abused.)
-2. **Straight-to-main or PR-per-festival?** PRs give owner review before *any* URL exists but
-   add hours of latency; straight-to-main + unlisted-until-approved gives instant feeds with
-   curation only on discovery. (Recommend: straight-to-main for feeds, curation for listing.)
-3. **Namespace:** flat `stagetimes.app/<slug>-<year>/` like CHBP, or a `/f/` prefix for
-   user-submitted? Flat is prettier; a prefix would let the owner's hand-curated festivals stay
-   visually distinct. This is a URL-contract decision — **permanent** — decide before the first
-   user upload, not after.
-4. **Copyright posture** for uploaded poster images: transcribe-and-discard, or store the image?
-   (Recommend: store privately for audit — it's the verification evidence — never republish it.)
-5. **Cost ceiling** for transcription calls, and which model (a vision-capable small model may
-   be fine; the CHBP eval from Phase 1 answers this empirically).
+1. **Who can publish?** Anonymous + rate limits, or email-gated? (Recommend: email field, no
+   auth wall, revisit if abused.)
+2. **Straight-to-main or PR-per-festival?** (Recommend: straight-to-main for feeds,
+   curation only for listing.)
+3. **URL namespace — PERMANENT:** flat `stagetimes.app/<slug>-<year>/` like CHBP, or a `/f/`
+   prefix for user-submitted? Decide before the first user upload.
+4. **Uploaded poster images:** store privately for audit (recommended — it's the verification
+   evidence; never republish) or transcribe-and-discard?
+5. **Transcription model + cost ceiling.** Opus is proven at 79/79 / ~25¢ per poster. Rerun
+   the eval on a cheaper vision model; pick on evidence.
 
 ### What NOT to do
 
 - No database until a phase demonstrably cannot ship without one.
-- No editing UI for transcriptions in v1 — wrong reads get fixed by re-upload, keeping "the
-  image is the source of truth."
+- No transcription-editing UI in v1 — wrong reads get fixed by re-upload; the image is the
+  source of truth.
 - Never auto-list. Never delete a published slug. Never let the build read the wall clock.
-
----
-
-## Task: analytics (owner approved 2026-08-08)
-
-Goal: answer *"is anyone finding this?"* and *"are they subscribing?"* — aggregate only,
-cookieless, nothing stored about individuals. No per-subscriber URLs, ever — one canonical URL
-per feed is a design invariant, and tokenized URLs are the creepy version of this feature.
-
-1. **Pages:** enable Vercel Web Analytics on the project and add its snippet to the rendered
-   HTML (`src/pages.ts` — pages are static, so use the plain `/_vercel/insights/script.js`
-   script tag, not the React package). Track one custom event: subscribe-button taps, with
-   `{festival, stage}` as properties. That tap is the best available "tried to subscribe"
-   signal; the calendar app takes over after it.
-2. **Feeds:** calendar clients don't run JS, so feed polls are invisible to Web Analytics.
-   Read them from Vercel's request logs / observability (short retention). Only if history
-   proves wanted: add a log drain (e.g. Axiom free tier) — do not build anything custom first.
-3. **Interpretation notes** (so future sessions don't over-promise): Google Calendar fetches
-   server-side — one poll may represent any number of subscribers. Apple devices poll directly
-   (`REFRESH-INTERVAL` PT12H ⇒ ~2 polls/device/day), but rotating mobile IPs and iCloud Private
-   Relay make unique-IP counts an estimate, not a census. 200-vs-304 ratio shows how many
-   subscribers are on current bytes; polls stopping is the only churn signal that exists.
-4. Keep the smoke test honest: the analytics script must appear on HTML pages only — never in
-   `.ics` responses.
-
----
-
-## Design system
-
-`.claude/skills/stage-times-design/` — load before touching any HTML/CSS/copy. The upload and
-review screens are new surfaces; they must come from the skill, not from generic taste. Review
-screen note: per-set confirmation rows are a table-like surface — check `screens.md` for the
-list-row conventions before inventing one.
+- New screens come from the skill (`.claude/skills/stage-times-design/` — freshly rewritten),
+  not from generic taste. The review screen's per-set rows are a list surface; check
+  `screens.md` conventions first.
