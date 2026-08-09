@@ -14,6 +14,10 @@
  *   - valid TLS (fetch refuses an untrusted certificate; .app is HSTS-preloaded so
  *     there is no plain-HTTP fallback for a browser either)
  *   - the body actually begins BEGIN:VCALENDAR
+ *   - the body carries no script tag — the analytics snippet is for HTML pages only
+ *
+ * And for the HTML pages (landing + subscribe) it asserts the inverse: the Vercel
+ * Web Analytics script IS present, so a refactor can't silently drop measurement.
  *
  * The last one exists because of Vercel Deployment Protection: a protected preview
  * returns 200 with an HTML login page, which a header-only check happily passes and
@@ -90,12 +94,44 @@ async function checkFeed(url: string): Promise<Failure[]> {
         );
       } else if (!body.endsWith('END:VCALENDAR\r\n')) {
         add('body does not end with END:VCALENDAR + CRLF — the feed looks truncated');
+      } else if (body.includes('_vercel/insights') || body.toLowerCase().includes('<script')) {
+        // The Web Analytics snippet belongs to HTML pages only. Calendar clients
+        // don't run JS; a script tag here breaks parsers and tracks nobody.
+        add('feed body contains the analytics script — analytics must never leak into .ics responses');
       }
     } catch (err) {
       add(`GET failed: ${(err as Error).message}`);
     }
   }
 
+  return failures;
+}
+
+/** HTML pages must carry the analytics snippet — the positive half of the check. */
+async function checkPage(url: string): Promise<Failure[]> {
+  const failures: Failure[] = [];
+  const add = (problem: string) => failures.push({ url, problem });
+
+  let res: Response;
+  try {
+    res = await fetch(url, { redirect: 'manual' });
+  } catch (err) {
+    add(`request failed (TLS or DNS?): ${(err as Error).message}`);
+    return failures;
+  }
+
+  if (res.status !== 200) {
+    add(`expected HTTP 200, got ${res.status}`);
+    return failures;
+  }
+  const contentType = res.headers.get('content-type') ?? '';
+  if (!contentType.toLowerCase().startsWith('text/html')) {
+    add(`content-type is "${contentType}", expected text/html`);
+  }
+  const body = await res.text();
+  if (!body.includes('/_vercel/insights/script.js')) {
+    add('page is missing the Web Analytics script — measurement silently dropped');
+  }
   return failures;
 }
 
@@ -117,8 +153,9 @@ async function main(): Promise<void> {
 
   const manifest = loadManifest();
   const paths = [...manifest.stages.map((s) => s.icsPath), manifest.all.icsPath];
+  const pagePaths = ['/', `${manifest.festival.basePath}/`];
 
-  process.stdout.write(`Smoke testing ${paths.length} feeds against ${base.origin}\n\n`);
+  process.stdout.write(`Smoke testing ${paths.length} feeds + ${pagePaths.length} pages against ${base.origin}\n\n`);
 
   const allFailures: Failure[] = [];
   for (const p of paths) {
@@ -128,15 +165,25 @@ async function main(): Promise<void> {
     process.stdout.write(`  ${failures.length === 0 ? 'ok  ' : 'FAIL'}  ${url}\n`);
     for (const f of failures) process.stdout.write(`          ${f.problem}\n`);
   }
+  for (const p of pagePaths) {
+    const url = new URL(p.replace(/^\//, ''), base).toString();
+    const failures = await checkPage(url);
+    allFailures.push(...failures);
+    process.stdout.write(`  ${failures.length === 0 ? 'ok  ' : 'FAIL'}  ${url}\n`);
+    for (const f of failures) process.stdout.write(`          ${f.problem}\n`);
+  }
 
   process.stdout.write('\n');
   if (allFailures.length > 0) {
-    process.stderr.write(`gate 8 FAILED: ${allFailures.length} problem(s) across ${paths.length} feeds.\n`);
+    process.stderr.write(
+      `gate 8 FAILED: ${allFailures.length} problem(s) across ${paths.length} feeds + ${pagePaths.length} pages.\n`,
+    );
     process.exitCode = 1;
     return;
   }
   process.stdout.write(
-    `gate 8 passed: ${paths.length} feeds, all 200 / ${EXPECTED_CONTENT_TYPE} / ETag present / valid TLS.\n` +
+    `gate 8 passed: ${paths.length} feeds, all 200 / ${EXPECTED_CONTENT_TYPE} / ETag present / valid TLS, ` +
+      `no script in any feed; ${pagePaths.length} pages carrying the analytics snippet.\n` +
       `Reminder: never leave a real subscription pointed at a preview URL — previews are ephemeral and will 404.\n`,
   );
 }

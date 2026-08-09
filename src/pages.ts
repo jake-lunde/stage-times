@@ -6,9 +6,12 @@
  *   dist/<festival-key>/index.html        subscribe page
  *
  * Self-contained by rule: inlined CSS, no webfont, no script tag beyond the tiny
- * copy-to-clipboard handler, no external request of any kind. This page is loaded
- * on festival wifi at 2am and it has one job — get a thumb from "I care about this
- * stage" to "it's in my calendar".
+ * copy-to-clipboard handler and the Vercel Web Analytics snippet. The analytics
+ * script is the one owner-approved exception (2026-08-08): it is same-origin
+ * (`/_vercel/insights/script.js`, served by our own Vercel deployment), cookieless,
+ * and aggregate-only — no third-party request, nothing stored about individuals.
+ * This page is loaded on festival wifi at 2am and it has one job — get a thumb
+ * from "I care about this stage" to "it's in my calendar".
  *
  * Visual system: .claude/skills/stage-times-design/. Structure is measured from Cash
  * App; color is the Fritz screenprint reference. Deviating from those numbers here
@@ -280,6 +283,17 @@ a{color:var(--red-deep)}
 // Shell
 // ---------------------------------------------------------------------------
 
+/**
+ * Vercel Web Analytics, plain-HTML pattern (pages are static — no React, no
+ * npm package). The stub queues `va()` calls made before the deferred script
+ * loads; the script is served same-origin by Vercel, so the "no external
+ * requests" rule still holds. Aggregate and cookieless by design. This snippet
+ * belongs to HTML pages ONLY — never to .ics responses (tests/pages.test.ts
+ * and the smoke test both pin that).
+ */
+const ANALYTICS_SNIPPET = `<script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
+<script defer src="/_vercel/insights/script.js"></script>`;
+
 function page(title: string, description: string, body: string): string {
   return `<!doctype html>
 <html lang="en">
@@ -291,6 +305,7 @@ function page(title: string, description: string, body: string): string {
 <meta name="color-scheme" content="light dark">
 <meta name="robots" content="index,follow">
 <style>${CSS}</style>
+${ANALYTICS_SNIPPET}
 </head>
 <body>
 ${body}
@@ -303,14 +318,14 @@ ${body}
 // Subscribe page
 // ---------------------------------------------------------------------------
 
-function stageCard(stage: StageEntry, color: string, feedUrl: string): string {
+function stageCard(stage: StageEntry, color: string, feedUrl: string, festivalKey: string): string {
   const webcal = feedUrl.replace(/^https:/, 'webcal:');
   const sets = `${stage.setCount} set${stage.setCount === 1 ? '' : 's'}`;
   return `<li class="card" style="background:${color}">
   <h3>${esc(stage.name)}</h3>
   <p class="meta">${sets} · ${esc(stage.dayspan.label)}</p>
   ${stage.description ? `<p class="desc">${esc(stage.description)}</p>` : ''}
-  <a class="btn btn--on-color" href="${esc(webcal)}">Subscribe</a>
+  <a class="btn btn--on-color" href="${esc(webcal)}" data-festival="${esc(festivalKey)}" data-stage="${esc(stage.id)}">Subscribe</a>
   <div class="btn-row">
     <button class="btn btn--sm btn--ghost-on-color" data-copy="${esc(feedUrl)}">Copy link</button>
   </div>
@@ -323,7 +338,7 @@ export function renderSubscribePage(m: Manifest): string {
   const desc = `Subscribe to ${f.name} ${f.year} set times, one calendar per stage.`;
 
   const cards = m.stages
-    .map((s, i) => stageCard(s, STAGE_COLORS[i % STAGE_COLORS.length]!, `${PROD_ORIGIN}${s.icsPath}`))
+    .map((s, i) => stageCard(s, STAGE_COLORS[i % STAGE_COLORS.length]!, `${PROD_ORIGIN}${s.icsPath}`, f.key))
     .join('\n');
 
   const allUrl = `${PROD_ORIGIN}${m.all.icsPath}`;
@@ -360,7 +375,7 @@ ${cards}
       <li class="card card--all">
         <h3>${esc(m.all.name)}</h3>
         <p class="meta">${m.all.setCount} sets · every stage in one calendar</p>
-        <a class="btn btn--ink" href="${esc(allWebcal)}">Subscribe</a>
+        <a class="btn btn--ink" href="${esc(allWebcal)}" data-festival="${esc(f.key)}" data-stage="${esc(m.all.id)}">Subscribe</a>
         <div class="btn-row">
           <button class="btn btn--sm btn--ghost-on-color" data-copy="${esc(allUrl)}">Copy link</button>
         </div>
@@ -440,6 +455,15 @@ document.addEventListener('click', function (e) {
   // the button comes back and the "Not on iPhone?" section is the answer.
   var sub = e.target.closest('a[href^="webcal:"]');
   if (sub && !sub.classList.contains('is-loading')) {
+    // The one custom analytics event: a subscribe tap. Aggregate and cookieless —
+    // festival + stage only, nothing about the person. Best available "tried to
+    // subscribe" signal; the calendar app takes over after this.
+    if (window.va) {
+      window.va('event', {
+        name: 'subscribe',
+        data: { festival: sub.getAttribute('data-festival'), stage: sub.getAttribute('data-stage') }
+      });
+    }
     var was = sub.textContent;
     sub.classList.add('is-loading');
     sub.setAttribute('aria-busy', 'true');

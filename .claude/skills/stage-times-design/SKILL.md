@@ -182,7 +182,9 @@ needed: 1px `--paper-line`, inset to `--margin-text`. Prefer spacing over rules.
 
 ## Checklist before shipping a page
 
-- [ ] Loads with zero external requests — no webfont, no CDN, no analytics
+- [ ] Loads with zero third-party requests — no webfont, no CDN. The one script exception
+      (owner-approved 2026-08-08): the same-origin Vercel Web Analytics snippet
+      (`/_vercel/insights/script.js`) — cookieless, aggregate-only, served by our own deployment
 - [ ] Every interactive element ≥32pt, primary actions 52pt
 - [ ] Every button and chip is a capsule
 - [ ] No `box-shadow`, no `linear-gradient`
