@@ -107,6 +107,8 @@ export interface StageManifest {
   firstSet: string;
   lastSet: string;
   lastSetEnd: string;
+  /** The artist closing each day on this stage, in day order, deduped — the "headliner preview". */
+  headliners: string[];
   icsPath: string;
 }
 
@@ -249,6 +251,13 @@ export function buildFeeds(doc: FestivalDoc, state: BuildState): BuildResult {
     const mySets = mine.map((p) => p.set);
     const starts = mySets.map((s) => isoLocal(s.start)).sort();
     const ends = mySets.map((s) => isoLocal(s.end)).sort();
+
+    // Headliner preview: the artist who starts last on each calendar day, in day
+    // order. `mine` is already sorted by start, so the last entry per date wins.
+    const closerByDate = new Map<string, string>();
+    for (const p of mine) closerByDate.set(isoDate(p.set.start), p.set.artist);
+    const headliners = [...new Set([...closerByDate.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([, artist]) => artist))];
+
     stageManifests.push({
       id: stage.id,
       name: stage.name,
@@ -258,6 +267,7 @@ export function buildFeeds(doc: FestivalDoc, state: BuildState): BuildResult {
       firstSet: starts[0] ?? '',
       lastSet: starts[starts.length - 1] ?? '',
       lastSetEnd: ends[ends.length - 1] ?? '',
+      headliners,
       icsPath,
     });
   }

@@ -1,7 +1,8 @@
 # The two screens
 
 Stage Times has exactly two page types. Both are static, self-contained HTML with inlined CSS,
-no framework, no external requests, no webfonts — they get loaded on festival wifi at 2am.
+no framework, no third-party requests — fonts are same-origin woff2, art is inline SVG or a
+committed image file. They get loaded on festival wifi at 2am.
 
 ## 1. Landing — `/`
 
@@ -10,26 +11,35 @@ Purpose: explain what this is in under five seconds and send people to the festi
 ```
 ┌──────────────────────────────┐
 │                              │  RED FLOOD (--red), full bleed
-│      STAGE TIMES             │  48pt / 800 / cream, tight tracking
-│      Set times, by stage.    │  20pt / 500 / cream at 80%
+│      STAGE TIMES             │  56–64pt / 650 / expanded caps / cream
+│      Set times, by stage.    │  20pt / 500 / cream at 85%
 │                              │
 ├──────────────────────────────┤  cream below here
+│  ┌────────────────────────┐  │
+│  │                        │  │  MEDIA CARD, 24pt radius, --paper-sunk
+│  │   [festival image or   │  │  image area edge-to-edge, no padding
+│  │    procedural art]     │  │  (assets/festivals/<key>.<ext>)
+│  │                        │  │
+│  │  AUG 7–9 · SEATTLE     │  │  eyebrow, mono, 12pt caps
+│  │  Capitol Hill          │  │  34pt / 600 / expanded — big and light
+│  │  Block Party           │  │
+│  │  79 sets · 4 stages  [See stages] │  footer row: mono meta left, pill right
+│  └────────────────────────┘  │
 │                              │
-│  [ ThatFest 2026        → ]  │  full-width row card, 72pt tall
-│    Aug 14–16 · 6 stages      │
-│                              │
-│  What this is                │  section header
+│  What this is                │  eyebrow, mono
 │  Subscribe to one calendar   │  body copy, 3 short paragraphs max
-│  per stage. Your calendar     │
+│  per stage. Your calendar    │
 │  app does the rest.          │
 │                              │
 │  ─────────────────           │
-│  Unofficial. Not affiliated  │  --ink-soft, 13pt
+│  Unofficial. Not affiliated  │  Fragment Mono, 12pt, --ink-soft
 │  with any festival.          │
 └──────────────────────────────┘
 ```
 
-The hero flood is the only place the brand shouts. Everything below it is quiet.
+The hero flood is the only place the brand shouts. Everything below it is quiet. The festival
+card is the Apple Store product card: image first, light-weight big heading, one pill. The whole
+card is tappable (and shrinks on press); the pill is the same link restated.
 
 ## 2. Subscribe — `/<festival-slug>-<year>/`
 
@@ -38,28 +48,28 @@ product. Every design decision here is subordinate to that tap.
 
 ```
 ┌──────────────────────────────┐
-│  ← ThatFest 2026             │  nav bar, 44pt, back arrow left
-├──────────────────────────────┤
+│  (◀)                         │  44pt circle icon button, --paper-sunk, top-left
 │                              │
-│  ThatFest 2026               │  34pt / 800 — screen title, left-aligned
-│  Aug 14–16 · Chicago         │  17pt / --ink-soft
+│  STAGE TIMES                 │  wordmark lockup: 14pt expanded caps, --red
+│  Capitol Hill Block Party    │  40pt / 630 expanded — screen title, ink on cream
+│  FRI 7 – SUN 9 AUG · 79 SETS │  mono caption, --ink-soft
+│                              │
+│  PICK YOUR STAGES            │  eyebrow, mono
+│ ┌───────────────────┐┌────── │  CAROUSEL — scroll-snap x, card ~86vw,
+│ │ ░░ procedural ░░  ││       │  next card peeks ~24pt, no scrollbar
+│ │ ░░ capsule art ░░ ││ next  │
+│ │  NIMINO           ││ stage │  headliner preview in the art area,
+│ │  MARIAH CAREY     ││       │  cream ≥17pt semibold
+│ │  TURNSTILE        ││       │
+│ │                   ││       │
+│ │ Main Stage        ││       │  28–30pt / 600 expanded, cream
+│ │ 24 SETS · FRI–SUN ││       │  mono caption, cream 85%
+│ │ [ Subscribe ] (⧉) ││       │  cream pill + 44pt icon button (copy link)
+│ └───────────────────┘└────── │
 │                              │
 │  ┌────────────────────────┐  │
-│  │ MAIN STAGE             │  │  stage card, --stage-N flood
-│  │ 24 sets · Fri–Sun      │  │  cream 17pt semibold (large-text rule)
-│  │                        │  │
-│  │ [   Subscribe    ]     │  │  cream pill on colored card
-│  │ Copy link              │  │  cream text button
-│  └────────────────────────┘  │
-│                              │  20pt gap
-│  ┌────────────────────────┐  │
-│  │ THE GROVE              │  │  next stage, next color
-│  └────────────────────────┘  │
-│         ⋮                    │
-│                              │
-│  ┌────────────────────────┐  │
-│  │ All stages             │  │  --paper-sunk card, ink text — visually
-│  │ 96 sets · every stage  │  │  demoted below the per-stage cards
+│  │ All stages             │  │  --paper-sunk card, ink text, full width —
+│  │ 96 sets · every stage  │  │  visually demoted below the carousel
 │  └────────────────────────┘  │
 │                              │
 │  Not on iPhone?              │  disclosure section, collapsed by default
@@ -67,11 +77,17 @@ product. Every design decision here is subordinate to that tap.
 │  ▸ Outlook                   │
 │                              │
 │  ─────────────────           │
-│  Updated 8 Aug 2026          │  --ink-soft footer
+│  Updated 8 Aug 2026          │  Fragment Mono footer
 │  Source: official schedule ↗ │
 │  Found an error? ↗           │
 └──────────────────────────────┘
 ```
+
+One stage card owns the viewport at a time — that's the "single content in the viewport" rule
+made literal. The subscribe page has **no red flood** (the landing hero already spent it; one
+flood per *product surface*, and cream keeps the stage colors loud). The carousel is pure CSS
+scroll-snap; the peeking next card is the entire affordance and there are no dots, no arrows,
+no JS scroll handling.
 
 ### Card order is a product decision
 
@@ -102,8 +118,9 @@ Honest, brief, not a modal, not a checkbox.
 ## What neither screen has
 
 No search. No filters. No login. No dark mode toggle (respect `prefers-color-scheme` and stop).
-No cookie banner — there are no cookies. No analytics script. No share sheet. No "add to home
-screen" prompt. No countdown timer.
+No cookie banner — there are no cookies. No third-party script (the same-origin Vercel Web
+Analytics snippet is the one owner-approved exception). No share sheet. No "add to home screen"
+prompt. No countdown timer.
 
 A festival-goer opens this page once, taps two or three times, and never returns. Every feature
 that assumes a second visit is dead weight.

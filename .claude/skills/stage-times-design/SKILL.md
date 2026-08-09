@@ -27,8 +27,8 @@ find the tap target, it's wrong.
 ## Non-negotiables
 
 1. **Everything is a capsule.** `border-radius: 50%` of height on every button, chip, and field.
-   Across 236 screens the only exceptions were text inputs (~8.6pt), cards (16pt), and bottom
-   sheets (~38pt). **Zero sharp corners anywhere.**
+   Across 236 screens the only exceptions were text inputs (~8.6pt), cards (16pt media cards
+   24pt), and bottom sheets (~38pt). **Zero sharp corners anywhere.**
 2. **One decision per screen.** 500–700pt of a 926pt screen is empty. The emptiness is the
    product, not an oversight.
 3. **No shadows. No gradients.** Card edges are a single-step color change, verified at the pixel
@@ -60,21 +60,30 @@ find the tap target, it's wrong.
   --h-btn:      52px;  --r-btn:   26px;  /* primary + large tonal, r = h/2  */
   --h-btn-sm:   44px;  --r-btn-sm: 22px; /* stacked/secondary               */
   --h-chip:     32px;  --r-chip:  16px;
+  --h-icon:     44px;                     /* icon button, circle             */
   --h-field:    52px;  --r-field:  8px;  /* the ONE non-capsule control     */
   --r-card:     16px;
+  --r-card-media: 24px;                   /* media cards + carousel cards    */
   --border-hairline: 1px;
 
   /* ── type ─────────────────────────────────────────────────────────────── */
-  --t-display: 56px; --lh-display: 1.02;  /* hero wordmark                  */
-  --t-title:   32px; --lh-title:   1.01;  /* screen title, left-aligned     */
-  --t-large:   24px;                      /* tab-root title, stage name     */
-  --t-body:    16px; --lh-body:    1.5;   /* row title, button label, copy  */
-  --t-small:   14px;                      /* subtitle, caption, chip        */
-  --t-micro:   12px;                      /* uppercase section header       */
-  --t-legal:   12px;                      /* fine print                     */
+  --t-display: 60px; --lh-display: 0.98;  /* hero wordmark, expanded caps   */
+  --t-title:   40px; --lh-title:   1.02;  /* screen title, left-aligned     */
+  --t-card:    30px; --lh-card:    1.05;  /* card heading — big and light   */
+  --t-large:   24px;                      /* section-level headings         */
+  --t-body:    17px; --lh-body:    1.5;   /* row title, button label, copy  */
+  --t-small:   14px;                      /* subtitle, chip                 */
+  --t-mono:    13px;                      /* metadata/caption, Fragment Mono */
+  --t-micro:   12px;                      /* uppercase eyebrow, mono        */
+  --t-legal:   12px;                      /* fine print, mono               */
 
-  --w-bold: 700; --w-semi: 600; --w-med: 500; --w-reg: 400;
+  --w-heading: 630;  /* display + titles: the expanded width carries the weight */
+  --w-semi: 600; --w-med: 500; --w-reg: 400;
   --track-caps: 0.07em;  /* uppercase headers only */
+
+  /* ── motion ───────────────────────────────────────────────────────────── */
+  --press: scale(.96);
+  --t-press: 120ms;   /* transform transition on everything tappable */
 }
 ```
 
@@ -84,34 +93,46 @@ Colors are in `references/color.md`. Load it before writing any CSS.
 
 The reference face is Cash Sans — a tight neo-grotesque with a **very tall x-height (x/cap ≈
 0.72)**, near-monolinear strokes, closed apertures, and noticeably tight tracking (~0.58em average
-advance at 24pt). Weight runs heavy: every title, row title, and button label measured at
-stem/cap 0.15–0.16, i.e. Semibold–Bold. Body copy sits at 0.11–0.12.
+advance at 24pt). We don't imitate it with the system stack anymore — the system stack is the
+single loudest "this was generated" tell (owner feedback, 2026-08-09).
 
-**We ship no webfont.** This page loads on festival wifi at 2am; a 40KB font blocking first paint
-to save a little character is a bad trade. Use the system stack and lean on weight and size to do
-the work:
+**Two faces, both self-hosted** (files in `assets/fonts/`, copied to `dist/assets/fonts/` by the
+build — never loaded from a CDN; "works on festival wifi" survives because the font comes from
+the same origin as the page, `font-display: swap`, preloaded):
+
+1. **Archivo** — variable, `wght 100–900`, `wdth 62–125`. One family, two voices:
+   the **expanded cut (`font-stretch:125%`) is the display voice** — wide, planted, screenprint-
+   poster confidence for the wordmark, titles, and card headings. Normal width (100%) is the body
+   voice. Never use the condensed end (<100%) — one width gesture, used consistently, is a
+   personality; two is a mess.
+2. **Fragment Mono** — the fine-detail voice. Footer, legal, captions, metadata lines, uppercase
+   eyebrows, URLs. Helvetica-flavored mono, so it reads as the spec-sheet margin notes on the
+   screenprint rather than as code.
 
 ```css
-font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+--font-sans: "Archivo", ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+--font-mono: "Fragment Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 ```
 
-On iOS this resolves to SF Pro, which has a shorter x-height and looser tracking than Cash Sans.
-Compensate: set headings at `letter-spacing: -0.02em` and go one weight heavier than instinct says.
+Weight discipline (owner feedback): **headings got bigger and lighter, not heavier.** Display and
+headings sit at 600–650, never 800. The expanded width does the work that fake-bold used to do.
+Body is 400, actionable labels 600.
 
 Everything actionable is **16pt semibold minimum**. This is also what makes cream-on-red legal —
 see the contrast table in `references/color.md`.
 
 ### Scale
 
-| Role | Size | Weight | Color |
+| Role | Size | Weight / width | Face |
 |---|---|---|---|
-| Hero wordmark | 56 | 700 | `--paper` on `--red` |
-| Screen title | 32 / 1.01 | 700 | `--ink` |
-| Stage name on card | 24 | 700 | `--paper` |
-| Row title · button label · body | 16 / 1.5 | 600 / 400 | `--ink` |
-| Subtitle · caption · chip | 14 | 500 | `--ink-soft` |
-| Uppercase section header | 12 + `--track-caps` | 600 | `--ink-soft` |
-| Legal | 12 | 400 | `--ink-soft` |
+| Hero wordmark | 56–64 | 650 / expanded, uppercase | Archivo |
+| Screen title (festival name) | 40 / 1.02 | 630 / expanded | Archivo |
+| Card heading (stage / festival name on card) | 28–34 / 1.05 | 600 / expanded | Archivo |
+| Row title · button label | 16–17 | 600 / normal | Archivo |
+| Body | 16–17 / 1.5 | 400 / normal | Archivo |
+| Caption · metadata line | 13 | 400 | Fragment Mono |
+| Uppercase eyebrow | 11–12 + `--track-caps` | 400, uppercase | Fragment Mono |
+| Legal · footer | 12–13 / 1.6 | 400 | Fragment Mono |
 
 Note the display sizes shrink with content in the reference (a keypad `$0` at 71pt cap vs `$100`
 at 41pt cap — a 1.75× reduction). Apply the same instinct: a long festival name gets a smaller
@@ -137,25 +158,77 @@ The whole product is one button pressed a few times. Get these right and the res
 .btn:disabled   { background: var(--ink-faint); color: var(--paper); cursor: default; }
 ```
 
+Three button species (owner feedback 2026-08-09, modeled on the Apple Store app):
+
+1. **Pill** — the classes above. The one primary action of a surface. Capsule, filled, label only.
+2. **Text button** — a bare 16pt/600 label in the action color, no fill, no border, no underline
+   (underline is for inline prose links only). Apple's "Buy now". Use for secondary actions that
+   would compete with the pill if they had a fill: "See the full lineup", "Official site". Still
+   a ≥44pt touch target — pad it invisibly.
+3. **Icon button** — a 44pt circle, filled `--paper-sunk` (or translucent cream on a colored
+   card), containing a single inline SVG glyph, no label. For compact utility actions on detail
+   cards — copy-link is the canonical case. `aria-label` is mandatory.
+
+The old rule was "never put an icon inside a button." The surviving form of that rule: **never
+mix an icon and a label in the same button.** A pill holds words; an icon button holds one glyph;
+nothing holds both.
+
 Measured conventions to preserve:
 
 - **Bottom-anchored primary is at a fixed position**: 16pt above the safe-area inset, full width
   at the screen margin. On the web: `padding-bottom: max(16px, env(safe-area-inset-bottom))`.
 - **Side-by-side pairs are 8pt apart. Stacked pairs are 16pt apart**, secondary above primary.
-- **Never put an icon inside a button.** Not in 236 screens.
 - **Destructive is a tonal button with red text**, not a red button. Ours: `--paper-sunk` fill,
   `--red-deep` label.
+
+### Press feedback
+
+Everything tappable **shrinks under the thumb**: `transform: scale(.96)` on `:active`, with
+`transition: transform 120ms ease` so release springs back. Pills, text buttons, icon buttons,
+festival cards, nav chevrons — all of it. This replaces color-only pressed states as the primary
+acknowledgment (color shift stays on the primary pill as a bonus, not a substitute). Zeroed out
+under `prefers-reduced-motion`.
 
 ## Layout archetypes
 
 Use one per screen; don't blend them.
 
 1. **Bottom-anchored single action** — content top-aligned, large empty middle, one pill at the
-   bottom. The default, and correct for the subscribe flow.
+   bottom. The default.
 2. **Stacked action pair** — 44pt tonal above 44pt primary.
-3. **Grouped card list** — sunk page color, cards at the 16pt margin, 8pt between siblings, 32pt
-   between groups, 16pt padding. **This is the subscribe page.**
-4. **Row list** — 48pt leading element at 16pt, text at 80pt, 80pt row pitch, **no dividers**.
+3. **Media card** — the Apple Store / Cash App "More for you" card: image area on top (edge to
+   edge inside the card, no padding), then eyebrow, then a big light-weight heading, then a
+   footer row with metadata left and the action right. Radius 24pt (media cards are the second
+   exception to the 16pt card radius). **This is the festival card on the landing page.**
+4. **Card carousel** — horizontal scroll of media cards, one per snap stop: cards ~86% of the
+   viewport wide, `scroll-snap-type: x mandatory`, snap to center, the next card peeking ~24pt.
+   Scrollbar hidden; the peek IS the affordance. This is CSS scroll-snap doing the "scroll-jack"
+   feel natively — never hijack the wheel with JS. **This is the stage list on the subscribe
+   page.** Degrades on desktop: cards still snap with trackpad/drag, and a full-width fallback
+   under 3 items is fine.
+5. **Row list** — 48pt leading element at 16pt, text at 80pt, 80pt row pitch, **no dividers**.
+
+**Single content in the viewport.** At any scroll position on a phone, one card / one idea should
+own the screen. If two cards are fully visible at once, the cards are too small or the spacing is
+too tight. The carousel enforces this horizontally; section spacing (`--gap-6`+) enforces it
+vertically.
+
+## Card art
+
+Two sources of art, one per card, image area always edge-to-edge:
+
+1. **A real festival image** when one exists — `assets/festivals/<festival-key>.<ext>`, copied to
+   `dist/assets/festivals/` by the build. Landing-card hero. Store the file in the repo; never
+   hotlink the festival's CDN (their cache headers, their outages, their tracking).
+2. **Procedural screenprint art** everywhere else — deterministic SVG generated at build time,
+   seeded by `festival-key/stage-id` (FNV-1a → mulberry32; **never `Math.random()`** — the build
+   must stay byte-reproducible). The composition: vertical capsules of varying height and offset
+   in translucent cream and a deepened cut of the stage color, flat fills only, on the stage-color
+   flood. It's the design system drawing itself: capsule geometry, screenprint flatness, per-stage
+   identity. On stage cards the art area also carries the **headliner preview** — up to three
+   artist names from the manifest, cream, ≥17pt semibold (the large-text contrast rule applies).
+
+Never a stock photo, never a gradient mesh, never AI-generated imagery.
 
 ### Navigation bar
 
@@ -182,11 +255,18 @@ needed: 1px `--paper-line`, inset to `--margin-text`. Prefer spacing over rules.
 
 ## Checklist before shipping a page
 
-- [ ] Loads with zero third-party requests — no webfont, no CDN. The one script exception
-      (owner-approved 2026-08-08): the same-origin Vercel Web Analytics snippet
+- [ ] Loads with zero third-party requests — fonts are self-hosted woff2 from `dist/assets/fonts/`
+      (Archivo + Fragment Mono, picked from Google Fonts but never served by it). The one script
+      exception (owner-approved 2026-08-08): the same-origin Vercel Web Analytics snippet
       (`/_vercel/insights/script.js`) — cookieless, aggregate-only, served by our own deployment
-- [ ] Every interactive element ≥32pt, primary actions 52pt
-- [ ] Every button and chip is a capsule
+- [ ] Both woff2s preloaded, `font-display: swap` — text is readable before fonts arrive
+- [ ] Every interactive element ≥32pt, primary actions 52pt; icon buttons 44pt circles with
+      `aria-label`
+- [ ] Every button and chip is a capsule; no button mixes an icon with a label
+- [ ] Everything tappable shrinks on press (`scale(.96)`, 120ms) — zeroed under reduced motion
+- [ ] Card headings are big and light (600–650 expanded), never small and heavy
+- [ ] Carousels are CSS scroll-snap — no JS scroll hijacking, no visible scrollbar
+- [ ] Procedural art is seeded from festival/stage keys — build output stays byte-identical
 - [ ] No `box-shadow`, no `linear-gradient`
 - [ ] Nothing is pure `#FFF` or pure `#000`
 - [ ] No cream text under 17pt on any colored surface (see contrast table)
