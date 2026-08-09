@@ -11,3 +11,8 @@ __pycache__/
 _ref/Cash App ios Nov 2025/
 .vercel
 .env*
+
+# Machine-transcription scratch output (npm run ingest / ingest:eval).
+# Never committed: promotion into data/ is a deliberate human step.
+ingest-out/
+_ref/ingest-eval/
