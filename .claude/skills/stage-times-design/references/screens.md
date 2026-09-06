@@ -27,9 +27,10 @@ Purpose: explain what this is in under five seconds and send people to the festi
 │  └────────────────────────┘  │
 │                              │
 │  What this is                │  eyebrow, mono
-│  Subscribe to one calendar   │  body copy, 3 short paragraphs max
-│  per stage. Your calendar    │
-│  app does the rest.          │
+│  Add one calendar per stage. │  body copy, 2 short paragraphs max — never
+│  The sets show up in the     │  explain the machinery (see copy.md)
+│  calendar app you already    │
+│  use.                        │
 │                              │
 │  ─────────────────           │
 │  Unofficial. Not affiliated  │  Fragment Mono, 12pt, --ink-soft
@@ -42,6 +43,10 @@ card is the Apple Store product card: image first, light-weight big heading, one
 card is tappable (and shrinks on press); the pill is the same link restated.
 
 ## 2. Subscribe — `/<festival-slug>-<year>/`
+
+The screen is still called the subscribe page in the repo and the URL space. **The button on it
+says "Add calendar"** — ruled 6 Sep 2026, see `copy.md`. The live page still reads "Subscribe"
+until ticket 15 applies the copy rewrites; the diagram below is the target.
 
 Purpose: get one tap from "I care about this stage" to "it's in my calendar." This is the entire
 product. Every design decision here is subordinate to that tap.
@@ -64,7 +69,7 @@ product. Every design decision here is subordinate to that tap.
 │ │                   ││       │
 │ │ Main Stage        ││       │  28–30pt / 600 expanded, cream
 │ │ 24 SETS · FRI–SUN ││       │  mono caption, cream 85%
-│ │ [ Subscribe ] (⧉) ││       │  cream pill + 44pt icon button (copy link)
+│ │ [ Add calendar ] (⧉)││      │  cream pill + 44pt icon button (copy link)
 │ └───────────────────┘└────── │
 │                              │
 │  ┌────────────────────────┐  │
@@ -101,8 +106,8 @@ just because it sorts first alphabetically.
 The brief requires stating plainly that Google Calendar cannot subscribe by URL from its mobile
 apps. Design this as a **collapsed disclosure**, not a banner:
 
-- An iPhone user taps Subscribe and never sees it. Correct — they're the happy path.
-- An Android user who taps Subscribe and gets nothing goes looking for exactly this, finds it
+- An iPhone user taps Add calendar and never sees it. Correct — they're the happy path.
+- An Android user who taps Add calendar and gets nothing goes looking for exactly this, finds it
   immediately, and reads the literal menu path: *Settings → Add calendar → From URL*.
 - A warning banner at the top would tax 80% of users to inform 20%.
 

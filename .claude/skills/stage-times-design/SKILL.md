@@ -35,7 +35,7 @@ find the tap target, it's wrong.
    level. Surfaces separate by color contrast alone.
 4. **Two type sizes carry ~80% of the UI** — 16pt for anything actionable or titular, 14pt for
    anything secondary. Seven sizes exist in total; you almost certainly need two.
-5. **Labels are one or two plain words.** "Subscribe", "Copy link", "Add to calendar". Never
+5. **Labels are one or two plain words.** "Add calendar", "Copy link", "Confirm". Never
    "Continue to the next step". Explanation is demoted to an underlined inline link.
 6. **Touch targets are oversized.** Primary CTA is 52pt tall and near-full-width — 18% above
    Apple's 44pt minimum. Nothing tappable is under 32pt.
@@ -244,14 +244,32 @@ needed: 1px `--paper-line`, inset to `--margin-text`. Prefer spacing over rules.
 
 ## Copy rules
 
-- Sentence case for sentences, not Title Case For Headings.
-- State platform limitations plainly rather than implying capability we don't have. The brief
-  requires saying Google Calendar can't subscribe by URL from mobile — say exactly that, put it
-  behind a disclosure, and print the literal menu path.
-- Never imply instant updates. Apple honors `REFRESH-INTERVAL`; Google refreshes on its own
-  schedule, often 12–24h. Say so.
-- Every page carries: unofficial/not-affiliated, attribution to the official schedule, a
-  last-updated stamp, and an error-report link.
+Full rules — voice, vocabulary to use, vocabulary to avoid, the tone test, and the three
+readers every string is checked against — are in `references/copy.md`. **Load it before writing
+any user-facing string**, including buttons, disclosures, errors, calendar names, and event
+bodies. It is distilled from the three-reader review of the live site
+(`docs/copy-review-2026-09-06.md`, 6 Sep 2026), which is the evidence behind every rule.
+
+The six that decide most lines:
+
+- **One person who goes to shows, telling you what they know.** Never "we", never "our" — there
+  is no company behind this site. First person singular, and only for a limitation or an
+  invitation.
+- **The action label is "Add calendar", never "Subscribe."** Ruled 6 Sep 2026 against all three
+  readers. "Subscribe" implies an account, and Google Calendar's own menu says *Add calendar →
+  From URL*, so our label and the fallback instructions match. It survives only as the internal
+  analytics event name and when quoting another platform's UI.
+- **The site is at its best describing the festival and at its worst describing itself.** If a
+  sentence explains the machinery — iCalendar fields, feeds, refresh hints, IANA zones, repo
+  paths, GitHub issues — cut it or say it in the reader's words.
+- **Never say something is happening that might not be.** `Opening Calendar…` is true on iOS
+  and false on Android; any state label that can be wrong ships with its recovery line.
+- **State platform limits plainly, and never imply instant updates.** Google Calendar can't add
+  by URL from mobile — say exactly that, behind a disclosure, with the literal menu path. Apple
+  checks about twice a day; Google runs 12–24h or longer.
+- **Sentence case for sentences, not Title Case For Headings.** US spelling. No exclamation
+  marks. Every page footer carries: unofficial/not-affiliated, attribution to the official
+  schedule, a last-updated stamp, a way to report a wrong time, and a rights-holder contact.
 
 ## Checklist before shipping a page
 
@@ -273,8 +291,12 @@ needed: 1px `--paper-line`, inset to `--margin-text`. Prefer spacing over rules.
 - [ ] `prefers-color-scheme` respected; no theme toggle
 - [ ] `prefers-reduced-motion` respected
 - [ ] Reads correctly at 320px wide and at 200% text zoom
+- [ ] Every string passes `references/copy.md` — read aloud as if telling a friend in a crowd,
+      no "we", no machinery vocabulary, and the action label reads "Add calendar"
 
 ## Reference files
 
 - `references/color.md` — palette, tokens, measured contrast table, per-stage colors
 - `references/screens.md` — the two screens this product has, and what they deliberately omit
+- `references/copy.md` — voice, vocabulary, the tone test, and the three readers every string
+  is written for
