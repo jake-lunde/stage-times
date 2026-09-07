@@ -27,13 +27,16 @@ events:
 | **`UID_DOMAIN`** (`stagetimes.app`) | `src/ics.ts` | Every event gets a new UID. Subscribers keep the old events forever *and* get duplicates. This is an identity namespace, not a hostname — it stays even if the site moves hosts. |
 | **UID derivation** — `sha1(slug + year + stageId + normalizedArtist)`, including the exact `normalizeArtist` implementation | `src/ics.ts`, `src/schema.ts` | Same as above. Note the normalization (NFD → strip combining marks → lowercase → trim → collapse whitespace) is part of the contract. |
 | **Stage `id`** | `data/*.yaml`, `state/published.json` | That stage's feed URL 404s for everyone already subscribed. |
+| **Edition `namespace`** (`owner` or `fan`) | `data/**/*.yaml`, `state/published.json` | Every feed URL under the edition moves between `/<key>/` and `/fan/<key>/` — 404 for everyone subscribed. See [ADR-0001](./docs/adr/0001-fan-namespace-prefix.md). |
 
 **Stage `id` is a permanent URL slug. Stage `name` is display text.** They are separate fields for
 exactly this reason: the festival can rename "Main Stage" to "Coors Light Main Stage" and you
 change `name` freely while `id` stays `main` forever.
 
 The build enforces this — it refuses to run if a slug in `state/published.json` is missing from the
-YAML, because that means a rename or deletion and it needs a human decision, not a silent 404.
+YAML, or if an edition recorded there has no YAML that builds to its path (a deleted file, or a
+changed `namespace:`), because that means a rename or deletion and it needs a human decision, not
+a silent 404. To take an edition down, block it instead: [docs/takedown-runbook.md](./docs/takedown-runbook.md).
 
 **UID deliberately excludes the start time.** Festivals move sets constantly; the same UID with a
 new `DTSTART` updates in place for every subscriber. A time-derived UID would create a duplicate
@@ -55,30 +58,80 @@ Two phases, hard separation.
 `data/<festival-slug>-<year>.yaml`. This uses vision and is **not part of the build**. The
 transcription log with every ambiguity lives in `source/TRANSCRIPTION.md`.
 
-**Phase 2 — Build** (deterministic, no model in the loop). `src/build.ts` reads the YAML and emits
-static files. Given identical YAML and identical committed state it produces **byte-identical**
-`.ics` output — no generation timestamps, no randomness, no network, no LLM. That is what makes
-subscription updates safe and CI diffs meaningful.
+**Phase 2 — Build** (deterministic, no model in the loop). `src/build.ts` reads **every**
+edition under `data/` and emits static files. Given identical YAML and identical committed state
+it produces **byte-identical** `.ics` output — no generation timestamps, no randomness, no
+network, no LLM. That is what makes subscription updates safe and CI diffs meaningful.
 
 ```
 dist/
   index.html
-  <festival-slug>-<year>/
+  <festival-slug>-<year>/          owner edition   (namespace: owner)
     index.html
     all.ics
     <stage-slug>.ics
-  feeds.json
+  fan/<festival-slug>-<year>/      fan edition     (namespace: fan)
+    index.html
+    all.ics
+    <stage-slug>.ics
+  feeds.json                       every edition: namespace, listed, blocked, feeds
 ```
+
+### Editions and namespaces
+
+An **edition** is one year of one festival: `data/<festival-slug>-<year>.yaml`, key
+`<slug>-<year>`. Each edition declares which of the two URL families it lives in with a
+top-level field, required, no default:
+
+```yaml
+namespace: owner    # feeds at https://stagetimes.app/<slug>-<year>/…
+namespace: fan      # feeds at https://stagetimes.app/fan/<slug>-<year>/…
+```
+
+The root is owner-only; fan-uploaded editions live under `/fan/` and stay there even once
+listed ([ADR-0001](./docs/adr/0001-fan-namespace-prefix.md)). The field is required rather than
+defaulted because either default would be a permanent mistake by omission. By convention fan
+YAMLs sit under `data/fan/`, but the field is the declaration — the build reads `data/**/*.yaml`
+and places each edition by its `namespace:`. The same `<slug>-<year>` may exist once per
+namespace; the **edition path** (`<key>` or `fan/<key>`) is what is unique, and it is the key
+into both state files.
+
+### Committed state: listed and blocked
+
+`state/published.json` records, per edition path, the stage-slug ledger and two owner-controlled
+flags:
+
+```json
+"fan/coachella-2027": {
+  "slug": "coachella", "year": 2027, "namespace": "fan",
+  "listed": false,
+  "blocked": false,
+  "stages": ["main", "outdoor"]
+}
+```
+
+- **`listed`** — the owner's approval for the homepage. Always a human edit; the build writes
+  `false` on an edition's first build and never changes it.
+- **`blocked`** — the edition was taken down (a rights holder asked, or the uploader removed it).
+  It still builds: every feed URL it ever served returns a valid calendar with zero events and
+  its original calendar name, its page becomes the removed page, and `feeds.json` reports it
+  `listed: false` whatever the flag above says. Setting it is the one-line takedown edit;
+  unblocking is a `git revert`. Procedure: [docs/takedown-runbook.md](./docs/takedown-runbook.md).
+
+`state/sequences.json` keeps the per-event SEQUENCE ledger **per edition path**, so an owner and
+a fan edition of the same festival-year (which share UIDs — UID derivation is frozen and ignores
+the namespace) keep separate histories. A blocked edition's ledger is left untouched.
 
 ---
 
 ## Commands
 
 ```bash
-npm test                       # 69 tests — all 8 validation gates
-npm run build                  # build to dist/ (preview; allows unverified data)
-npm run build -- --production  # refuses to build unless verified: true
-npm run smoke -- <base-url>    # gate 8: curl each feed, assert headers + TLS
+npm test                       # 121 tests — gates 1–7, pages, copy, editions
+npm run build                  # build every edition to dist/ (preview; allows unverified data)
+npm run build -- --production  # refuses to build unless every edition is verified: true
+npm run build -- data/x.yaml   # build only the named file(s); add --dry-state for a fixture
+npm run smoke -- <base-url>    # gate 8: curl every feed of every edition, assert headers + TLS
 ```
 
 ---
@@ -96,10 +149,12 @@ npm run smoke -- <base-url>    # gate 8: curl each feed, assert headers + TLS
 
 ## Adding next year
 
-1. New `data/<festival-slug>-<year>.yaml` — same `slug`, new `year`.
-2. Set `default` in `state/published.json` to the new key.
-3. Reuse the **same stage ids** where the stage is the same physical stage. New year = new URL
+1. New `data/<festival-slug>-<year>.yaml` — same `slug`, new `year`, `namespace: owner`.
+2. Reuse the **same stage ids** where the stage is the same physical stage. New year = new URL
    path (`/chbp-2027/main.ics`), so last year's subscribers are untouched and unaffected.
+3. `npm run build` records the edition in `state/published.json` (unlisted). Set `listed: true`
+   by hand when it should appear on the homepage. Last year's edition keeps building alongside
+   it — nothing is ever a "default" edition.
 
 ## The `verified` gate
 
@@ -147,13 +202,15 @@ that feed will 404 later. Test on preview; subscribe for real only on the produc
 | 1 | Every generated `.ics` parses with an **independent** library (`ical.js`), with correct event counts and per-stage partitioning |
 | 2 | Golden-file byte comparison against committed fixtures |
 | 3 | UID stability — build twice for identical UIDs; mutate a time and assert UID unchanged while `DTSTART` and `SEQUENCE` change |
-| 4 | URL stability — every published stage slug still exists in the YAML |
+| 4 | URL stability — every published edition still builds to its path, in its namespace, and every published stage slug still exists in its YAML (blocked editions included) |
 | 5 | Timezone — `VTIMEZONE` present, resolved UTC instants correct either side of a DST boundary |
 | 6 | Raw-byte lint — line length ≤75 octets, CRLF, well-formed folding |
-| 7 | Every set references a declared stage; every stage has ≥1 set |
-| 8 | Post-deploy smoke — HTTP 200, `text/calendar; charset=utf-8`, ETag, valid TLS |
+| 7 | Every set references a declared stage; every stage has ≥1 set; `namespace` is `owner` or `fan` |
+| 8 | Post-deploy smoke — HTTP 200, `text/calendar; charset=utf-8`, ETag, valid TLS; a blocked edition's feeds are valid empty calendars and its page is the removed page |
 
-Gates 1–7 run in `npm test`. Gate 8 is `npm run smoke -- <url>`, run after deploy.
+Gates 1–7 run in `npm test`, alongside the page, copy, and edition tests (`tests/editions.test.ts`:
+both namespaces side by side, byte-identical twice, blocked feeds and the removed page, the
+manifest). Gate 8 is `npm run smoke -- <url>`, run after deploy.
 
 ---
 
