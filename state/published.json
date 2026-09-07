@@ -1,24 +1,29 @@
 {
   "$comment": [
-    "COMMITTED STATE — the published URL surface. Read the URL contract before editing.",
-    "`festivals[key].stages` records every stage slug that has ever been served at",
-    "https://stagetimes.app/<key>/<stage>.ics. The build APPENDS to this list and never removes.",
-    "If a slug listed here is missing from the YAML the build refuses to run, because that URL is",
-    "still being polled by every subscriber who ever tapped it and no redirect will save them.",
+    "COMMITTED STATE — the published URL surface. Read the URL contract in README before editing.",
+    "`editions` is keyed by edition path: `<slug>-<year>` for owner editions (served at",
+    "https://stagetimes.app/<slug>-<year>/) and `fan/<slug>-<year>` for fan editions (served at",
+    "https://stagetimes.app/fan/<slug>-<year>/). The namespace is declared in the edition YAML and",
+    "recorded here at first publish; the build refuses a YAML whose namespace disagrees, and refuses",
+    "to run if an edition recorded here has no YAML that builds to its path.",
+    "`stages` records every stage slug that has ever been served under that path. The build APPENDS",
+    "to this list and never removes. If a slug listed here is missing from the YAML the build refuses",
+    "to run, because that URL is still being polled by every subscriber who ever tapped it.",
+    "`listed` is the owner's approval for the homepage — always a human edit, never set by the build.",
+    "`blocked` takes an edition down: its feeds keep serving, empty, and its page says it was removed.",
+    "Setting it is the one-line takedown edit (docs/takedown-runbook.md); unblocking is a revert.",
     "`publishedAt` is the revision stamp for this publish. Bump it whenever you change a data file;",
     "it becomes DTSTAMP / LAST-MODIFIED on every event the build touches and `lastUpdated` in feeds.json.",
-    "It exists so the build never reads the wall clock — output must be byte-identical across runs.",
-    "",
-    "NOTE: `festivals` is intentionally empty. Nothing has been deployed to the production apex yet,",
-    "so no URL is being polled by anyone and gate 4 has nothing to protect. The build appends the",
-    "stage slugs on the first production build; from that moment they are frozen forever."
+    "It exists so the build never reads the wall clock — output must be byte-identical across runs."
   ],
   "publishedAt": "20260808T211500Z",
-  "default": "capitol-hill-block-party-2026",
-  "festivals": {
+  "editions": {
     "capitol-hill-block-party-2026": {
       "slug": "capitol-hill-block-party",
       "year": 2026,
+      "namespace": "owner",
+      "listed": true,
+      "blocked": false,
       "stages": [
         "barboza",
         "daydream",

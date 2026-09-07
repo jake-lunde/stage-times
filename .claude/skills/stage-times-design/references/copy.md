@@ -108,6 +108,42 @@ the attendee's device) is the model: we own one word, the reader gets the other.
    not help them press it, it belongs in a disclosure or nowhere. A caveat under a button may
    qualify what happens; it may not argue against pressing it.
 
+## The removed page
+
+What a blocked edition's URL serves instead of the subscribe page (`renderBlockedPage` in
+`src/pages.ts`; the state and the runbook are in `docs/takedown-runbook.md`). Its feeds keep
+answering, empty, so a subscriber's calendar quietly goes blank; this page is where "why"
+lives. One heading, two lines, one pill. No stage cards, no calendar buttons, no copy links,
+and no feed URL anywhere on it.
+
+The strings, verbatim:
+
+| Where | String |
+|---|---|
+| `<title>` | `{Festival} {Year} — set times removed` |
+| meta description | `The {Festival} {Year} set times were taken down. The official schedule still has them.` |
+| Heading | `Taken down` |
+| Body, line 1 | `This page was taken down and its calendars are empty now. If you added a stage from here, it will come up blank the next time your calendar app checks — remove it whenever you like.` |
+| Body, line 2 | `The official schedule still has the times.` |
+| Pill (primary, the one action) | `Official schedule` |
+| Footer | `Updated {date}.` · `Unofficial. Not affiliated with {Festival}.` · `Source: the official schedule.` |
+
+Why it reads the way it does:
+
+- **It does not say who asked.** A rights-holder block and an uploader's self-removal are the
+  same page. Gate does not care and Planner would only get half a story; the runbook has the
+  whole one.
+- **"Taken down", not "removed", "blocked", or "delisted".** Glossary words stay in the repo.
+  "Taken down" is what a person says about a page.
+- **"Calendars are empty now"** — the reader's word for what they added, not "feeds". The
+  second sentence exists for Stuck's cousin: someone who added a stage weeks ago, opens their
+  calendar, sees nothing, and comes here. It says what happened, when it takes effect ("the
+  next time your calendar app checks" — never "immediately"), and what to do.
+- **No wrong-time line.** There are no times to be wrong. The footer keeps the stamp, the
+  unofficial line, and the source; the rights-holder address (G2) joins it when it exists.
+- **The pill is the only action.** Bottom-anchored single action archetype. "Official
+  schedule" is the destination in two plain words; no arrow, because a pill holds words only.
+
 ## Writing for the three readers
 
 Every new screen is checked against the same three people the live site was:

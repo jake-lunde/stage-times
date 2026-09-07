@@ -1,0 +1,58 @@
+# FIXTURE DATA — Pier Nine is not a real festival and must never be published.
+#
+# The fan-namespace fixture. It exists so the build can be shown producing an
+# owner edition and a fan edition side by side: this one lands under
+# /fan/pier-nine-2026/ while harbor-lights-2026 lands at the root. The same
+# fixture is also the one the tests block, so it stays small and its stage
+# names are distinctive enough to assert on in an empty calendar's name.
+#
+# The file sits under tests/fixtures/fan/ by convention only — the namespace
+# is declared by the `namespace:` field below, not by the directory.
+
+verified: true
+
+namespace: fan
+
+festival:
+  name: "Pier Nine"
+  slug: "pier-nine"
+  year: 2026
+  timezone: "America/New_York"
+  official_url: "https://example.com/pier-nine/set-times"
+
+stages:
+  - id: "pier"
+    name: "Pier Stage"
+    description: "Out over the water. Windy after dark."
+  - id: "boathouse"
+    name: "The Boathouse"
+    description: "Indoor, small, sweaty."
+
+sets:
+  - stage: "pier"
+    artist: "Gull Season"
+    start: "2026-09-19T16:00:00"
+    end: "2026-09-19T16:45:00"
+    end_inferred: false
+  - stage: "boathouse"
+    artist: "Tidewater Radio"
+    start: "2026-09-19T16:30:00"
+    end: "2026-09-19T17:15:00"
+    end_inferred: false
+  - stage: "pier"
+    artist: "Marina Ok"
+    start: "2026-09-19T17:15:00"
+    end: "2026-09-19T18:00:00"
+    end_inferred: false
+  - stage: "boathouse"
+    artist: "Slipway"
+    start: "2026-09-19T18:00:00"
+    end: "2026-09-19T19:00:00"
+    end_inferred: true
+    notes: "Closing set, no printed end time."
+  - stage: "pier"
+    artist: "THE FERRY LIGHTS"
+    start: "2026-09-19T19:00:00"
+    end: "2026-09-19T20:30:00"
+    end_inferred: false
+    notes: "Headliner. Poster caps kept as printed."

@@ -59,11 +59,22 @@ export interface Manifest {
     key: string;
     basePath: string;
   };
+  /** `owner` editions sit at the root, `fan` editions under `/fan/` (ADR-0001). */
+  namespace: 'owner' | 'fan';
+  /** Approved for the homepage by the owner. Never true while blocked. */
+  listed: boolean;
+  /** Taken down: feeds serve empty, and the page is the removed page, not the subscribe page. */
+  blocked: boolean;
   stages: StageEntry[];
   all: { id: string; name: string; setCount: number; dayspan: DaySpan; icsPath: string };
   allSetCount: number;
   lastUpdated: string;
   verified: boolean;
+}
+
+/** `dist/feeds.json` — every edition the build produced, in edition-path order. */
+export interface SiteManifest {
+  editions: Manifest[];
 }
 
 /**
@@ -459,6 +470,10 @@ a{color:var(--red-deep)}
   :root{--t-display:46px; --t-title:32px; --t-card:26px}
   .fest-name{font-size:28px}
 }
+
+/* ── removed page (a blocked edition): one heading, two lines, one pill ── */
+.removed h3{margin-bottom:var(--gap-3)}
+.removed .btn{margin-top:var(--gap-4)}
 `;
 
 // ---------------------------------------------------------------------------
@@ -723,6 +738,53 @@ document.addEventListener('click', function (e) {
 }
 
 // ---------------------------------------------------------------------------
+// Removed page — a blocked edition
+// ---------------------------------------------------------------------------
+
+/**
+ * What a blocked edition's URL serves instead of the subscribe page. Its feeds
+ * still answer, empty, so a subscriber's calendar quietly goes blank; this page
+ * is where "why" lives. No stage cards, no calendar buttons, no copy links —
+ * one heading, two lines, and one pill to the official schedule.
+ *
+ * Copy: references/copy.md, "The removed page". The page does not say who asked
+ * for the takedown: a rights-holder block and an uploader's self-removal read
+ * the same to the person standing at the gate.
+ */
+export function renderBlockedPage(m: Manifest): string {
+  const f = m.festival;
+  const title = `${f.name} ${f.year} — set times removed`;
+  const desc = `The ${f.name} ${f.year} set times were taken down. The official schedule still has them.`;
+
+  const body = `<main class="wrap">
+  <nav class="topbar">
+    <a class="icon-btn" href="/" aria-label="Stage Times home">${ICON_BACK}</a>
+  </nav>
+
+  <header>
+    <p class="lockup">Stage&nbsp;Times</p>
+    <h2>${esc(f.name)} <span style="color:var(--ink-soft)">${f.year}</span></h2>
+  </header>
+
+  <section class="prose removed">
+    <h3>Taken down</h3>
+    <p>This page was taken down and its calendars are empty now. If you added a stage from here,
+    it will come up blank the next time your calendar app checks — remove it whenever you like.</p>
+    <p>The official schedule still has the times.</p>
+    <a class="btn btn--primary" href="${esc(f.officialUrl)}">Official schedule</a>
+  </section>
+
+  <footer>
+    <p>Updated ${esc(humanStamp(m.lastUpdated))}.</p>
+    <p>Unofficial. Not affiliated with ${esc(f.name)}.</p>
+    <p>Source: <a href="${esc(f.officialUrl)}">the official schedule</a>.</p>
+  </footer>
+</main>`;
+
+  return page(title, desc, body);
+}
+
+// ---------------------------------------------------------------------------
 // Landing page
 // ---------------------------------------------------------------------------
 
@@ -805,6 +867,56 @@ export function renderPages(manifest: Manifest, outDir: string): string[] {
   const subscribe = join(festDir, 'index.html');
   writeFileSync(subscribe, renderSubscribePage(manifest), 'utf8');
   written.push(`${manifest.festival.key}/index.html`);
+
+  return written;
+}
+
+// ---------------------------------------------------------------------------
+// Entry point for the whole site — every edition, both namespaces
+// ---------------------------------------------------------------------------
+
+/**
+ * Which edition the landing page features until the homepage lists every listed
+ * edition (ticket 06): the first listed one, else the first that is not blocked,
+ * else whatever there is. Editions arrive sorted by path, so this is stable.
+ */
+export function featuredEdition(site: SiteManifest): Manifest | undefined {
+  return site.editions.find((e) => e.listed) ?? site.editions.find((e) => !e.blocked) ?? site.editions[0];
+}
+
+/**
+ * Called by build.ts after the feeds are written. Emits:
+ *   dist/index.html                          landing (see featuredEdition)
+ *   dist/<key>/index.html                    subscribe page, owner edition
+ *   dist/fan/<key>/index.html                subscribe page, fan edition
+ *   …or the removed page at the same path when the edition is blocked
+ *   dist/assets/**                           self-hosted fonts + festival art
+ */
+export function renderSitePages(site: SiteManifest, outDir: string): string[] {
+  const written: string[] = [];
+
+  if (existsSync(ASSETS_SRC)) {
+    cpSync(ASSETS_SRC, join(outDir, 'assets'), { recursive: true });
+    written.push('assets/');
+  }
+
+  const featured = featuredEdition(site);
+  if (featured) {
+    const heroExt = IMAGE_EXTS.find((ext) =>
+      existsSync(join(ASSETS_SRC, 'festivals', `${featured.festival.key}.${ext}`)),
+    );
+    const heroImage = heroExt ? `/assets/festivals/${featured.festival.key}.${heroExt}` : undefined;
+    writeFileSync(join(outDir, 'index.html'), renderLandingPage(featured, { heroImage }), 'utf8');
+    written.push('index.html');
+  }
+
+  for (const m of site.editions) {
+    const rel = m.festival.basePath.replace(/^\//, '');
+    const dir = join(outDir, rel);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'index.html'), m.blocked ? renderBlockedPage(m) : renderSubscribePage(m), 'utf8');
+    written.push(`${rel}/index.html`);
+  }
 
   return written;
 }

@@ -28,6 +28,7 @@ import {
   normalizeArtist,
   stageIdProblem,
   type FestivalDoc,
+  type Namespace,
 } from './schema.js';
 
 // ---------------------------------------------------------------------------
@@ -273,6 +274,12 @@ export function slugify(name: string): string {
 // ---------------------------------------------------------------------------
 
 export interface TranscriptionOptions {
+  /**
+   * Which URL family the edition will publish into: `owner` at the root,
+   * `fan` under `/fan/` (ADR-0001). Required, no default — the poster cannot
+   * know this, and it is permanent from first publish.
+   */
+  namespace: Namespace;
   /** Festival display name. Defaults to a title-cased poster name. */
   name?: string;
   /** URL slug. Defaults to slugified name. PERMANENT once published. */
@@ -491,6 +498,10 @@ function renderYaml(
   lines.push('# to this file), then set verified: true to authorize publishing.');
   lines.push('');
   lines.push('verified: false');
+  lines.push('');
+  lines.push('# PERMANENT — decides the URL family: owner editions live at /<slug>-<year>/, fan editions at');
+  lines.push('# /fan/<slug>-<year>/ (docs/adr/0001-fan-namespace-prefix.md). Never changes after first publish.');
+  lines.push(`namespace: ${options.namespace}`);
   lines.push('');
   lines.push('festival:');
   lines.push(`  name: ${q(festival.name)}`);

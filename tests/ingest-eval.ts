@@ -115,6 +115,7 @@ async function main(): Promise<void> {
   // 2. Transcribe. Name/slug/timezone are human-supplied knowledge, same as they
   //    were for the hand transcription — the eval scores set transcription.
   const built = transcribe(outputs, {
+    namespace: 'owner',
     name: 'Capitol Hill Block Party',
     slug: 'capitol-hill-block-party',
     timezone: 'America/Los_Angeles',

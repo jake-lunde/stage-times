@@ -96,7 +96,7 @@ function outputs(raw: RawTranscription = fixture()): ModelOutput[] {
   }));
 }
 
-const OPTS = { timezone: 'America/Los_Angeles', timezoneAssumed: true };
+const OPTS = { namespace: 'fan' as const, timezone: 'America/Los_Angeles', timezoneAssumed: true };
 
 // ---------------------------------------------------------------------------
 // transcribe — reading model output
@@ -250,6 +250,7 @@ test('transcribe: two sources transcribed to the same date is an error', () => {
 
 test('transcribe: human-supplied name, slug, URL and time zone override the poster', () => {
   const t = transcribe(outputs(), {
+    namespace: 'fan',
     name: 'Harbor Lights Festival',
     slug: 'harbor-lights-fest',
     officialUrl: 'https://harborlights.example/schedule',
@@ -285,6 +286,7 @@ test('transcribe: the saved CHBP Friday model reply matches the verified edition
   // that scored 79/79. The hand-verified edition is the ground truth.
   const fixturePath = join(REPO_ROOT, 'tests', 'fixtures', 'model-output', 'chbp-2026-friday.json');
   const t = transcribe([{ source: 'CHBP+Daily+Schedule_FRIDAY.webp', output: readFileSync(fixturePath, 'utf8') }], {
+    namespace: 'owner',
     name: 'Capitol Hill Block Party',
     slug: 'capitol-hill-block-party',
     timezone: 'America/Los_Angeles',

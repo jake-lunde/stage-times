@@ -53,10 +53,26 @@ export interface SetEntry {
   index: number;
 }
 
+/**
+ * Which of the two URL families an edition lives in (ADR-0001). `owner`
+ * editions sit at the root (`/<slug>-<year>/`); `fan` editions sit under
+ * `/fan/`. Permanent from first publish — an edition never moves between
+ * namespaces, and the build refuses a namespace that disagrees with the one
+ * recorded in committed state.
+ */
+export type Namespace = 'owner' | 'fan';
+export const NAMESPACES: readonly Namespace[] = ['owner', 'fan'];
+
 export interface FestivalDoc {
   festival: FestivalMeta;
   stages: Stage[];
   sets: SetEntry[];
+  /**
+   * The edition's namespace, declared at the top level of the YAML as
+   * `namespace: owner` or `namespace: fan`. Required, no default: the root is
+   * owner-only and a fan edition landing there by omission would be permanent.
+   */
+  namespace: Namespace;
   /**
    * Has a human checked this transcription against the source images?
    *
@@ -446,8 +462,27 @@ export function validateDoc(raw: unknown, sourcePath: string): FestivalDoc {
   }
   const verified = verifiedRaw === true;
 
+  // `namespace` decides the URL family and is permanent, so it must be typed
+  // out. No default: defaulting to `owner` would let a fan edition claim a root
+  // URL by omission, and defaulting to `fan` would silently move an owner
+  // edition — both unfixable once anyone has subscribed.
+  const namespaceRaw = root['namespace'];
+  let namespace: Namespace = 'fan';
+  if (namespaceRaw === undefined || namespaceRaw === null) {
+    problems.push(
+      '`namespace` is required and must be "owner" or "fan" — it decides whether the feeds live at ' +
+        `/${festival.slug || '<slug>'}-${festival.year || '<year>'}/ or /fan/${festival.slug || '<slug>'}-${
+          festival.year || '<year>'
+        }/, and it is permanent from first publish (see docs/adr/0001-fan-namespace-prefix.md)`,
+    );
+  } else if (typeof namespaceRaw !== 'string' || !(NAMESPACES as readonly string[]).includes(namespaceRaw)) {
+    problems.push(`\`namespace\` must be "owner" or "fan" (got ${JSON.stringify(namespaceRaw)})`);
+  } else {
+    namespace = namespaceRaw as Namespace;
+  }
+
   if (problems.length > 0) throw new SchemaError(sourcePath, problems);
-  return { festival, stages, sets, verified, sourcePath };
+  return { festival, stages, sets, namespace, verified, sourcePath };
 }
 
 export function loadFestival(path: string): FestivalDoc {

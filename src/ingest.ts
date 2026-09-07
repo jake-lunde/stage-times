@@ -20,6 +20,9 @@
  *   --name <name>        festival display name (default: title-cased poster name)
  *   --slug <slug>        URL slug (default: slugified name). PERMANENT once published.
  *   --official-url <u>   official URL (default: the URL printed on the poster)
+ *   --namespace <ns>     owner | fan (default: fan). Decides the URL family —
+ *                        /<slug>-<year>/ or /fan/<slug>-<year>/ — and is
+ *                        PERMANENT once published. The root is owner-only.
  *   --timezone <tz>      IANA timezone (default: America/Los_Angeles, flagged as
  *                        ASSUMED in the output — the poster cannot tell us this)
  *   --backend <b>        sdk | cli | auto (default: auto — sdk when an API key is
@@ -30,6 +33,7 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
+import { NAMESPACES, type Namespace } from './schema.js';
 import { transcribe, type ModelOutput } from './transcription.js';
 import { pickBackend, transcribeImage, type Backend, type VisionResult } from './vision.js';
 
@@ -40,6 +44,7 @@ interface Args {
   name?: string;
   slug?: string;
   officialUrl?: string;
+  namespace: Namespace;
   timezone: string;
   timezoneAssumed: boolean;
   backend: Backend | 'auto';
@@ -48,12 +53,12 @@ interface Args {
 const DEFAULT_TZ = 'America/Los_Angeles';
 
 function usage(): never {
-  console.error('usage: npm run ingest -- <image> [...] [--out dir] [--name n] [--slug s] [--official-url u] [--timezone tz] [--backend sdk|cli|auto] [--raw file.json]');
+  console.error('usage: npm run ingest -- <image> [...] [--out dir] [--name n] [--slug s] [--official-url u] [--namespace owner|fan] [--timezone tz] [--backend sdk|cli|auto] [--raw file.json]');
   process.exit(2);
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { images: [], raws: [], out: 'ingest-out', timezone: DEFAULT_TZ, timezoneAssumed: true, backend: 'auto' };
+  const args: Args = { images: [], raws: [], out: 'ingest-out', namespace: 'fan', timezone: DEFAULT_TZ, timezoneAssumed: true, backend: 'auto' };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i]!;
     const next = (): string => {
@@ -67,6 +72,12 @@ function parseArgs(argv: string[]): Args {
       case '--name': args.name = next(); break;
       case '--slug': args.slug = next(); break;
       case '--official-url': args.officialUrl = next(); break;
+      case '--namespace': {
+        const ns = next();
+        if (!(NAMESPACES as readonly string[]).includes(ns)) usage();
+        args.namespace = ns as Namespace;
+        break;
+      }
       case '--timezone': args.timezone = next(); args.timezoneAssumed = false; break;
       case '--raw': args.raws.push(next()); break;
       case '--backend': {
@@ -124,6 +135,7 @@ async function main(): Promise<void> {
   }
 
   const transcription = transcribe(outputs, {
+    namespace: args.namespace,
     name: args.name,
     slug: args.slug,
     officialUrl: args.officialUrl,

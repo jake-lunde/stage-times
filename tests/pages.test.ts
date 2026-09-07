@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 
 import { buildFeeds } from '../src/build.js';
 import { renderLandingPage, renderSubscribePage } from '../src/pages.js';
-import { buildDst, emptyState, harborDoc } from './helpers.js';
+import { buildDst, buildFixtureSite, emptyState, harborDoc } from './helpers.js';
 
 const INSIGHTS_SRC = '/_vercel/insights/script.js';
 const VA_STUB = 'window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };';
@@ -117,8 +117,8 @@ test('analytics: no .ics output contains a script tag or any analytics trace', (
 });
 
 test('analytics: feeds.json is data, not a page — no analytics trace there either', () => {
-  const feedsJson = harborBuild.files.get('feeds.json');
-  assert.ok(feedsJson, 'harbor build must emit feeds.json');
+  const feedsJson = buildFixtureSite([harborDoc()]).files.get('feeds.json');
+  assert.ok(feedsJson, 'the site build must emit feeds.json');
   assert.equal(feedsJson!.includes('_vercel'), false);
   assert.equal(feedsJson!.toLowerCase().includes('<script'), false);
 });
