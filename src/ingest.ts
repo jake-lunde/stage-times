@@ -44,7 +44,7 @@ interface Args {
 const DEFAULT_TZ = 'America/Los_Angeles';
 
 function usage(): never {
-  console.error('usage: npm run ingest -- <image> [...] [--out dir] [--name n] [--slug s] [--timezone tz] [--backend sdk|cli|auto] [--raw file.json]');
+  console.error('usage: npm run ingest -- <image> [...] [--out dir] [--name n] [--slug s] [--official-url u] [--timezone tz] [--backend sdk|cli|auto] [--raw file.json]');
   process.exit(2);
 }
 
