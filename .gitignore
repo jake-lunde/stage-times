@@ -14,3 +14,8 @@ _ref/Cash App ios Nov 2025/
 
 # Agent worktrees created by the desktop app; never committed.
 .claude/worktrees/
+
+# Machine-transcription scratch output (npm run ingest / ingest:eval).
+# Never committed: promotion into data/ is a deliberate human step.
+ingest-out/
+_ref/ingest-eval/

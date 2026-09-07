@@ -6,15 +6,18 @@
   "type": "module",
   "scripts": {
     "build": "tsx src/build.ts",
+    "ingest": "tsx src/ingest.ts",
+    "ingest:eval": "tsx tests/ingest-eval.ts",
     "test": "tsx --test tests/*.test.ts",
     "smoke": "tsx tests/smoke.ts",
     "vercel-build": "npm test && npm run build"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.116.0",
+    "@types/luxon": "^3.4.2",
     "@types/node": "^22.10.2",
     "ical.js": "^2.1.0",
     "luxon": "^3.5.0",
-    "@types/luxon": "^3.4.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "yaml": "^2.6.1"
