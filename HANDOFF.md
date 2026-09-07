@@ -1,143 +1,115 @@
 # Stage Times — session handoff
 
-**Date:** 9 August 2026 (supersedes the 8 Aug evening handoff)
+**Date:** 6 September 2026 (supersedes the 9 Aug handoff)
 **Repo:** `/Users/jake/Documents/github/stage-times`
-**Production:** https://stagetimes.app — **LIVE**
+**Production:** https://stagetimes.app — **LIVE**, last deployed from `f714be4` (9 Aug); nothing from 6 Sep is deployed yet
 **Vercel project:** `stage-times` @ LUNDE OS (`prj_mbuC9M3JFa5BMrEajeneh0vtLeHJ`)
-**GitHub:** https://github.com/jake-lunde/stage-times (git push to `main` triggers a production deploy)
+**GitHub:** https://github.com/jake-lunde/stage-times (a push to `main` triggers a production deploy)
+**Tracker:** the jaique vault — `Efforts/On/🎪 Stage Times (E).md` and the numbered tickets in
+`Efforts/Notes/Stage Times/`. See `docs/agents/issue-tracker.md`. The vault, not this file, is
+the source of truth for what is next; this file is the orientation.
 
-Status: **launched, redesigned, instrumented, and Phase 1 of self-serve is proven.** CHBP 2026
-wraps tonight (Sunday); after that the feeds are historical record and need nothing. The next
-build is **Phase 2: the upload flow** — everything below points at it.
-
----
-
-## What happened 2026-08-09
-
-1. **Design refresh shipped** (owner-directed, live in production). Archivo (variable width,
-   expanded caps for display) + Fragment Mono (fine detail), both self-hosted woff2 in
-   `assets/fonts/` — zero third-party requests still holds. Landing got an Apple-style media
-   card with the committed CHBP banner (`assets/festivals/<key>.webp`). Subscribe page: stage
-   cards became a CSS scroll-snap carousel with deterministic procedural capsule art and
-   per-day headliner previews; copy-link is a 44pt icon button; text buttons exist; everything
-   tappable shrinks on press. **The skill was rewritten to match**
-   (`.claude/skills/stage-times-design/`) — it is current and binding; the old "no webfont /
-   no icons in buttons" rules are superseded in place.
-2. **Analytics live.** Vercel Web Analytics snippet on both pages (plain-HTML pattern, stub
-   before deferred script), one custom event: `subscribe` with `{festival, stage}`. Web
-   Analytics was already enabled on the project (4 Aug). Tests pin the snippet into HTML and
-   out of every `.ics`, both statically and in the live smoke test. **Caveat:** Vercel gates
-   *custom events* to Pro/Enterprise — pageviews work on any plan; if `lunde-os` is Hobby the
-   subscribe panel stays empty (the code is harmless either way).
-3. **Phase 1 ingest CLI built and eval'd — the transcription question is answered.**
-   `npm run ingest -- <image>` (branch `feat/ingest-cli`, **not yet merged**) transcribes a
-   poster via Claude vision into festival YAML + a TRANSCRIPTION-style ambiguity log, reusing
-   `src/schema.ts` for validation. The eval re-transcribed all three CHBP posters and diffed
-   against the 79 hand-verified sets: **79/79 exact** (stage, artist, raw, start, end,
-   end_inferred), 9/9 CLOSE-inferred ends flagged, 41 reviewer observations logged. Cost:
-   **$0.74 for all three posters** (~25¢ each) on Opus. Artifacts:
-   `stage-times-ingest` worktree, `_ref/ingest-eval/`.
-4. **`build.ts` manifest gained `headliners`** per stage (the closer of each calendar day) —
-   feeds.json consumers can rely on it.
-
-## Housekeeping for the next session
-
-- **Merge `feat/ingest-cli`.** It sits in the `../stage-times-ingest` worktree with one
-  uncommitted edit to `src/ingest.ts` — review, commit, merge, then
-  `git worktree remove ../stage-times-ingest`. The `../stage-times-analytics` worktree is
-  merged and can be removed.
-- **Vision calls need a real API key.** The eval fell back to the local `claude` CLI
-  (`claude -p --model opus`), which bills the owner's *subscription session usage* — fine
-  once, wrong for anything recurring. Phase 2's serverless function needs `ANTHROPIC_API_KEY`
-  (Vercel env var). Also worth an eval rerun on a cheaper vision model against the same 79-set
-  ground truth before wiring Phase 2's default — the eval harness makes that a one-liner.
-- Known cosmetic: `webcal://` first hop is plain http → one-time "Insecure Connection" prompt
-  on Apple devices. Deliberate; see 8 Aug handoff reasoning (`webcals://` is the alternative).
-- Carry-over, all safe: artist casing is poster-uppercase; nine inferred CLOSE ends stand
-  unless a real curfew surfaces (fix YAML → SEQUENCE bumps propagate); official schedule deep
-  link unconfirmed.
+Status: **everything from 6 Sep sits on `main` unpushed** — the morning's glossary, ADR, and copy
+review, plus tickets 02, 04, and 15. Nothing user-facing changes until Jake pushes.
 
 ---
 
-## NEXT: Phase 2 — upload a screenshot, get a webcal, publish to the site
+## What happened 2026-09-06
 
-Owner's ask (2026-08-08): *"users can upload a screenshot and create a webcal and then those
-are published to the site for ease of access for new users."* Phase 1 de-risked transcription;
-what remains is the product surface and the publish pipeline.
+The morning session (Opus) settled the glossary (`CONTEXT.md`), the agent docs, ADR-0001, and
+the fifteen-ticket plan for the self-serve editions spec, then did ticket 01. The afternoon
+session (Fable) verified 01 and shipped 02, 04, and 15.
 
-### Working agreement (owner, 2026-08-09)
+1. **Ticket 01 — copy review** (`docs/copy-review-2026-09-06.md`). All 49 visible strings read
+   by three festival-goers; 17 rewrites; the "Add calendar" ruling confirmed. Verified against
+   the source and the built pages: the inventory is complete, the contract claims hold (artist
+   casing is UID-safe because normalization lowercases; the calendar name is not frozen).
+2. **Ticket 15 — the rewrites are live on the pages** (`ef2d8bd`). Every button says
+   "Add calendar". The Android dead-tap recovery line renders hidden under each button and
+   appears when "Opening Calendar…" restores itself. Footers read "Wrong time? Tell me ↗"; the
+   landing footer gained attribution; the stamp says "Pacific" via `zoneLabel()` in `pages.ts`
+   (derived from the IANA zone, no data change). Disposition of all 17 rewrites is section 6 of
+   the review. Declined here: R6 (artist title case), R16 (calendar-name apostrophe), R17
+   (shorter inferred-end caveat) — all change feed bytes or data and are owner calls.
+   `tests/copy.test.ts` pins the strings and the voice rules.
+3. **Ticket 02 — transcription is a library** (`15fd0f3`). `transcribe(outputs, options)` in
+   `src/transcription.ts` takes the model's raw replies and returns the validated edition
+   document, its YAML, the ambiguity log, and per-set review detail. Pure: no files, no model,
+   no network, no clock. `src/vision.ts` is the only thing that talks to a model;
+   `src/ingest.ts` (`npm run ingest`) and `tests/ingest-eval.ts` (`npm run ingest:eval`) are
+   wrappers. The eval replays saved replies from `_ref/ingest-eval/raw/` and scores 79/79.
+   The old `stage-times-ingest` worktree is removed.
+4. **Ticket 04 — every edition builds, with listed and blocked state** (`8b0836b`, merge).
+   The build walks `data/**`. Owner editions build to `/<slug>-<year>/`, fan editions to
+   `/fan/<slug>-<year>/`; the YAML declares which with a required `namespace:` field.
+   `state/published.json` is keyed by edition path and carries `listed` and `blocked`;
+   `state/sequences.json` is per edition. A blocked edition serves every feed it ever had as a
+   valid empty calendar with its original name, and its page is the removed page ("Taken
+   down"). `docs/takedown-runbook.md` is the procedure. The transcription library learned the
+   namespace field in the merge (`--namespace owner|fan` on the CLI, default `fan`).
 
-**Delegate non-taste builds to agents; taste work stays in the main session.** The upload and
-review screens are *new design surfaces* — they are taste work. The serverless plumbing,
-GitHub-API commit flow, rate limiting, and slug collision logic are not — delegate them.
-Parallel agents get their own git worktrees and commit to branches; merge/push decisions stay
-with the owner (or with explicit approval).
+Tests: **155 pass** (`npm test`). CHBP feeds are byte-identical to the last deploy.
 
-### Recommended architecture: git-backed ingest (unchanged, now half-built)
+## Rulings that changed since the 9 Aug handoff
 
-Don't build a database. The pipeline writes to the repo through a serverless endpoint:
+All from the 6 Sep grilling; recorded on the vault effort page and, where permanent, as ADRs.
 
-```
-upload (web) ──► transcribe (Phase 1 pipeline as a library, real API key)
-             ──► validate (src/schema.ts)
-             ──► review screen (uploader confirms against their own image)
-             ──► commit YAML + state via GitHub API
-             ──► Vercel auto-deploys (~60–90s; show it honestly: "being pressed…")
-             ──► feed live at stagetimes.app/<slug>-<year>/<stage>.ics
-```
+- **Fan editions live under `/fan/`; the root is owner-only.** ADR-0001. Permanent.
+- **No draft tier.** A feed URL that exists is one a human checked. The old "draft /
+  uploader-verified / listed" table is gone; the states are `listed` and `blocked`.
+- **Uploaders can edit a set on review.** The image stays the source of truth.
+- **The homepage becomes a list of listed editions** (ticket 06). The no-directory rule is
+  revoked; no admin UI and no database still stand.
+- **One pipeline, two entry points.** Jake uploads through the same screens as a fan,
+  recognized by a secret bookmark (ticket 10). No separate scraper.
+- **"Add calendar", not "Subscribe."** Live as of ticket 15.
+- **Takedowns: block first, talk after.** Feeds go empty, URLs never 404.
+- **GitHub is the alert channel; the vault is the tracker.** Nothing here becomes a vault
+  ticket unless Jake asks.
 
-Every existing gate keeps firing (75 tests run in `vercel-build`); determinism survives
-(`publishedAt` stamped at commit time by the endpoint, never by the build); audit and rollback
-are git. One vision call per upload ≈ $0.25.
+## The frontier (read the vault for the full tickets)
 
-### Trust tiers (make verification visible)
+- **Ready now:** 06 (homepage lists listed editions), 07 (publisher seam: upload and confirm),
+  14 (sponsor card and the festival footer link).
+- **Waiting on Jake:** 03 (provision secrets: vision API key, GitHub token, owner secret). It
+  gates 05 (pick the transcription model on evidence) and 08 (upload, review, success screens).
+- **Owner calls outstanding:** the rights-holder takedown email address (G2 — the footer line
+  ships the moment it exists); a device check of the iOS confirm sheet's wording for R13; R6,
+  R16, R17 above; and the push (eleven commits, `git log origin/main..main`).
 
-| Tier | Meaning | Where it shows |
-|---|---|---|
-| draft | transcribed, not yet confirmed by anyone | unlisted URL only, `X-WR-CALNAME` prefixed "DRAFT — " |
-| uploader-verified | uploader confirmed against their image | live feed, listed nowhere yet |
-| listed | owner approved for the public directory | homepage directory |
+## Flags for whoever picks up 07
 
-Publishing a feed ≠ listing it. Directory listing stays owner-curated — one owner-click per
-festival, not a moderation queue.
+- **Where do source images live?** The runbook says a rights-holder block deletes the stored
+  image "in the same commit". If images are committed to this public repo, that is not a
+  deletion — history keeps it. They need a private store. Decide before the first upload.
+- `npx serve` (the `.claude/launch.json` preview) 404s nested `/fan/<key>/` paths; Vercel and
+  the build are fine. Preview fan editions another way or accept the quirk.
+- A bare `assert.ok(x)` with no message costs about three minutes on failure under `tsx`
+  while Node re-parses the source for the message. Give assertions messages.
 
-### Phase 2 scope (independently shippable)
+## Working agreement (owner, 2026-08-09, still in force)
 
-Public upload page (design system: one decision per screen — a single huge "Upload schedule"
-button). Serverless: image → ingest pipeline → validation. Review screen: their image beside
-the parsed schedule, per-set, inferred ends flagged, in the carousel/card idiom of the new
-design. Confirm → commit → deploy → subscribe page at an unlisted URL. Needs:
+Delegate non-taste builds to agents in their own worktrees; taste work (new screens, copy)
+stays in the main session. Merge to `main` locally is fine; **push decisions stay with Jake.**
+Verify work done by a different model before building on it. New screens come from
+`.claude/skills/stage-times-design/` (load `references/copy.md` before writing any string),
+not from generic taste.
 
-- **Slug collision handling** — `<slug>-<year>` taken → error, ask for a suffix. Slugs are
-  forever; never auto-mint variants.
-- Image constraints (size/type), IP-based rate limiting (low), `uploaded_by` email field for
-  takedowns/corrections.
-- The Phase 1 CLI refactored into an importable library (it validates already; the CLI wrapper
-  stays for local use and eval reruns).
-
-Phase 3 (public directory: `listed: true` in curated state) and Phase 4 (ops hardening:
-`blocked` state that empties a feed but never 404s a published slug, correction flow via
-re-upload → diff → SEQUENCE bump) are unchanged from the 8 Aug handoff.
-
-### Decisions that need the owner — collect BEFORE building Phase 2
-
-1. **Who can publish?** Anonymous + rate limits, or email-gated? (Recommend: email field, no
-   auth wall, revisit if abused.)
-2. **Straight-to-main or PR-per-festival?** (Recommend: straight-to-main for feeds,
-   curation only for listing.)
-3. **URL namespace — PERMANENT:** flat `stagetimes.app/<slug>-<year>/` like CHBP, or a `/f/`
-   prefix for user-submitted? Decide before the first user upload.
-4. **Uploaded poster images:** store privately for audit (recommended — it's the verification
-   evidence; never republish) or transcribe-and-discard?
-5. **Transcription model + cost ceiling.** Opus is proven at 79/79 / ~25¢ per poster. Rerun
-   the eval on a cheaper vision model; pick on evidence.
-
-### What NOT to do
+## What NOT to do
 
 - No database until a phase demonstrably cannot ship without one.
-- No transcription-editing UI in v1 — wrong reads get fixed by re-upload; the image is the
-  source of truth.
 - Never auto-list. Never delete a published slug. Never let the build read the wall clock.
-- New screens come from the skill (`.claude/skills/stage-times-design/` — freshly rewritten),
-  not from generic taste. The review screen's per-set rows are a list surface; check
-  `screens.md` conventions first.
+- Never change `normalizeArtist`, UID derivation, `UID_DOMAIN`, a stage `id`, or an edition's
+  `namespace` after first publish.
+- Don't put a feed URL, a repo path, or the word "we" on a page.
+
+## Housekeeping
+
+- Merged branches that can be deleted: `feat/ingest-library`, `feat/editions-state`,
+  `feat/ingest-cli`, `feat/analytics`, `feat/design-refresh`, `docs/agent-setup`.
+- Agent worktrees under `.claude/worktrees/` are gitignored; `git worktree prune` after
+  removing the directories.
+- `webcal://` first hop is plain http → one-time "Insecure Connection" prompt on Apple
+  devices. Deliberate.
+- Carry-over: nine inferred CLOSE ends stand unless a real curfew surfaces; official schedule
+  deep link unconfirmed.
