@@ -11,3 +11,6 @@ __pycache__/
 _ref/Cash App ios Nov 2025/
 .vercel
 .env*
+
+# Agent worktrees created by the desktop app; never committed.
+.claude/worktrees/

@@ -330,6 +330,10 @@ h3{font-size:var(--t-card); line-height:1.05; margin:0}
 
 .actions{display:flex; gap:var(--gap-1); align-items:center; margin-top:var(--gap-3)}
 .actions .btn{flex:1}
+/* The Android dead-tap recovery line: hidden until the button restores itself,
+   17pt/600 so it clears the on-color contrast rule inside a stage card. */
+.recover{margin:var(--gap-2) 0 0; font-size:var(--t-body); font-weight:600; line-height:1.3}
+.recover a{color:inherit}
 
 /* ── landing media card ───────────────────────────────────────────────── */
 .fest-card{
@@ -497,6 +501,43 @@ ${body}
 }
 
 // ---------------------------------------------------------------------------
+// Copy helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * The Android dead-tap recovery line (copy review 2026-09-06, R9/G3). Rendered
+ * hidden under every Add calendar button; the click handler reveals it when the
+ * button restores itself, which is the only signal a phone gives that webcal://
+ * went nowhere.
+ */
+const RECOVER_LINE =
+  '<p class="recover" hidden>Didn\'t open? Android needs a computer — <a href="#other-calendars">see below ↓</a></p>';
+
+const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+function numberWord(n: number): string {
+  return NUMBER_WORDS[n] ?? String(n);
+}
+
+/**
+ * The human name for a festival's time zone, for the footer stamp. The IANA id
+ * stays in the data and the feeds; the page says what a festival-goer would say.
+ * Unknown zones fall back to the zone's city name.
+ */
+const ZONE_LABELS: Record<string, string> = {
+  'America/Los_Angeles': 'Pacific',
+  'America/Vancouver': 'Pacific',
+  'America/Denver': 'Mountain',
+  'America/Phoenix': 'Arizona',
+  'America/Chicago': 'Central',
+  'America/New_York': 'Eastern',
+  'America/Toronto': 'Eastern',
+  'Europe/London': 'UK',
+};
+export function zoneLabel(tz: string): string {
+  return ZONE_LABELS[tz] ?? (tz.split('/').pop() ?? tz).replace(/_/g, ' ');
+}
+
+// ---------------------------------------------------------------------------
 // Subscribe page
 // ---------------------------------------------------------------------------
 
@@ -520,9 +561,10 @@ function stageCard(stage: StageEntry, color: string, feedUrl: string, festivalKe
     <p class="meta">${sets} · ${esc(span)}</p>
     ${stage.description ? `<p class="desc">${esc(stage.description)}</p>` : ''}
     <div class="actions">
-      <a class="btn btn--on-color" href="${esc(webcal)}" data-festival="${esc(festivalKey)}" data-stage="${esc(stage.id)}">Subscribe</a>
+      <a class="btn btn--on-color" href="${esc(webcal)}" data-festival="${esc(festivalKey)}" data-stage="${esc(stage.id)}">Add calendar</a>
       <button class="icon-btn icon-btn--on-color" data-copy="${esc(feedUrl)}" aria-label="Copy calendar link">${ICON_LINK}${ICON_CHECK}</button>
     </div>
+    ${RECOVER_LINE}
   </div>
 </li>`;
 }
@@ -530,7 +572,7 @@ function stageCard(stage: StageEntry, color: string, feedUrl: string, festivalKe
 export function renderSubscribePage(m: Manifest): string {
   const f = m.festival;
   const title = `${f.name} ${f.year} — set times by stage`;
-  const desc = `Subscribe to ${f.name} ${f.year} set times, one calendar per stage.`;
+  const desc = `${f.name} ${f.year} set times, one calendar per stage. Add the stages you care about to your phone.`;
 
   const cards = m.stages
     .map((s, i) => stageCard(s, STAGE_COLORS[i % STAGE_COLORS.length]!, `${PROD_ORIGIN}${s.icsPath}`, f.key))
@@ -542,10 +584,9 @@ export function renderSubscribePage(m: Manifest): string {
   const unverified = m.verified
     ? ''
     : `<div class="banner">
-  <strong>Preview — set times not yet verified</strong>
-  This schedule was transcribed from the official poster images and has not been checked by a
-  human. Do not subscribe from this preview. See <code>source/TRANSCRIPTION.md</code> for the
-  open questions.
+  <strong>Not checked yet</strong>
+  These times were read off the official posters by machine and nobody has checked them against
+  the source. Don't plan your day around them yet.
 </div>`;
 
   const body = `<main class="wrap">
@@ -571,33 +612,35 @@ ${cards}
         <h3>${esc(m.all.name)}</h3>
         <p class="meta">${m.all.setCount} sets · every stage in one calendar</p>
         <div class="actions">
-          <a class="btn btn--ink" href="${esc(allWebcal)}" data-festival="${esc(f.key)}" data-stage="${esc(m.all.id)}">Subscribe</a>
+          <a class="btn btn--ink" href="${esc(allWebcal)}" data-festival="${esc(f.key)}" data-stage="${esc(m.all.id)}">Add calendar</a>
           <button class="icon-btn" data-copy="${esc(allUrl)}" aria-label="Copy calendar link">${ICON_LINK}${ICON_CHECK}</button>
         </div>
+        ${RECOVER_LINE}
       </li>
     </ul>
     <p class="small" style="margin-top:var(--gap-3)">
-      Two or three stages reads well in a day view. All ${m.stages.length} compresses into narrow
-      unreadable columns — use the official grid for the full lineup.
+      Pick two or three. All ${numberWord(m.stages.length)} at once turns a day view into a wall of
+      overlapping blocks.
     </p>
     <a class="text-btn" href="${esc(f.officialUrl)}">See the full lineup ↗</a>
   </section>
 
-  <section>
-    <p class="eyebrow">Not on iPhone?</p>
+  <section id="other-calendars">
+    <p class="eyebrow">Android, or on a computer?</p>
 
     <details>
       <summary>Google Calendar</summary>
       <div class="body">
         <p><strong>Desktop web only.</strong> Google Calendar cannot add a calendar by URL from
-        the Android or iOS app at all — there is no menu for it. Use a computer:</p>
+        the Android or iOS app at all — there is no menu for it. Tap the link icon on the stage
+        card to copy its address. Then, on a computer:</p>
         <ol>
           <li>Open Google Calendar in a browser</li>
           <li>Settings → Add calendar → From URL</li>
           <li>Paste the stage's <code>https://</code> link and click Add calendar</li>
         </ol>
         <p>It then syncs to your phone. Google refreshes subscribed calendars on its own
-        schedule — usually 12–24 hours, sometimes longer. We can't make it faster.</p>
+        schedule — usually 12–24 hours, sometimes longer. Nothing on my end can make it faster.</p>
       </div>
     </details>
 
@@ -612,17 +655,18 @@ ${cards}
     <details>
       <summary>iPhone, iPad, Mac</summary>
       <div class="body">
-        <p>Tap Subscribe above — it opens Calendar and asks you to confirm. That's the whole
-        flow. Apple honours our 12-hour refresh hint, so changes reach you within half a day.</p>
+        <p>Tap Add calendar above. iOS opens Calendar and asks you to confirm — its sheet says
+        "Subscribe", which is the same thing. That's the whole flow. iOS checks for changes about
+        twice a day, so a corrected time reaches you within half a day.</p>
       </div>
     </details>
   </section>
 
   <footer>
-    <p>Updated ${esc(humanStamp(m.lastUpdated))}. Times are ${esc(f.timezone.replace('_', ' '))} local.</p>
+    <p>Updated ${esc(humanStamp(m.lastUpdated))}. All times are local to the festival — ${esc(zoneLabel(f.timezone))}.</p>
     <p>Unofficial. Not affiliated with ${esc(f.name)}.</p>
     <p>Source: <a href="${esc(f.officialUrl)}">the official schedule</a>.</p>
-    <p>Found an error? <a href="https://github.com/jake-lunde/stage-times/issues">Open an issue</a>.</p>
+    <p>Wrong time? <a href="https://github.com/jake-lunde/stage-times/issues">Tell me ↗</a></p>
   </footer>
 </main>
 
@@ -643,10 +687,12 @@ document.addEventListener('click', function (e) {
     return;
   }
 
-  // Subscribe: the OS takes over and for a second or two nothing visible happens.
+  // Add calendar: the OS takes over and for a second or two nothing visible happens.
   // Acknowledge the tap, block re-fires, then restore — if Calendar opened, the
   // restore happens offscreen; if the platform silently ignored webcal:// (Android),
-  // the button comes back and the "Not on iPhone?" section is the answer.
+  // the button comes back and the recovery line under the card points at the
+  // "Android, or on a computer?" section. "Opening Calendar…" is only ever true on
+  // iOS, so the state label never ships without that recovery line (copy.md rule 3).
   var sub = e.target.closest('a[href^="webcal:"]');
   if (sub && !sub.classList.contains('is-loading')) {
     // The one custom analytics event: a subscribe tap. Aggregate and cookieless —
@@ -666,6 +712,8 @@ document.addEventListener('click', function (e) {
       sub.textContent = was;
       sub.classList.remove('is-loading');
       sub.removeAttribute('aria-busy');
+      var rec = sub.parentNode.parentNode.querySelector('.recover');
+      if (rec) rec.hidden = false;
     }, 2500);
   }
 });
@@ -711,20 +759,19 @@ export function renderLandingPage(m: Manifest, opts: LandingOptions = {}): strin
 
   <section class="prose">
     <p class="eyebrow">What this is</p>
-    <p>Subscribe to one calendar per stage. The sets appear in the calendar app you already use,
-    and you can colour or hide each stage independently.</p>
-    <p>iCalendar has no field for "which calendar does this event belong to" — that's decided when
-    you subscribe, one calendar per feed URL. So per-stage calendars can only exist as separate
-    feeds. That's the whole product.</p>
+    <p>Add one calendar per stage. The sets show up in the calendar app you already use, and you
+    can color or hide each stage on its own.</p>
+    <p>Two or three stages is usually all you want. Add those, skip the rest.</p>
   </section>
 
   <footer>
+    <p>Times come from each festival's official schedule. Each festival page says when it was last checked.</p>
     <p>Unofficial. Not affiliated with any festival.</p>
-    <p>Found an error? <a href="https://github.com/jake-lunde/stage-times/issues">Open an issue</a>.</p>
+    <p>Wrong time? <a href="https://github.com/jake-lunde/stage-times/issues">Tell me ↗</a></p>
   </footer>
 </main>`;
 
-  return page('Stage Times — set times, by stage', 'One iCalendar subscription feed per festival stage.', body);
+  return page('Stage Times — set times, by stage', 'Set times for each festival stage, as a calendar you can add to your phone.', body);
 }
 
 // ---------------------------------------------------------------------------

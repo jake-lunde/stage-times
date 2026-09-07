@@ -325,3 +325,34 @@ reader's.
 The rules distilled from this are in
 `.claude/skills/stage-times-design/references/copy.md`, and every screen the upload flow adds
 is written under them.
+
+---
+
+## 6. Disposition — ticket 15, 6 September 2026
+
+Every rewrite above, applied or declined with the reason. "Applied" means it is on the live
+pages once this commit deploys; page tests in `tests/copy.test.ts` pin each line.
+
+| # | Disposition | Note |
+|---|---|---|
+| R1 | Applied | |
+| R2 | Applied | |
+| R3 | Applied | |
+| R4 | Applied, both footers | Link target unchanged. |
+| R5 | Applied | |
+| R6 | **Declined for this ticket** | Artist casing is a data-normalization change with its own blast radius (event titles change → SEQUENCE bumps on every set). Owner's call; not folded into a copy ticket. The skill's rule 5 says so. |
+| R7 | Applied | "Add calendar" on every stage card and the all-stages card. The analytics event keeps its internal name `subscribe`. |
+| R8 | Applied via R12 | The icon button keeps its label; the Google Calendar disclosure now names it. |
+| R9 / G3 | Applied | "Opening Calendar…" stays. The recovery line `Didn't open? Android needs a computer — see below ↓` renders hidden under every button and appears when the button restores itself, linking to the fallback section. 17pt semibold so it clears the on-color contrast rule inside a stage card. |
+| R10 | Applied | The stage count renders as a word ("All four"), digits past nine. |
+| R11 | Applied | The section gained the anchor the recovery line points at. |
+| R12 | Applied | |
+| R13 | Applied | The iOS sheet clause is written from the reviewer's knowledge of the sheet (title "Subscribe to Calendar", button "Subscribe"), not a device check. **Still owed: one look at a real iPhone.** The clause is safe under both wordings. |
+| R14 | Applied | The label is derived on the page from the IANA zone (`zoneLabel` in `pages.ts`: a short map of North American zones plus a city-name fallback), not a new YAML field — no data change, no schema change, nothing for the parallel edition-state work to merge against. |
+| R15 | Applied | The banner string is rewritten in place; it still only renders for `verified: false`. It is superseded by the fan-made notice when that ships. |
+| R16 | **Declined for this ticket** | Changes the calendar name in every existing subscriber's sidebar at their next refresh, and the golden feeds. Harmless, but the owner's call, and this ticket's contract is that the feeds do not change. |
+| R17 | **Declined for this ticket** | Changes the DESCRIPTION of the nine inferred-end events, which bumps their SEQUENCE and changes the golden feeds. Same contract. Fold into the next feed-bytes change (R16, or a real time correction). |
+| G1 | Applied | |
+| G2 | **Blocked on the owner** | No takedown address exists yet. The footer line ships the moment there is one. |
+
+Golden feeds: byte-identical to the previous commit, proven by gate 2.

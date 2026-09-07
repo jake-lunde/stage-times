@@ -95,8 +95,10 @@ the attendee's device) is the model: we own one word, the reader gets the other.
 4. **State platform limits plainly, and say who can't fix them.** Google Calendar cannot add by
    URL from mobile — say exactly that, put it behind a disclosure, print the literal menu path.
    Never imply instant updates: Apple checks about twice a day, Google runs 12–24h or longer.
-5. **Sentence case for sentences, not Title Case For Headings.** Artist names are title case for
-   display even when the poster shouted them; the poster casing stays in the data.
+5. **Sentence case for sentences, not Title Case For Headings.** Artist names are still poster
+   caps on the live site: the review's title-case rewrite (R6) is a data-normalization change
+   with its own blast radius and is the owner's call, not a copy rule yet. Until it is ruled,
+   render artist names as the data has them.
 6. **A caveat states the claim and the number, then stops.** `End time wasn't printed — this one
    is a guess: start plus an hour.` Not three sentences saying it twice.
 7. **Every page carries, in the footer**: unofficial / not affiliated, attribution to the
