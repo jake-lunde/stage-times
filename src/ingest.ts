@@ -1,32 +1,36 @@
 /**
- * Stage Times — ingest CLI (Phase 1 of the self-serve pipeline).
+ * Stage Times — ingest CLI. A thin wrapper over the transcription library.
  *
  *   npm run ingest -- <image> [<image> ...] [flags]
  *
- * Takes one poster image per festival day, transcribes each with Claude vision
- * (src/vision.ts), then deterministically builds (src/transcribe.ts):
+ * Takes one source image per festival day, asks the vision model for its
+ * reading (src/vision.ts), then hands the model output to `transcribe()`
+ * (src/transcription.ts), which deterministically produces:
  *
- *   <out>/<slug>-<year>.yaml     — festival YAML in the repo's canonical format,
- *                                  validated by src/schema.ts, verified: false
- *   <out>/TRANSCRIPTION.md       — ambiguity log for the human reviewer
- *   <out>/raw/<image>.json       — the raw model transcription (audit + replay)
+ *   <out>/<slug>-<year>.yaml     — the edition YAML in the repo's canonical
+ *                                  format, validated by src/schema.ts, verified: false
+ *   <out>/TRANSCRIPTION.md       — the ambiguity log for the human reviewer
+ *   <out>/raw/<image>.json       — the model's reply, verbatim (audit + replay)
+ *
+ * All the file reading and writing happens here; the library does none.
  *
  * Flags:
- *   --out <dir>        output directory (default: ingest-out/). NEVER data/ —
- *                      hand-verified festivals live there.
- *   --name <name>      festival display name (default: title-cased poster name)
- *   --slug <slug>      URL slug (default: slugified name). PERMANENT once published.
- *   --timezone <tz>    IANA timezone (default: America/Los_Angeles, flagged as
- *                      ASSUMED in the output — the poster cannot tell us this)
- *   --backend <b>      sdk | cli | auto (default: auto — sdk when an API key is
- *                      in the environment, else the local `claude` CLI login)
- *   --raw <file.json>  reuse a saved raw transcription instead of calling the
- *                      model (repeatable; deterministic, costs nothing)
+ *   --out <dir>          output directory (default: ingest-out/). NEVER data/ —
+ *                        hand-verified editions live there.
+ *   --name <name>        festival display name (default: title-cased poster name)
+ *   --slug <slug>        URL slug (default: slugified name). PERMANENT once published.
+ *   --official-url <u>   official URL (default: the URL printed on the poster)
+ *   --timezone <tz>      IANA timezone (default: America/Los_Angeles, flagged as
+ *                        ASSUMED in the output — the poster cannot tell us this)
+ *   --backend <b>        sdk | cli | auto (default: auto — sdk when an API key is
+ *                        in the environment, else the local `claude` CLI login)
+ *   --raw <file.json>    replay saved model output instead of calling the model
+ *                        (repeatable; deterministic, costs nothing)
  */
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
-import { buildIngest, assertRawTranscription, type RawTranscription } from './transcribe.js';
+import { transcribe, type ModelOutput } from './transcription.js';
 import { pickBackend, transcribeImage, type Backend, type VisionResult } from './vision.js';
 
 interface Args {
@@ -85,21 +89,18 @@ async function main(): Promise<void> {
   const outDir = resolve(args.out);
   const dataDir = resolve('data');
   if (outDir === dataDir || outDir.startsWith(dataDir + '/')) {
-    // data/ holds hand-verified festivals; machine output must never land there.
+    // data/ holds hand-verified editions; machine output must never land there.
     console.error(`refusing to write into data/ — pick a scratch directory (got ${args.out})`);
     process.exit(2);
   }
 
-  const transcriptions: RawTranscription[] = [];
-  const sources: string[] = [];
+  const outputs: ModelOutput[] = [];
   const results: VisionResult[] = [];
 
-  // Replayed raw transcriptions first (deterministic, free).
+  // Replayed model output first (deterministic, free).
   for (const rawPath of args.raws) {
-    const parsed = assertRawTranscription(JSON.parse(readFileSync(rawPath, 'utf8')), basename(rawPath));
-    transcriptions.push(parsed);
-    sources.push(basename(rawPath));
-    console.error(`replayed ${basename(rawPath)} (${parsed.days.length} day${parsed.days.length === 1 ? '' : 's'})`);
+    outputs.push({ source: basename(rawPath), output: readFileSync(rawPath, 'utf8') });
+    console.error(`replayed ${basename(rawPath)}`);
   }
 
   if (args.images.length > 0) {
@@ -111,38 +112,39 @@ async function main(): Promise<void> {
       const started = Date.now();
       const result = await transcribeImage(image, backend);
       results.push(result);
-      transcriptions.push(result.transcription);
-      sources.push(basename(image));
-      const rawOut = join(outDir, 'raw', `${basename(image)}.json`);
-      writeFileSync(rawOut, JSON.stringify(result.transcription, null, 2) + '\n');
+      outputs.push({ source: result.source, output: result.output });
+      // Saved before it is read, so a reply the library rejects is still on
+      // disk for the audit trail.
+      const rawOut = join(outDir, 'raw', `${result.source}.json`);
+      writeFileSync(rawOut, result.output.endsWith('\n') ? result.output : result.output + '\n');
       const secs = ((Date.now() - started) / 1000).toFixed(0);
       const cost = result.costUsd === null ? 'cost n/a' : `$${result.costUsd.toFixed(4)}`;
       console.error(`  ${result.model} · ${secs}s · ${cost} · raw saved to ${rawOut}`);
     }
   }
 
-  const built = buildIngest(transcriptions, {
+  const transcription = transcribe(outputs, {
     name: args.name,
     slug: args.slug,
     officialUrl: args.officialUrl,
     timezone: args.timezone,
     timezoneAssumed: args.timezoneAssumed,
-    sources,
   });
 
+  const { festival, stages } = transcription.edition;
   mkdirSync(outDir, { recursive: true });
-  const yamlPath = join(outDir, `${built.festival.slug}-${built.festival.year}.yaml`);
+  const yamlPath = join(outDir, `${festival.slug}-${festival.year}.yaml`);
   const logPath = join(outDir, 'TRANSCRIPTION.md');
-  writeFileSync(yamlPath, built.yaml);
-  writeFileSync(logPath, built.log);
+  writeFileSync(yamlPath, transcription.yaml);
+  writeFileSync(logPath, transcription.log);
 
   // Summary.
   const perStage = new Map<string, number>();
-  for (const set of built.sets) perStage.set(set.stage, (perStage.get(set.stage) ?? 0) + 1);
+  for (const set of transcription.sets) perStage.set(set.stage, (perStage.get(set.stage) ?? 0) + 1);
   console.error('');
-  console.error(`${built.festival.name} ${built.festival.year} — ${built.sets.length} sets across ${built.stages.length} stages:`);
+  console.error(`${festival.name} ${festival.year} — ${transcription.sets.length} sets across ${stages.length} stages:`);
   for (const [stage, count] of perStage) console.error(`  ${stage}: ${count}`);
-  const inferred = built.sets.filter((s) => s.end_inferred).length;
+  const inferred = transcription.sets.filter((s) => s.end_inferred).length;
   if (inferred > 0) console.error(`  (${inferred} end time${inferred === 1 ? '' : 's'} inferred from CLOSE — see the log)`);
   const totalCost = results.reduce<number | null>(
     (acc, r) => (acc === null || r.costUsd === null ? null : acc + r.costUsd),

@@ -3,7 +3,7 @@
  *
  *   npm run ingest:eval
  *
- * Runs the Phase-1 ingest pipeline on the three CHBP posters in
+ * Runs the transcription pipeline on the three CHBP posters in
  * `_ref/set-screenshots/` and diffs the machine transcription against the
  * hand-verified `data/capitol-hill-block-party-2026.yaml` (79 sets). This is
  * the eval the handoff calls "already built": the hand transcription is the
@@ -11,7 +11,7 @@
  *
  * Output lands in `_ref/ingest-eval/` (gitignored scratch — the hand-verified
  * source files are never touched):
- *   raw/<image>.json   raw model transcriptions (reused on re-runs, so a
+ *   raw/<image>.json   raw model output, verbatim (reused on re-runs, so a
  *                      second run is free — delete them to re-transcribe)
  *   capitol-hill-block-party-2026.yaml
  *   TRANSCRIPTION.md
@@ -25,7 +25,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { loadFestival, normalizeArtist, type FestivalDoc, type SetEntry } from '../src/schema.js';
-import { assertRawTranscription, buildIngest, type RawTranscription } from '../src/transcribe.js';
+import { transcribe, type ModelOutput } from '../src/transcription.js';
 import { pickBackend, transcribeImage } from '../src/vision.js';
 import { REPO_ROOT } from './helpers.js';
 
@@ -85,15 +85,15 @@ function key(set: FlatSet): string {
 async function main(): Promise<void> {
   mkdirSync(join(OUT_DIR, 'raw'), { recursive: true });
 
-  // 1. Transcribe (or replay saved raw JSON — delete _ref/ingest-eval/raw to redo).
-  const transcriptions: RawTranscription[] = [];
+  // 1. Read each poster (or replay saved model output — delete _ref/ingest-eval/raw to redo).
+  const outputs: ModelOutput[] = [];
   const costs: (number | null)[] = [];
   let backendLabel = 'replayed from saved raw JSON';
   for (const poster of POSTERS) {
     const imagePath = join(POSTER_DIR, poster);
     const rawPath = join(OUT_DIR, 'raw', `${poster}.json`);
     if (existsSync(rawPath)) {
-      transcriptions.push(assertRawTranscription(JSON.parse(readFileSync(rawPath, 'utf8')), poster));
+      outputs.push({ source: poster, output: readFileSync(rawPath, 'utf8') });
       costs.push(null);
       console.error(`replayed ${poster}`);
       continue;
@@ -103,8 +103,8 @@ async function main(): Promise<void> {
     const started = Date.now();
     const result = await transcribeImage(imagePath, backend);
     backendLabel = `${result.backend} (${result.model})`;
-    writeFileSync(rawPath, JSON.stringify(result.transcription, null, 2) + '\n');
-    transcriptions.push(result.transcription);
+    writeFileSync(rawPath, result.output.endsWith('\n') ? result.output : result.output + '\n');
+    outputs.push({ source: poster, output: result.output });
     costs.push(result.costUsd);
     console.error(
       `  done in ${((Date.now() - started) / 1000).toFixed(0)}s` +
@@ -112,16 +112,15 @@ async function main(): Promise<void> {
     );
   }
 
-  // 2. Build. Name/slug/timezone are human-supplied knowledge, same as they
+  // 2. Transcribe. Name/slug/timezone are human-supplied knowledge, same as they
   //    were for the hand transcription — the eval scores set transcription.
-  const built = buildIngest(transcriptions, {
+  const built = transcribe(outputs, {
     name: 'Capitol Hill Block Party',
     slug: 'capitol-hill-block-party',
     timezone: 'America/Los_Angeles',
     timezoneAssumed: false,
-    sources: POSTERS,
   });
-  const yamlPath = join(OUT_DIR, `${built.festival.slug}-${built.festival.year}.yaml`);
+  const yamlPath = join(OUT_DIR, `${built.edition.festival.slug}-${built.edition.festival.year}.yaml`);
   writeFileSync(yamlPath, built.yaml);
   writeFileSync(join(OUT_DIR, 'TRANSCRIPTION.md'), built.log);
 
@@ -221,8 +220,7 @@ async function main(): Promise<void> {
   R.push('## Ambiguity-log signals');
   R.push('');
   R.push(`- Inferred (CLOSE) ends: hand ${handInferred}, machine ${genInferred}.`);
-  const observations = transcriptions.flatMap((t) => t.observations ?? []);
-  R.push(`- Model observations recorded: ${observations.length} (see TRANSCRIPTION.md §Transcriber observations).`);
+  R.push(`- Model observations recorded: ${built.observations.length} (see TRANSCRIPTION.md §Transcriber observations).`);
   const knownCosts = costs.filter((c): c is number => c !== null);
   if (knownCosts.length > 0) {
     R.push(

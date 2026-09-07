@@ -1,10 +1,13 @@
 /**
- * Stage Times — deterministic ingest core.
+ * Stage Times — transcription rules (internal).
+ *
+ * The public entry point is `transcribe()` in `src/transcription.ts`; import
+ * from there. This module holds the deterministic rules it applies.
  *
  * Takes the *raw transcription* a vision model produced from a schedule poster
  * (strings exactly as printed, nothing resolved) and deterministically turns it
  * into:
- *   1. a festival YAML document in the repo's canonical format, and
+ *   1. an edition document in the repo's canonical YAML format, and
  *   2. a TRANSCRIPTION.md-style ambiguity log.
  *
  * Every judgement call proven during the CHBP hand-transcription is encoded
@@ -15,9 +18,9 @@
  *   - combined AFTERS billings stay one event
  *   - duplicate UIDs are a hard fail (via src/schema.ts validation)
  *
- * No clock reads, no randomness, no network — given the same raw transcription
- * this module always produces byte-identical output, so it is unit-testable
- * without an API key.
+ * No clock reads, no randomness, no network, no filesystem — given the same
+ * raw transcription this module always produces byte-identical output, so it
+ * is unit-testable without an API key.
  */
 
 import {
@@ -269,7 +272,7 @@ export function slugify(name: string): string {
 // Building the festival document
 // ---------------------------------------------------------------------------
 
-export interface IngestOptions {
+export interface TranscriptionOptions {
   /** Festival display name. Defaults to a title-cased poster name. */
   name?: string;
   /** URL slug. Defaults to slugified name. PERMANENT once published. */
@@ -280,8 +283,6 @@ export interface IngestOptions {
   timezoneAssumed?: boolean;
   /** Official URL. Defaults to the poster footer URL, if any. */
   officialUrl?: string;
-  /** Source image labels, for the log header. */
-  sources?: string[];
 }
 
 export interface BuiltSet {
@@ -300,7 +301,7 @@ export interface BuiltSet {
   crossesMidnight: boolean;
 }
 
-export interface IngestResult {
+export interface BuiltTranscription {
   doc: FestivalDoc;
   yaml: string;
   log: string;
@@ -362,7 +363,11 @@ function buildNotes(set: RawSet, isClose: boolean): string {
  * Throws SchemaError (from validateDoc) on anything the build could
  * mis-publish — including duplicate UIDs, which are a hard fail.
  */
-export function buildIngest(transcriptions: RawTranscription[], options: IngestOptions): IngestResult {
+export function buildTranscription(
+  transcriptions: RawTranscription[],
+  options: TranscriptionOptions,
+  sources: string[],
+): BuiltTranscription {
   if (transcriptions.length === 0) throw new TranscribeError('no transcriptions supplied');
 
   const days = transcriptions
@@ -444,16 +449,16 @@ export function buildIngest(transcriptions: RawTranscription[], options: IngestO
   }
 
   const festival = { name, slug, year, timezone: options.timezone, official_url: officialUrl };
-  const yaml = renderYaml(festival, stages, sets, options);
+  const yaml = renderYaml(festival, stages, sets, options, sources);
 
   // The one gatekeeper: reuse src/schema.ts on our own output. Duplicate UIDs
   // (same artist twice on one stage) and every other publishable defect are a
   // hard fail here, before anything is written.
   // Round-trip through the real loader so we validate exactly what a human
   // would later commit, not an in-memory cousin of it.
-  const doc = loadFestivalFromString(yaml, 'ingest output');
+  const doc = loadFestivalFromString(yaml, `transcription of ${sources.join(', ')}`);
 
-  const log = renderLog(transcriptions, days, festival, sets, options);
+  const log = renderLog(transcriptions, days, festival, sets, options, sources);
   return { doc, yaml, log, sets, festival, stages };
 }
 
@@ -470,14 +475,15 @@ function renderYaml(
   festival: { name: string; slug: string; year: number; timezone: string; official_url: string },
   stages: { id: string; name: string }[],
   sets: BuiltSet[],
-  options: IngestOptions,
+  options: TranscriptionOptions,
+  sources: string[],
 ): string {
   const lines: string[] = [];
-  lines.push(`# ${festival.name} ${festival.year} — transcribed by \`npm run ingest\` from the schedule poster(s).`);
-  if (options.sources?.length) {
+  lines.push(`# ${festival.name} ${festival.year} — machine transcription of the schedule poster(s).`);
+  if (sources.length > 0) {
     lines.push('#');
     lines.push('# Source images:');
-    for (const s of options.sources) lines.push(`#   ${s}`);
+    for (const s of sources) lines.push(`#   ${s}`);
   }
   lines.push('#');
   lines.push('# verified: false — NOT reviewed by a human yet. Ingest is a vision task;');
@@ -527,15 +533,16 @@ function renderLog(
   days: RawDay[],
   festival: { name: string; slug: string; year: number; timezone: string; official_url: string },
   sets: BuiltSet[],
-  options: IngestOptions,
+  options: TranscriptionOptions,
+  sources: string[],
 ): string {
   const L: string[] = [];
   L.push(`# Transcription log — ${festival.name} ${festival.year}`);
   L.push('');
-  L.push('Produced by `npm run ingest` (machine transcription — NOT yet human-verified).');
-  if (options.sources?.length) {
+  L.push('Machine transcription — NOT yet human-verified.');
+  if (sources.length > 0) {
     L.push('');
-    L.push(`Source images: ${options.sources.map((s) => `\`${s}\``).join(', ')}.`);
+    L.push(`Source images: ${sources.map((s) => `\`${s}\``).join(', ')}.`);
   }
   L.push('');
   L.push('---');

@@ -75,11 +75,18 @@ dist/
 ## Commands
 
 ```bash
-npm test                       # 69 tests — all 8 validation gates
+npm test                       # 126 tests — all 8 validation gates, plus the transcription seam
 npm run build                  # build to dist/ (preview; allows unverified data)
 npm run build -- --production  # refuses to build unless verified: true
 npm run smoke -- <base-url>    # gate 8: curl each feed, assert headers + TLS
+npm run ingest -- <image>      # Phase 1: source image → edition YAML + ambiguity log (calls the model)
+npm run ingest:eval            # re-score the CHBP posters against the 79 hand-verified sets
 ```
+
+Transcription is a library: `transcribe()` in `src/transcription.ts` takes the raw model output
+per source image and returns the validated edition document and the log, with no file or model
+access inside it. `src/vision.ts` is the only module that calls a model; `npm run ingest` and the
+eval are thin wrappers over both.
 
 ---
 

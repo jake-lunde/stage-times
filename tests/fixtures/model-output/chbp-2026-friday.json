@@ -1,0 +1,204 @@
+{
+  "festival_name": "CAPITOL HILL BLOCK PARTY",
+  "official_url": "CAPITOLHILLBLOCKPARTY.COM",
+  "days": [
+    {
+      "date": "2026-08-07",
+      "header": "FRIDAY AUGUST 7, 2026",
+      "stages": [
+        {
+          "name": "MAIN STAGE",
+          "sets": [
+            {
+              "artist": "AVERY COCHRANE",
+              "time": "3:15-3:45PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "ALIYAH'S INTERLUDE",
+              "time": "4:15-4:45PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "NIMINO",
+              "time": "5:15-6:00PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "BETWEEN FRIENDS",
+              "time": "6:30-7:15PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "DJ TRIXIE MATTEL",
+              "time": "7:30-8:30PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "MAGDALENA BAY",
+              "time": "9:00-10:00PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "MUNA",
+              "time": "10:40-CLOSE",
+              "afters": false,
+              "annotations": []
+            }
+          ]
+        },
+        {
+          "name": "DAYDREAM STAGE",
+          "sets": [
+            {
+              "artist": "GIRL PARALLEL",
+              "time": "2:35-3:05PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "ZAILEE HAZE",
+              "time": "3:35-4:05PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "OTHA",
+              "time": "4:35-5:20PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "GELLI HAHA",
+              "time": "5:50-6:35PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "AFTER",
+              "time": "7:05-7:50PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "NINAJIRACHI",
+              "time": "8:20-9:20PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "FROST CHILDREN",
+              "time": "10:00-11:00PM",
+              "afters": false,
+              "annotations": []
+            }
+          ]
+        },
+        {
+          "name": "NEUMOS STAGE",
+          "sets": [
+            {
+              "artist": "CAMILLE CANO",
+              "time": "5:45-6:30PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "FLEETWOOD SNACK",
+              "time": "7:00-7:45PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "LOVELY COLOURS",
+              "time": "8:15-9:00PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "CASI",
+              "time": "9:30-10:15PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "DARK CHISME",
+              "time": "10:45-11:30PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "FROST CHILDREN (DJ SET) + DJ THANK YOU",
+              "time": "11:30-CLOSE",
+              "afters": true,
+              "annotations": []
+            }
+          ]
+        },
+        {
+          "name": "BARBOZA STAGE",
+          "sets": [
+            {
+              "artist": "GIVE ME THE MONEY",
+              "time": "5:15-6:00PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "EMI POP",
+              "time": "6:30-7:15PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "CLOVER",
+              "time": "7:45-8:30PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "DREW MARTIN",
+              "time": "9:00-9:45PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "GLASS EGG",
+              "time": "10:15-11:00PM",
+              "afters": false,
+              "annotations": []
+            },
+            {
+              "artist": "DOUBLE SUNRISE CLUB",
+              "time": "11:30-CLOSE",
+              "afters": true,
+              "annotations": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "observations": [
+    "Weekday check: August 7, 2026 is indeed a Friday, matching the printed header 'FRIDAY AUGUST 7, 2026'.",
+    "DAYDREAM STAGE 7:05-7:50PM is billed as 'AFTER'. This is an artist name occupying a normal daytime slot, NOT an afters label — it is printed in the same style as every other artist block (no italic 'AFTERS' billing line above it). Flagging because the string could easily be misread as an afters marker by downstream code or a human reviewer.",
+    "FROST CHILDREN appears twice on this day: a live set on DAYDREAM STAGE at 10:00-11:00PM and again in the NEUMOS STAGE afters as 'FROST CHILDREN (DJ SET) + DJ THANK YOU'. This is printed as-is, not a duplication error.",
+    "The NEUMOS afters block is one billing line wrapped across three printed lines: 'FROST CHILDREN (DJ SET)' / '+ DJ THANK YOU' / '11:30-CLOSE'. '(DJ SET)' is printed in a noticeably smaller type size than the surrounding name but sits inline on the billing line, so it was kept inside 'artist'. A reviewer may prefer to split this into two artists (FROST CHILDREN and DJ THANK YOU).",
+    "Both afters blocks (NEUMOS and BARBOZA) carry an italic 'AFTERS' label printed above the billing line; that label was recorded via the afters flag only, per the rules.",
+    "'LOVELY COLOURS' uses the British spelling as printed — preserved, not normalized to 'COLORS'.",
+    "'ZAILEE HAZE' is an unusual name that could look like an OCR error (e.g. for 'Zaliee'/'Zailee'); re-read at high zoom and it is printed Z-A-I-L-E-E H-A-Z-E.",
+    "'CASI' (NEUMOS 9:30-10:15PM) is a short four-letter name that could be misread as 'CASH' or 'CAS!'; re-read and it is C-A-S-I.",
+    "'NINAJIRACHI' is printed as a single unbroken word.",
+    "'GELLI HAHA' — both words re-read at zoom; printed as two words, not 'GELI'/'HA HA'.",
+    "MAIN STAGE 'MUNA' at 10:40-CLOSE and the two 11:30-CLOSE afters blocks print the literal word CLOSE instead of an end time; reproduced verbatim, no end time invented.",
+    "The MAIN STAGE column has no set before 3:15PM even though the time axis begins at 2PM; NEUMOS and BARBOZA likewise start later (5:45PM and 5:15PM). This is empty space on the poster, not missing/obscured content.",
+    "Footer URL is printed without a scheme or 'www' as 'CAPITOLHILLBLOCKPARTY.COM'; recorded exactly as printed. Footer also carries 'SEA WA' and '21+' badges, which are venue/age markers rather than schedule data.",
+    "Time blocks are positioned against the left-hand hour axis but the printed text is the authoritative source; all times above were taken from the printed strings, not inferred from block position."
+  ]
+}

@@ -1,9 +1,10 @@
 /**
  * Stage Times — vision transcription backends.
  *
- * Turns a festival schedule poster image into a RawTranscription (strings
- * exactly as printed; no times resolved, no rules applied — all judgement
- * lives in src/transcribe.ts where it is deterministic and unit-tested).
+ * Turns a source image into the model's reply, verbatim — JSON text with the
+ * strings exactly as printed; no times resolved, no rules applied. Reading that
+ * reply is `transcribe()` in src/transcription.ts, where every judgement is
+ * deterministic and unit-tested. This module never parses it.
  *
  * Two backends:
  *   - 'sdk'  — the Anthropic SDK against `claude-opus-5`, with a structured-
@@ -13,18 +14,22 @@
  *              its own login), asking it to Read the image and emit the same
  *              JSON. Fallback for machines with no API key in the environment.
  *
- * This module is the ONLY nondeterministic step in the ingest pipeline.
+ * This module is the ONLY nondeterministic step in the pipeline, and the only
+ * one that reads a file or calls a model.
  */
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { basename, extname, resolve } from 'node:path';
-import { assertRawTranscription, TranscribeError, type RawTranscription } from './transcribe.js';
+import { TranscribeError } from './transcribe.js';
 
 export type Backend = 'sdk' | 'cli';
 
 export interface VisionResult {
-  transcription: RawTranscription;
+  /** The model's reply, verbatim. Feed it to `transcribe()` as `ModelOutput.output`. */
+  output: string;
+  /** Label for the source image — its file name. */
+  source: string;
   backend: Backend;
   model: string;
   /** USD, when the backend reports enough to compute it; null otherwise. */
@@ -213,7 +218,8 @@ async function transcribeViaSdk(imagePath: string): Promise<VisionResult> {
   const inputTokens =
     usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0);
   return {
-    transcription: assertRawTranscription(JSON.parse(text), basename(imagePath)),
+    output: text,
+    source: basename(imagePath),
     backend: 'sdk',
     model: response.model,
     costUsd: inputTokens * INPUT_USD_PER_TOKEN + usage.output_tokens * OUTPUT_USD_PER_TOKEN,
@@ -250,18 +256,14 @@ function transcribeViaCli(imagePath: string): VisionResult {
     throw new TranscribeError(`claude CLI did not return JSON for ${basename(imagePath)}:\n${stdout.slice(0, 500)}`);
   }
   const result = envelope.result ?? '';
-  const start = result.indexOf('{');
-  const end = result.lastIndexOf('}');
-  if (start === -1 || end <= start) {
-    throw new TranscribeError(`no JSON object in the claude CLI result for ${basename(imagePath)}:\n${result.slice(0, 500)}`);
-  }
   // The envelope lists every model the CLI touched (including tiny helper
   // calls); report the one that did the work — the biggest spender.
   const model = Object.entries(envelope.modelUsage ?? {})
     .sort((a, b) => (b[1].costUSD ?? 0) - (a[1].costUSD ?? 0))
     .map(([id]) => id)[0] ?? 'claude (cli)';
   return {
-    transcription: assertRawTranscription(JSON.parse(result.slice(start, end + 1)), basename(imagePath)),
+    output: result,
+    source: basename(imagePath),
     backend: 'cli',
     model,
     costUsd: typeof envelope.total_cost_usd === 'number' ? envelope.total_cost_usd : null,
