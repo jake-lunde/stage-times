@@ -20,6 +20,10 @@
 
 verified: true
 
+# PERMANENT — decides the URL family: owner editions live at /<slug>-<year>/, fan editions at
+# /fan/<slug>-<year>/ (docs/adr/0001-fan-namespace-prefix.md). Never changes after first publish.
+namespace: owner
+
 festival:
   name: "Capitol Hill Block Party"
   slug: "capitol-hill-block-party"     # PERMANENT — appears in every subscription URL

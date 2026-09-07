@@ -12,25 +12,31 @@ import { join } from 'node:path';
 import ICAL from 'ical.js';
 
 import {
+  assertPublishedEditionsPresent,
   assertPublishedSlugsPresent,
   buildFeeds,
+  editionPathOf,
+  loadEditions,
   readPublished,
   type BuildResult,
   type PublishedFile,
 } from '../src/build.js';
 import { END_INFERRED_CAVEAT, MAX_LINE_OCTETS, UID_DOMAIN } from '../src/ics.js';
-import { SchemaError, loadFestival, validateDoc, wallToUtc } from '../src/schema.js';
+import { SchemaError, validateDoc, wallToUtc } from '../src/schema.js';
 import { parse as parseYaml } from 'yaml';
 import {
   GOLDEN_DIR,
   REPO_ROOT,
   buildDst,
+  buildFixtureSite,
   docFromText,
   dstYamlText,
   emptyState,
   getProps,
   harborDoc,
   logicalLines,
+  pierDoc,
+  recordFor,
 } from './helpers.js';
 
 const UPDATE_GOLDEN = process.env['STAGE_TIMES_UPDATE_GOLDEN'] === '1';
@@ -336,31 +342,33 @@ test('gate 3: renaming a stage display name bumps SEQUENCE but keeps every UID',
 // ===========================================================================
 
 // This one is a repo-integrity check, not a fixture check: it asserts the COMMITTED
-// state file still agrees with the COMMITTED data file for the festival we actually
-// publish. It reads `default` rather than naming a festival, so adding next year's
-// schedule doesn't require editing the test.
-test('gate 4: every stage slug in state/published.json still exists in the YAML', () => {
+// state file still agrees with the COMMITTED data files for every edition we
+// actually publish. It walks data/ rather than naming an edition, so adding one
+// doesn't require editing the test.
+test('gate 4: every edition and stage slug in state/published.json still builds from data/', () => {
   const published = readPublished(join(REPO_ROOT, 'state', 'published.json'));
-  const key = published.default;
-  const doc = loadFestival(join(REPO_ROOT, 'data', `${key}.yaml`));
-  assert.equal(`${doc.festival.slug}-${doc.festival.year}`, key, 'default key must match its YAML');
-
-  // Empty is legitimate before the first production deploy — nothing is being polled
-  // yet, so there is no URL to protect. Once populated it must stay consistent.
-  if (published.festivals[key]) {
-    assert.doesNotThrow(() => assertPublishedSlugsPresent(published, key, doc));
+  const docs = loadEditions(REPO_ROOT);
+  assert.ok(docs.length > 0, 'data/ must hold at least one edition');
+  assert.doesNotThrow(() => assertPublishedEditionsPresent(published, docs));
+  for (const doc of docs) {
+    assert.doesNotThrow(() => assertPublishedSlugsPresent(published, editionPathOf(doc), doc));
   }
+  // The live edition is recorded and listed; nothing on the site is blocked today.
+  const chbp = published.editions['capitol-hill-block-party-2026'];
+  assert.ok(chbp, 'the live CHBP edition must be recorded in state');
+  assert.equal(chbp.namespace, 'owner');
+  assert.equal(chbp.listed, true);
+  assert.equal(chbp.blocked, false);
 });
 
 test('gate 4: a disappeared published slug fails the build loudly', () => {
-  const key = `${harbor.festival.slug}-${harbor.festival.year}`;
+  const path = editionPathOf(harbor);
   const published: PublishedFile = {
     publishedAt: '20260808T000000Z',
-    default: key,
-    festivals: { [key]: { slug: harbor.festival.slug, year: harbor.festival.year, stages: ['main', 'boardwalk'] } },
+    editions: { [path]: recordFor(harbor, { stages: ['main', 'boardwalk'] }) },
   };
   assert.throws(
-    () => assertPublishedSlugsPresent(published, key, harbor),
+    () => assertPublishedSlugsPresent(published, path, harbor),
     (err: Error) => {
       assert.match(err.message, /boardwalk/);
       assert.match(err.message, /BUILD REFUSED/);
@@ -372,17 +380,18 @@ test('gate 4: a disappeared published slug fails the build loudly', () => {
 });
 
 test('gate 4: a renamed stage id is caught even though the display name is unchanged', () => {
-  const key = 'dst-check-2026';
+  const path = 'dst-check-2026';
   const doc = docFromText(
     dstYamlText().replace('id: "yard"', 'id: "the-yard"').replace(/stage: "yard"/g, 'stage: "the-yard"'),
     'dst (renamed id)',
   );
   const published: PublishedFile = {
     publishedAt: '20260101T000000Z',
-    default: key,
-    festivals: { [key]: { slug: 'dst-check', year: 2026, stages: ['hall', 'yard'] } },
+    editions: {
+      [path]: { slug: 'dst-check', year: 2026, namespace: 'owner', listed: false, blocked: false, stages: ['hall', 'yard'] },
+    },
   };
-  assert.throws(() => assertPublishedSlugsPresent(published, key, doc), /yard/);
+  assert.throws(() => assertPublishedSlugsPresent(published, path, doc), /yard/);
 });
 
 // ===========================================================================
@@ -773,7 +782,20 @@ test('feeds.json manifest is complete, deterministic, and clock-free', () => {
   // A manifest that reads the clock would differ here.
   const again = buildFeeds(harbor, emptyState('20260808T000000Z'));
   assert.equal(JSON.stringify(again.manifest), JSON.stringify(manifest));
-  assert.equal(again.files.get('feeds.json'), harborBuild.files.get('feeds.json'));
+
+  // feeds.json is the site-level manifest: every edition, in path order.
+  const site = buildFixtureSite([pierDoc(), harbor], {}, '20260808T000000Z');
+  const feedsJson = site.files.get('feeds.json');
+  assert.ok(feedsJson, 'the site build must emit feeds.json');
+  const parsed = JSON.parse(feedsJson!) as { editions: { festival: { basePath: string } }[] };
+  assert.deepEqual(
+    parsed.editions.map((e) => e.festival.basePath),
+    ['/fan/pier-nine-2026', '/harbor-lights-2026'],
+    'editions sorted by path — fan/ sorts before h',
+  );
+  assert.equal(JSON.stringify(parsed.editions[1]), JSON.stringify(manifest), 'the site manifest carries each edition manifest verbatim');
+  const siteAgain = buildFixtureSite([harbor, pierDoc()], {}, '20260808T000000Z');
+  assert.equal(siteAgain.files.get('feeds.json'), feedsJson, 'input order must not matter');
 });
 
 test('no output anywhere contains a timestamp from the current wall clock', () => {

@@ -7,7 +7,8 @@
  *   npm run smoke -- https://stagetimes.app
  *   npm run smoke -- https://stage-times-git-branch-you.vercel.app
  *
- * For every feed listed in dist/feeds.json it asserts:
+ * For every feed of every edition listed in dist/feeds.json — owner editions at
+ * the root, fan editions under /fan/ — it asserts:
  *   - HTTP 200
  *   - content-type: text/calendar; charset=utf-8   (exactly — no extension sniffing)
  *   - an ETag is present, so well-behaved clients get 304s and polling stays cheap
@@ -16,18 +17,24 @@
  *   - the body actually begins BEGIN:VCALENDAR
  *   - the body carries no script tag — the analytics snippet is for HTML pages only
  *
- * And for the HTML pages (landing + subscribe) it asserts the inverse: the Vercel
- * Web Analytics script IS present, so a refactor can't silently drop measurement.
+ * For a BLOCKED edition it additionally asserts that each feed is a valid,
+ * empty calendar: no VEVENT at all, and the calendar name (X-WR-CALNAME) still
+ * present — a subscriber's calendar goes blank, never 404.
  *
- * The last one exists because of Vercel Deployment Protection: a protected preview
- * returns 200 with an HTML login page, which a header-only check happily passes and
- * a calendar client chokes on.
+ * And for the HTML pages (landing + one per edition) it asserts the inverse: the
+ * Vercel Web Analytics script IS present, so a refactor can't silently drop
+ * measurement. A blocked edition's page must be the removed page — no calendar
+ * links on it.
+ *
+ * The body checks exist because of Vercel Deployment Protection: a protected
+ * preview returns 200 with an HTML login page, which a header-only check happily
+ * passes and a calendar client chokes on.
  */
 
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Manifest } from '../src/build.js';
+import type { Manifest, SiteManifest } from '../src/build.js';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const EXPECTED_CONTENT_TYPE = 'text/calendar; charset=utf-8';
@@ -46,13 +53,15 @@ function usage(msg: string): never {
   process.exit(2);
 }
 
-function loadManifest(): Manifest {
+function loadManifest(): SiteManifest {
   const path = join(REPO_ROOT, 'dist', 'feeds.json');
   if (!existsSync(path)) usage(`No dist/feeds.json — run \`npm run build\` first so the smoke test knows what to poll.`);
-  return JSON.parse(readFileSync(path, 'utf8')) as Manifest;
+  const parsed = JSON.parse(readFileSync(path, 'utf8')) as SiteManifest;
+  if (!Array.isArray(parsed.editions)) usage(`dist/feeds.json has no \`editions\` list — rebuild with the current build.`);
+  return parsed;
 }
 
-async function checkFeed(url: string): Promise<Failure[]> {
+async function checkFeed(url: string, blocked: boolean): Promise<Failure[]> {
   const failures: Failure[] = [];
   const add = (problem: string) => failures.push({ url, problem });
 
@@ -98,6 +107,11 @@ async function checkFeed(url: string): Promise<Failure[]> {
         // The Web Analytics snippet belongs to HTML pages only. Calendar clients
         // don't run JS; a script tag here breaks parsers and tracks nobody.
         add('feed body contains the analytics script — analytics must never leak into .ics responses');
+      } else if (blocked) {
+        // A blocked edition's feed is a valid calendar with nothing in it.
+        if (body.includes('BEGIN:VEVENT')) add('blocked edition still serves events — the block did not deploy');
+        if (!/^X-WR-CALNAME:.+/m.test(body)) add('blocked feed lost its calendar name (X-WR-CALNAME)');
+        if (!body.includes('BEGIN:VTIMEZONE')) add('blocked feed lost its VTIMEZONE — not a valid calendar for every client');
       }
     } catch (err) {
       add(`GET failed: ${(err as Error).message}`);
@@ -108,7 +122,7 @@ async function checkFeed(url: string): Promise<Failure[]> {
 }
 
 /** HTML pages must carry the analytics snippet — the positive half of the check. */
-async function checkPage(url: string): Promise<Failure[]> {
+async function checkPage(url: string, blocked = false): Promise<Failure[]> {
   const failures: Failure[] = [];
   const add = (problem: string) => failures.push({ url, problem });
 
@@ -132,7 +146,15 @@ async function checkPage(url: string): Promise<Failure[]> {
   if (!body.includes('/_vercel/insights/script.js')) {
     add('page is missing the Web Analytics script — measurement silently dropped');
   }
+  if (blocked) {
+    if (body.includes('webcal:')) add('blocked edition still serves the subscribe page — the removed page did not deploy');
+    if (!body.includes('Taken down')) add('blocked edition page does not say it was taken down');
+  }
   return failures;
+}
+
+function feedPaths(m: Manifest): string[] {
+  return [...m.stages.map((s) => s.icsPath), m.all.icsPath];
 }
 
 async function main(): Promise<void> {
@@ -151,39 +173,47 @@ async function main(): Promise<void> {
     );
   }
 
-  const manifest = loadManifest();
-  const paths = [...manifest.stages.map((s) => s.icsPath), manifest.all.icsPath];
-  const pagePaths = ['/', `${manifest.festival.basePath}/`];
+  const site = loadManifest();
+  const feeds = site.editions.flatMap((m) => feedPaths(m).map((p) => ({ path: p, blocked: m.blocked })));
+  const pages = [
+    { path: '/', blocked: false },
+    ...site.editions.map((m) => ({ path: `${m.festival.basePath}/`, blocked: m.blocked })),
+  ];
+  const blockedCount = site.editions.filter((m) => m.blocked).length;
 
-  process.stdout.write(`Smoke testing ${paths.length} feeds + ${pagePaths.length} pages against ${base.origin}\n\n`);
+  process.stdout.write(
+    `Smoke testing ${feeds.length} feeds + ${pages.length} pages across ${site.editions.length} edition(s)` +
+      `${blockedCount ? ` (${blockedCount} blocked)` : ''} against ${base.origin}\n\n`,
+  );
 
   const allFailures: Failure[] = [];
-  for (const p of paths) {
-    const url = new URL(p.replace(/^\//, ''), base).toString();
-    const failures = await checkFeed(url);
+  for (const f of feeds) {
+    const url = new URL(f.path.replace(/^\//, ''), base).toString();
+    const failures = await checkFeed(url, f.blocked);
     allFailures.push(...failures);
-    process.stdout.write(`  ${failures.length === 0 ? 'ok  ' : 'FAIL'}  ${url}\n`);
-    for (const f of failures) process.stdout.write(`          ${f.problem}\n`);
+    process.stdout.write(`  ${failures.length === 0 ? 'ok  ' : 'FAIL'}  ${url}${f.blocked ? '  (blocked: must be empty)' : ''}\n`);
+    for (const x of failures) process.stdout.write(`          ${x.problem}\n`);
   }
-  for (const p of pagePaths) {
-    const url = new URL(p.replace(/^\//, ''), base).toString();
-    const failures = await checkPage(url);
+  for (const p of pages) {
+    const url = new URL(p.path.replace(/^\//, ''), base).toString();
+    const failures = await checkPage(url, p.blocked);
     allFailures.push(...failures);
-    process.stdout.write(`  ${failures.length === 0 ? 'ok  ' : 'FAIL'}  ${url}\n`);
-    for (const f of failures) process.stdout.write(`          ${f.problem}\n`);
+    process.stdout.write(`  ${failures.length === 0 ? 'ok  ' : 'FAIL'}  ${url}${p.blocked ? '  (blocked: removed page)' : ''}\n`);
+    for (const x of failures) process.stdout.write(`          ${x.problem}\n`);
   }
 
   process.stdout.write('\n');
   if (allFailures.length > 0) {
     process.stderr.write(
-      `gate 8 FAILED: ${allFailures.length} problem(s) across ${paths.length} feeds + ${pagePaths.length} pages.\n`,
+      `gate 8 FAILED: ${allFailures.length} problem(s) across ${feeds.length} feeds + ${pages.length} pages.\n`,
     );
     process.exitCode = 1;
     return;
   }
   process.stdout.write(
-    `gate 8 passed: ${paths.length} feeds, all 200 / ${EXPECTED_CONTENT_TYPE} / ETag present / valid TLS, ` +
-      `no script in any feed; ${pagePaths.length} pages carrying the analytics snippet.\n` +
+    `gate 8 passed: ${feeds.length} feeds, all 200 / ${EXPECTED_CONTENT_TYPE} / ETag present / valid TLS, ` +
+      `no script in any feed${blockedCount ? `, ${blockedCount} blocked edition(s) serving valid empty calendars` : ''}; ` +
+      `${pages.length} pages carrying the analytics snippet.\n` +
       `Reminder: never leave a real subscription pointed at a preview URL — previews are ephemeral and will 404.\n`,
   );
 }

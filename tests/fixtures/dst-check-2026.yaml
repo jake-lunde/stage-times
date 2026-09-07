@@ -24,6 +24,8 @@
 # the escaping and folding edge cases: a comma, an ampersand, combining
 # diacritics, and non-ASCII letters that are not diacritics (þ, ð, ǫ).
 
+namespace: owner
+
 festival:
   name: "DST Check"
   slug: "dst-check"
