@@ -332,24 +332,34 @@ stage "Deploy and verify from a deployment"
 say "Environment variables reach only deployments made after they were set, so a new"
 say "deploy is needed. Then $SITE/api/health reports which secrets a"
 say "deployment can read, and — given the owner secret — proves each key works."
+HEAD_SHA=$(git rev-parse HEAD)
+PUSHED=0
 AHEAD=$(git rev-list --count origin/main..main 2>/dev/null || echo 0)
 if [[ "$AHEAD" != "0" ]]; then
   say "main is $AHEAD commit(s) ahead of origin/main."
   if confirm "Push main now? (this deploys to production)"; then
-    git push origin main
+    git push origin main && PUSHED=1
   else
     warn "not pushed; a deploy is still needed for the new variables to take effect"
   fi
 fi
-if confirm "Redeploy the current production deployment so it picks up the new variables?"; then
+# Only offer a redeploy when nothing was just pushed. A redeploy rebuilds
+# whatever $SITE points at *right now*; issued alongside a fresh push it
+# rebuilds the previous commit and then steals the alias back from the new one
+# (this happened on the first run). The poll below checks the commit, so a
+# stale alias is caught either way.
+if (( ! PUSHED )) && confirm "Redeploy the current production deployment so it picks up the new variables?"; then
   $VERCEL redeploy "$SITE" >/dev/null 2>&1 \
     || { warn "vercel redeploy did not work here; in the dashboard: Deployments → ⋯ → Redeploy"; open_url "https://vercel.com/lunde-os/stage-times"; pause "Redeploy started?"; }
 fi
-say "Waiting for a deployment that can see all three secrets (up to 5 minutes)…"
-DEADLINE=$(( $(date +%s) + 300 )); READY=0
+say "Waiting for a deployment of ${HEAD_SHA:0:7} that can see all three secrets (up to 5 minutes)…"
+DEADLINE=$(( $(date +%s) + 300 )); READY=0; STALE=""
 while (( $(date +%s) < DEADLINE )); do
-  if H=$(health) && node -e 'const h=JSON.parse(require("fs").readFileSync(0,"utf8")); process.exit(Object.values(h.secrets).every(Boolean)?0:1)' <<<"$H" 2>/dev/null; then
-    READY=1; break
+  if H=$(health); then
+    if node -e 'const h=JSON.parse(require("fs").readFileSync(0,"utf8")); process.exit((h.deployment===process.argv[1])&&Object.values(h.secrets).every(Boolean)?0:1)' "$HEAD_SHA" <<<"$H" 2>/dev/null; then
+      READY=1; break
+    fi
+    STALE=$(node -e 'const h=JSON.parse(require("fs").readFileSync(0,"utf8")); console.log(String(h.deployment||"").slice(0,7))' <<<"$H" 2>/dev/null || true)
   fi
   sleep 10; printf '.'
 done
@@ -357,8 +367,14 @@ printf '\n'
 if (( READY )); then
   printf '%s\n' "$H" | node -e 'const h=JSON.parse(require("fs").readFileSync(0,"utf8")); console.log(`  deployment ${h.deployment} (${h.env})`); for (const [k,v] of Object.entries(h.secrets)) console.log(`  ${v?"✓":"✗"} ${k}`)'
 else
-  warn "no deployment reported all three secrets within 5 minutes. Check Vercel, then:"
-  note "  curl $SITE/api/health"
+  warn "no deployment of ${HEAD_SHA:0:7} reported all three secrets within 5 minutes."
+  if [[ -n "$STALE" && "$STALE" != "${HEAD_SHA:0:7}" ]]; then
+    warn "production is serving $STALE, not ${HEAD_SHA:0:7}. Promote the right deployment:"
+    note "  npx vercel ls --prod        # find the deployment built from ${HEAD_SHA:0:7}"
+    note "  npx vercel promote <url>    # alias it to $SITE"
+  else
+    note "  curl $SITE/api/health"
+  fi
 fi
 if [[ -z "$OWNER_SECRET" ]]; then
   say "To prove the keys work, the health check needs the owner secret (from your bookmark)."
