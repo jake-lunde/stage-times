@@ -92,6 +92,28 @@ export interface SequencesFile {
   editions: Record<string, SequenceLedger>;
 }
 
+/**
+ * Who uploaded an edition, written by the publisher at confirm (src/publisher.ts).
+ *
+ * Its presence is what "uploader-verified" means: a human checked this edition
+ * against the image they uploaded. The build never writes it, never reads it,
+ * and never drops it — holding the update-link secret is what makes someone an
+ * edition's uploader, and losing this record would orphan their edition.
+ *
+ * Only hashes are kept. The repository is public: the secret is shown once and
+ * the contact address reaches the owner through a notification, not a commit.
+ */
+export interface UploaderRecord {
+  /** SHA-256 of the update-link secret. */
+  secretHash: string;
+  /** SHA-256 of the lowercased contact address. */
+  addressHash: string;
+  /** The publish stamp of the confirm that created the edition. */
+  verifiedAt: string;
+  /** Content hash of the stored source image the edition was read from. */
+  image: string;
+}
+
 export interface PublishedEdition {
   slug: string;
   year: number;
@@ -107,6 +129,8 @@ export interface PublishedEdition {
   blocked: boolean;
   /** Every stage slug ever served under this edition's path. Append-only. */
   stages: string[];
+  /** Present on an edition a fan uploaded and confirmed. Never set by the build. */
+  uploader?: UploaderRecord;
 }
 
 export interface PublishedFile {
@@ -460,6 +484,10 @@ export function buildSite(docs: FestivalDoc[], published: PublishedFile, sequenc
 
     const currentStages = doc.stages.map((s) => s.id);
     nextPublished.editions[path] = {
+      // Carry forward anything the build does not own — the uploader record the
+      // publisher wrote, above all. Dropping it would orphan a fan edition from
+      // the only person allowed to correct it.
+      ...record,
       slug: doc.festival.slug,
       year: doc.festival.year,
       namespace: doc.namespace,

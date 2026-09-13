@@ -1,0 +1,31 @@
+{
+  "festival_name": "LOW TIDE",
+  "official_url": "LOWTIDE.EXAMPLE",
+  "days": [
+    {
+      "date": "2026-10-09",
+      "header": "FRIDAY OCTOBER 9, 2026",
+      "stages": [
+        {
+          "name": "MAIN STAGE",
+          "sets": [
+            { "artist": "AVERY COCHRANE", "time": "3:15-3:45PM", "afters": false, "annotations": [] },
+            { "artist": "MAGDALENA BAY", "time": "9:00-10:00PM", "afters": false, "annotations": [] },
+            { "artist": "MUNA", "time": "10:40-CLOSE", "afters": false, "annotations": [] }
+          ]
+        },
+        {
+          "name": "CELLAR STAGE",
+          "sets": [
+            { "artist": "DARK CHISME", "time": "10:45-11:30PM", "afters": false, "annotations": [] },
+            { "artist": "MGNA CRRRTA", "time": "11:45-CLOSE", "afters": true, "annotations": ["(DJ SETS)"] }
+          ]
+        }
+      ]
+    }
+  ],
+  "observations": [
+    "MGNA CRRRTA re-checked — three R's are printed on the poster, not an OCR error.",
+    "The CELLAR STAGE header is partly covered by a crease; the stage name is legible, the first time is not."
+  ]
+}
