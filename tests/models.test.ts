@@ -43,6 +43,12 @@ test('the committed vision-model config parses, and names a default and a fallba
   assert.ok(config.fallback.length > 0, 'a fallback model is named');
   assert.ok(config.models[config.default], `the default ${config.default} is in the catalog`);
   assert.ok(config.models[config.fallback], `the fallback ${config.fallback} is in the catalog`);
+  assert.ok(config.models[config.screen], `the pre-spend screen model ${config.screen} is in the catalog`);
+  const priced = (id: string) => config.models[id]!.inputUsdPerMTok + config.models[id]!.outputUsdPerMTok;
+  assert.ok(
+    priced(config.screen) <= priced(config.default),
+    'the screen model exists to be cheap — it must not cost more than the one that does the reading',
+  );
 });
 
 test('the default transcription model is read from configuration, not hard-coded in src/', () => {

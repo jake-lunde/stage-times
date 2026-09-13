@@ -1,0 +1,52 @@
+/**
+ * POST /api/confirm — the reviewed image, the uploader's corrections, and
+ * which sets they could not verify, in; the edition, published, out.
+ *
+ * Read the fields, call the publisher, return what it said. The update-link
+ * secret comes back in this response and in no other, ever: committed state
+ * keeps only its hash.
+ */
+
+import { confirm, type ConfirmIntent, type PublisherPorts } from '../src/publisher.js';
+import {
+  badRequest,
+  bool,
+  editList,
+  indexList,
+  json,
+  optStr,
+  parseImage,
+  readJsonBody,
+  rejected,
+  str,
+} from '../src/publisher-http.js';
+import { livePorts } from '../src/ports.js';
+
+export async function handle(request: Request, ports: PublisherPorts): Promise<Response> {
+  let intent: ConfirmIntent;
+  try {
+    const body = await readJsonBody(request);
+    intent = {
+      kind: 'confirm',
+      festival: str(body, 'festival'),
+      email: str(body, 'email'),
+      timezone: str(body, 'timezone'),
+      timezoneAssumed: bool(body, 'timezoneAssumed'),
+      ...(optStr(body, 'officialUrl') !== undefined ? { officialUrl: optStr(body, 'officialUrl')! } : {}),
+      edits: editList(body, 'edits'),
+      unverifiable: indexList(body, 'unverifiable'),
+      image: parseImage(body),
+    };
+  } catch (err) {
+    return badRequest(err);
+  }
+
+  const result = await confirm(intent, ports);
+  return result.ok
+    ? json({ ok: true, editionPath: result.editionPath, updateSecret: result.updateSecret }, 200)
+    : rejected(result.rejection!);
+}
+
+export function POST(request: Request): Promise<Response> {
+  return handle(request, livePorts());
+}

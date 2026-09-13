@@ -44,6 +44,13 @@ export interface VisionConfig {
   default: string;
   /** The proven model, used when the default one fails. */
   fallback: string;
+  /**
+   * The small model that answers the pre-spend "is this a schedule with times
+   * on it" question before an upload is transcribed. Its whole job is to be
+   * cheap enough that rejecting garbage costs pennies, so it is named
+   * separately from the model that does the reading.
+   */
+  screen: string;
   /** Where the prices came from and when. */
   pricingSource: string;
   /** Where the decision and its numbers are written down. */
@@ -61,7 +68,7 @@ export class ModelConfigError extends Error {
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-const TOP_LEVEL_KEYS = ['default', 'fallback', 'pricingSource', 'decision', 'models'] as const;
+const TOP_LEVEL_KEYS = ['default', 'fallback', 'screen', 'pricingSource', 'decision', 'models'] as const;
 const ENTRY_KEYS = ['label', 'inputUsdPerMTok', 'outputUsdPerMTok', 'structuredOutputs'] as const;
 
 function str(value: unknown, path: string, field: string): string {
@@ -126,11 +133,12 @@ export function parseVisionConfig(text: string, sourcePath: string): VisionConfi
   const config: VisionConfig = {
     default: str(record['default'], sourcePath, 'default'),
     fallback: str(record['fallback'], sourcePath, 'fallback'),
+    screen: str(record['screen'], sourcePath, 'screen'),
     pricingSource: str(record['pricingSource'], sourcePath, 'pricingSource'),
     decision: str(record['decision'], sourcePath, 'decision'),
     models,
   };
-  for (const field of ['default', 'fallback'] as const) {
+  for (const field of ['default', 'fallback', 'screen'] as const) {
     if (!models[config[field]]) {
       throw new ModelConfigError(sourcePath, `${field} ${config[field]} is not in the models catalog`);
     }
