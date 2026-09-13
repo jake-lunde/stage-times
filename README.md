@@ -134,12 +134,29 @@ npm run build -- data/x.yaml   # build only the named file(s); add --dry-state f
 npm run smoke -- <base-url>    # gate 8: curl every feed of every edition, assert headers + TLS
 npm run ingest -- <image>      # source image → edition YAML + ambiguity log (calls the model)
 npm run ingest:eval            # re-score the CHBP posters against the 79 hand-verified sets
+npm run ingest:eval -- --trials 2 --record 2026-09-13   # …and rewrite the committed eval record
 ```
 
 Transcription is a library: `transcribe()` in `src/transcription.ts` takes the raw model output
 per source image and returns the validated edition document and the log, with no file or model
 access inside it. `src/vision.ts` is the only module that calls a model; `npm run ingest` and the
 eval are thin wrappers over both.
+
+### Which model transcribes
+
+Configuration, not code. `config/vision-models.json` names the default model, the fallback, and
+the per-million-token price of every model the eval has scored; `src/models.ts` reads it and
+`STAGE_TIMES_VISION_MODEL` (or `npm run ingest -- --model <id>`) overrides the default for one
+run. When a call to the default model fails, the fallback — the proven model — transcribes
+instead.
+
+The current setting is [ADR-0002](./docs/adr/0002-transcription-model.md), decided on the numbers
+in [`docs/evals/transcription-models.json`](./docs/evals/transcription-models.json): each model
+transcribes the same three CHBP posters twice, and the default is the cheapest one that reproduces
+all 79 hand-verified sets exactly in every trial. `npm run ingest:eval` regenerates them — over the
+API only, since the local `claude` CLI bills a subscription and picks its own model, so it can
+price nothing. The eval takes the measurement date as an argument because nothing here reads the
+wall clock.
 
 ---
 

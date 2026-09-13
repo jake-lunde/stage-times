@@ -7,12 +7,17 @@
  * deterministic and unit-tested. This module never parses it.
  *
  * Two backends:
- *   - 'sdk'  — the Anthropic SDK against `claude-opus-5`, with a structured-
- *              output JSON schema so the response is guaranteed parseable.
- *              Needs ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN / an `ant` profile.
+ *   - 'sdk'  — the Anthropic SDK against the configured model, optionally with
+ *              a structured-output JSON schema so the response is guaranteed
+ *              parseable. Needs ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN.
  *   - 'cli'  — shells out to the locally installed `claude` CLI (which carries
  *              its own login), asking it to Read the image and emit the same
- *              JSON. Fallback for machines with no API key in the environment.
+ *              JSON. Fallback for machines with no API key in the environment,
+ *              and never used for the model eval: the CLI bills a subscription
+ *              and reports its own routing, so it cannot price a model choice.
+ *
+ * Which model, and what it costs, is configuration — `config/vision-models.json`
+ * via src/models.ts. No model id or price appears in this file.
  *
  * This module is the ONLY nondeterministic step in the pipeline, and the only
  * one that reads a file or calls a model.
@@ -21,6 +26,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { basename, extname, resolve } from 'node:path';
+import { costUsd, visionModel, type VisionConfig } from './models.js';
 import { TranscribeError } from './transcribe.js';
 
 export type Backend = 'sdk' | 'cli';
@@ -38,11 +44,14 @@ export interface VisionResult {
   outputTokens: number | null;
 }
 
-/** Latest capable vision model (per the claude-api reference). */
-export const SDK_MODEL = 'claude-opus-5';
-/** claude-opus-5 pricing, USD per token. */
-const INPUT_USD_PER_TOKEN = 5 / 1_000_000;
-const OUTPUT_USD_PER_TOKEN = 25 / 1_000_000;
+/** What one transcription call needs to know beyond the image itself. */
+export interface VisionRequest {
+  backend: Backend;
+  /** Model id from the catalog in `config/vision-models.json`. */
+  model: string;
+  /** The catalog, for the price of the model that served the call. */
+  config: VisionConfig;
+}
 
 // ---------------------------------------------------------------------------
 // The transcription prompt — encodes the CHBP-proven reading discipline.
@@ -133,8 +142,8 @@ const TRANSCRIPTION_SCHEMA = {
 // Backend selection
 // ---------------------------------------------------------------------------
 
-export function sdkCredentialsAvailable(): boolean {
-  return Boolean(process.env['ANTHROPIC_API_KEY'] || process.env['ANTHROPIC_AUTH_TOKEN']);
+export function sdkCredentialsAvailable(env: Record<string, string | undefined> = process.env): boolean {
+  return Boolean(env['ANTHROPIC_API_KEY'] || env['ANTHROPIC_AUTH_TOKEN']);
 }
 
 export function cliAvailable(): boolean {
@@ -146,12 +155,30 @@ export function cliAvailable(): boolean {
   }
 }
 
-export function pickBackend(): Backend {
-  if (sdkCredentialsAvailable()) return 'sdk';
+export function pickBackend(env: Record<string, string | undefined> = process.env): Backend {
+  if (sdkCredentialsAvailable(env)) return 'sdk';
   if (cliAvailable()) return 'cli';
   throw new TranscribeError(
     'no usable Claude access: set ANTHROPIC_API_KEY (or ANTHROPIC_AUTH_TOKEN), or install the `claude` CLI and log in',
   );
+}
+
+/**
+ * The API backend or nothing — never the local CLI.
+ *
+ * The model eval compares models by exactness and by price, and the CLI can
+ * report neither honestly: it bills a subscription rather than the API, and it
+ * routes to whatever model its own login resolves. Anything measuring a model
+ * asks for the backend this way, so a missing key fails loudly instead of
+ * quietly scoring a different model.
+ */
+export function requireSdkBackend(env: Record<string, string | undefined> = process.env): Backend {
+  if (!sdkCredentialsAvailable(env)) {
+    throw new TranscribeError(
+      'this run needs the API: set ANTHROPIC_API_KEY (or ANTHROPIC_AUTH_TOKEN). The local `claude` CLI is not usable here — it bills a subscription and picks its own model, so it cannot price a model choice.',
+    );
+  }
+  return 'sdk';
 }
 
 // ---------------------------------------------------------------------------
@@ -176,13 +203,14 @@ function mediaTypeFor(imagePath: string): string {
   return type;
 }
 
-async function transcribeViaSdk(imagePath: string): Promise<VisionResult> {
+async function transcribeViaSdk(imagePath: string, request: VisionRequest): Promise<VisionResult> {
+  const entry = visionModel(request.config, request.model);
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
   const client = new Anthropic();
   const data = readFileSync(imagePath).toString('base64');
 
   const response = await client.messages.create({
-    model: SDK_MODEL,
+    model: request.model,
     max_tokens: 16000,
     messages: [
       {
@@ -197,10 +225,19 @@ async function transcribeViaSdk(imagePath: string): Promise<VisionResult> {
       },
     ],
     // Structured outputs: the response is guaranteed to validate against the
-    // schema, so a parse failure can only mean an API-level problem.
-    output_config: {
-      format: { type: 'json_schema', schema: TRANSCRIPTION_SCHEMA as unknown as Record<string, unknown> },
-    },
+    // schema, so a parse failure can only mean an API-level problem. Models
+    // that do not support it say so in the catalog and answer the prompt's
+    // JSON instruction instead — `transcribe()` tolerates fences and prose.
+    ...(entry.structuredOutputs
+      ? {
+          output_config: {
+            format: {
+              type: 'json_schema' as const,
+              schema: TRANSCRIPTION_SCHEMA as unknown as Record<string, unknown>,
+            },
+          },
+        }
+      : {}),
   });
 
   if (response.stop_reason === 'refusal') {
@@ -222,7 +259,7 @@ async function transcribeViaSdk(imagePath: string): Promise<VisionResult> {
     source: basename(imagePath),
     backend: 'sdk',
     model: response.model,
-    costUsd: inputTokens * INPUT_USD_PER_TOKEN + usage.output_tokens * OUTPUT_USD_PER_TOKEN,
+    costUsd: costUsd(entry, inputTokens, usage.output_tokens),
     inputTokens,
     outputTokens: usage.output_tokens,
   };
@@ -232,7 +269,7 @@ async function transcribeViaSdk(imagePath: string): Promise<VisionResult> {
 // claude CLI backend
 // ---------------------------------------------------------------------------
 
-function transcribeViaCli(imagePath: string): VisionResult {
+function transcribeViaCli(imagePath: string, request: VisionRequest): VisionResult {
   const abs = resolve(imagePath);
   const prompt =
     `First use your Read tool to view the image file at ${abs} (view it closely — re-read every column before answering).\n\n` +
@@ -241,7 +278,7 @@ function transcribeViaCli(imagePath: string): VisionResult {
 
   const stdout = execFileSync(
     'claude',
-    ['-p', prompt, '--output-format', 'json', '--model', 'opus', '--allowedTools', 'Read'],
+    ['-p', prompt, '--output-format', 'json', '--model', request.model, '--allowedTools', 'Read'],
     { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 15 * 60 * 1000 },
   );
 
@@ -276,6 +313,8 @@ function transcribeViaCli(imagePath: string): VisionResult {
 // Public entry
 // ---------------------------------------------------------------------------
 
-export async function transcribeImage(imagePath: string, backend: Backend): Promise<VisionResult> {
-  return backend === 'sdk' ? transcribeViaSdk(imagePath) : transcribeViaCli(imagePath);
+export async function transcribeImage(imagePath: string, request: VisionRequest): Promise<VisionResult> {
+  return request.backend === 'sdk'
+    ? transcribeViaSdk(imagePath, request)
+    : transcribeViaCli(imagePath, request);
 }
