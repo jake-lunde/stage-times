@@ -1,7 +1,7 @@
 {
   "default": "claude-sonnet-5",
   "fallback": "claude-opus-5",
-  "pricingSource": "console.anthropic.com pricing, recorded 2026-09-13. Prices are USD per million tokens.",
+  "pricingSource": "Published list prices, recorded 2026-09-13, USD per million tokens. Token counts in the eval record are measured; the dollars are those counts times these numbers, so confirm them against console.anthropic.com pricing before treating a cost ranking as final.",
   "decision": "docs/adr/0002-transcription-model.md — numbers in docs/evals/transcription-models.json",
   "models": {
     "claude-opus-5": {

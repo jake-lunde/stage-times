@@ -15,7 +15,7 @@
     "default": "claude-sonnet-5",
     "fallback": "claude-opus-5"
   },
-  "pricingSource": "console.anthropic.com pricing, recorded 2026-09-13. Prices are USD per million tokens.",
+  "pricingSource": "Published list prices, recorded 2026-09-13, USD per million tokens. Token counts in the eval record are measured; the dollars are those counts times these numbers, so confirm them against console.anthropic.com pricing before treating a cost ranking as final.",
   "results": [
     {
       "model": "claude-opus-5",
@@ -201,7 +201,7 @@
           "outputTokens": 1100
         }
       ],
-      "failure": "CHBP+Daily+Schedule_SUNDAY.webp: bad transcription shape: • days[1].stages[0].sets must be a non-empty array"
+      "failure": "CHBP+Daily+Schedule_SUNDAY.webp: bad transcription shape: \u2022 days[1].stages[0].sets must be a non-empty array"
     },
     {
       "model": "claude-haiku-4-5-20251001",
@@ -239,7 +239,7 @@
           "outputTokens": 1117
         }
       ],
-      "failure": "CHBP+Daily+Schedule_SUNDAY.webp: bad transcription shape: • days[1].stages must be a non-empty array"
+      "failure": "CHBP+Daily+Schedule_SUNDAY.webp: bad transcription shape: \u2022 days[1].stages must be a non-empty array"
     }
   ]
 }
