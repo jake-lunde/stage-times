@@ -23,12 +23,14 @@ import {
   assertRawTranscription,
   buildTranscription,
   TranscribeError,
+  type AppliedEdit,
   type BuiltSet,
   type RawTranscription,
+  type SetEdit,
   type TranscriptionOptions,
 } from './transcribe.js';
 
-export { TranscribeError, type TranscriptionOptions };
+export { TranscribeError, type AppliedEdit, type SetEdit, type TranscriptionOptions };
 
 /** What the vision model returned for one source image. */
 export interface ModelOutput {
@@ -62,6 +64,8 @@ export interface Transcription {
   log: string;
   /** Every set in printed order, with inferred-end and post-midnight flags. */
   sets: TranscribedSet[];
+  /** Every human correction applied from the review screen, field by field. */
+  edits: AppliedEdit[];
   /** True when the time zone was a default, not something a human supplied. */
   timezoneAssumed: boolean;
   /** The model's own reviewer notes, verbatim, in source order. */
@@ -107,6 +111,7 @@ export function transcribe(outputs: ModelOutput[], options: TranscriptionOptions
     yaml: built.yaml,
     log: built.log,
     sets: built.sets,
+    edits: built.edits,
     timezoneAssumed: options.timezoneAssumed === true,
     observations: raws.flatMap((r) => r.observations ?? []),
   };
