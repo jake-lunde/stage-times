@@ -247,6 +247,27 @@ test('cache: the model reply is saved verbatim under the image content hash', as
   assert.equal(saved.filename, 'schedule.webp');
 });
 
+test('cache: a reading the library refuses is still saved, so fixing it and retrying is free', async () => {
+  // A source with no web address on it: the schema needs one, so the upload is
+  // refused — but the model has already been paid for, and the retry with the
+  // link supplied must not pay again.
+  const noUrl = JSON.parse(recordedReply()) as { official_url: string | null };
+  noUrl.official_url = null;
+  const ports = fakePorts({ vision: fakeVision({ reply: JSON.stringify(noUrl) }) });
+
+  const refused = await upload(uploadIntent(), ports);
+  assert.equal(refused.ok, false);
+  assert.equal(refused.rejection!.gate, 'schema');
+  assert.match(refused.rejection!.reason, /no official URL found/);
+  assert.equal(ports.vision.transcriptions, 1);
+  assert.ok(refused.commit, 'the reply that was paid for is on the record either way');
+
+  const retry = await upload(uploadIntent({ officialUrl: 'https://lowtide.example' }), ports);
+  assert.ok(retry.ok, retry.rejection?.reason);
+  assert.equal(ports.vision.transcriptions, 1, 'the fix cost nothing');
+  assert.equal(retry.reused, true);
+});
+
 // ---------------------------------------------------------------------------
 // The review payload
 // ---------------------------------------------------------------------------
@@ -435,6 +456,16 @@ test('confirm: the source image is committed named by its content hash', async (
   assert.equal(stored[0]!.contentType, 'image/webp');
   assert.deepEqual(stored[0]!.bytes, image().bytes);
   assert.match(ports.repo.file('data/fan/low-tide-2026.yaml')!, new RegExp(`# {3}${hash}\\.webp`));
+});
+
+test('confirm: a blank festival name or a bad address is refused in plain words, not by the schema', async () => {
+  const { review, ports } = await reviewOf();
+  const blank = await confirm(confirmIntent(review, { festival: '  ' }), ports);
+  assert.equal(blank.rejection!.gate, 'details');
+  assert.equal(blank.rejection!.reason, "Type the festival's name first.");
+  const bad = await confirm(confirmIntent(review, { email: 'sam' }), ports);
+  assert.equal(bad.rejection!.gate, 'details');
+  assert.equal(ports.repo.commits.length, 1, 'the upload only');
 });
 
 test('confirm: a review whose image is not in the store is refused, not guessed at', async () => {

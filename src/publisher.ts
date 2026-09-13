@@ -482,17 +482,24 @@ function checkImage(image: SourceImage): Rejection | null {
 
 /** The festival name, dates, zone and address the uploader typed. */
 function checkDetails(intent: UploadIntent): Rejection | null {
-  if (intent.festival.trim() === '' || slugify(intent.festival) === '') {
-    return reject('details', "Type the festival's name first.");
-  }
+  const named = checkWhoAndWhat(intent.festival, intent.email);
+  if (named) return named;
   if (!ISO_DATE_RE.test(intent.dates.first) || !ISO_DATE_RE.test(intent.dates.last) || intent.dates.last < intent.dates.first) {
     return reject('details', "Those dates don't look right. Give the day it starts and the day it ends.");
   }
-  if (!EMAIL_RE.test(intent.email.trim())) {
-    return reject('details', "That email address doesn't look right.");
-  }
   if (intent.timezone !== undefined && !isValidTimeZone(intent.timezone)) {
     return reject('details', "That time zone isn't one I know.");
+  }
+  return null;
+}
+
+/** The two fields both intents carry. Checked here so the schema never has to. */
+function checkWhoAndWhat(festival: string, email: string): Rejection | null {
+  if (festival.trim() === '' || slugify(festival) === '') {
+    return reject('details', "Type the festival's name first.");
+  }
+  if (!EMAIL_RE.test(email.trim())) {
+    return reject('details', "That email address doesn't look right.");
   }
   return null;
 }
@@ -678,6 +685,9 @@ async function finishUpload(
  * not build, it is not committed.
  */
 export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Promise<ConfirmResult> {
+  const named = checkWhoAndWhat(intent.festival, intent.email);
+  if (named) return rejectedConfirm(named);
+
   const imageProblem = checkImage(intent.image);
   if (imageProblem) return rejectedConfirm(imageProblem);
 
