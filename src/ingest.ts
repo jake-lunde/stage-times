@@ -27,12 +27,17 @@
  *                        ASSUMED in the output — the poster cannot tell us this)
  *   --backend <b>        sdk | cli | auto (default: auto — sdk when an API key is
  *                        in the environment, else the local `claude` CLI login)
+ *   --model <id>         vision model to use (default: the one configured in
+ *                        config/vision-models.json; STAGE_TIMES_VISION_MODEL
+ *                        overrides it for one run). If it fails, the configured
+ *                        fallback — the proven model — transcribes instead.
  *   --raw <file.json>    replay saved model output instead of calling the model
  *                        (repeatable; deterministic, costs nothing)
  */
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
+import { loadVisionConfig, MODEL_ENV_VAR, resolveVisionModel, withModelFallback } from './models.js';
 import { NAMESPACES, type Namespace } from './schema.js';
 import { transcribe, type ModelOutput } from './transcription.js';
 import { pickBackend, transcribeImage, type Backend, type VisionResult } from './vision.js';
@@ -48,12 +53,13 @@ interface Args {
   timezone: string;
   timezoneAssumed: boolean;
   backend: Backend | 'auto';
+  model?: string;
 }
 
 const DEFAULT_TZ = 'America/Los_Angeles';
 
 function usage(): never {
-  console.error('usage: npm run ingest -- <image> [...] [--out dir] [--name n] [--slug s] [--official-url u] [--namespace owner|fan] [--timezone tz] [--backend sdk|cli|auto] [--raw file.json]');
+  console.error('usage: npm run ingest -- <image> [...] [--out dir] [--name n] [--slug s] [--official-url u] [--namespace owner|fan] [--timezone tz] [--backend sdk|cli|auto] [--model id] [--raw file.json]');
   process.exit(2);
 }
 
@@ -79,6 +85,7 @@ function parseArgs(argv: string[]): Args {
         break;
       }
       case '--timezone': args.timezone = next(); args.timezoneAssumed = false; break;
+      case '--model': args.model = next(); break;
       case '--raw': args.raws.push(next()); break;
       case '--backend': {
         const b = next();
@@ -116,12 +123,23 @@ async function main(): Promise<void> {
 
   if (args.images.length > 0) {
     const backend: Backend = args.backend === 'auto' ? pickBackend() : args.backend;
-    console.error(`vision backend: ${backend}`);
+    const config = loadVisionConfig();
+    // --model wins over the environment override, which wins over the config.
+    const env = args.model ? { ...process.env, [MODEL_ENV_VAR]: args.model } : process.env;
+    const chosen = resolveVisionModel(config, env);
+    console.error(`vision backend: ${backend} · model: ${chosen.model} (${chosen.source})`);
     mkdirSync(join(outDir, 'raw'), { recursive: true });
     for (const image of args.images) {
       console.error(`transcribing ${basename(image)} …`);
       const started = Date.now();
-      const result = await transcribeImage(image, backend);
+      const attempt = await withModelFallback(
+        config,
+        env,
+        (model) => transcribeImage(image, { backend, model, config }),
+        (err, fallback) =>
+          console.error(`  ${chosen.model} failed (${err.message}) — falling back to ${fallback}`),
+      );
+      const result = attempt.result;
       results.push(result);
       outputs.push({ source: result.source, output: result.output });
       // Saved before it is read, so a reply the library rejects is still on
