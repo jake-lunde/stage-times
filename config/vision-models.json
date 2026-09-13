@@ -1,0 +1,26 @@
+{
+  "default": "claude-sonnet-5",
+  "fallback": "claude-opus-5",
+  "pricingSource": "console.anthropic.com pricing, recorded 2026-09-13. Prices are USD per million tokens.",
+  "decision": "docs/adr/0002-transcription-model.md — numbers in docs/evals/transcription-models.json",
+  "models": {
+    "claude-opus-5": {
+      "label": "Claude Opus 5",
+      "inputUsdPerMTok": 5,
+      "outputUsdPerMTok": 25,
+      "structuredOutputs": true
+    },
+    "claude-sonnet-5": {
+      "label": "Claude Sonnet 5",
+      "inputUsdPerMTok": 3,
+      "outputUsdPerMTok": 15,
+      "structuredOutputs": true
+    },
+    "claude-haiku-4-5-20251001": {
+      "label": "Claude Haiku 4.5",
+      "inputUsdPerMTok": 1,
+      "outputUsdPerMTok": 5,
+      "structuredOutputs": true
+    }
+  }
+}
