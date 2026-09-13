@@ -82,7 +82,7 @@ are human-lane when it publishes.
 
 ## The ticket runner
 
-`~/.claude/skills/run-tickets/run.mjs` (source of truth: the vault at
+`/run-tickets` drives `~/.claude/skills/run-tickets/run.mjs` (source of truth: the vault at
 `AIOS/Scripts/ticket-runner/`) works the frontier unattended: claim,
 worktree, implement on one model, review on another against the
 acceptance boxes, merge to `main` locally, never push. It reads its
@@ -100,6 +100,7 @@ node ~/.claude/skills/run-tickets/run.mjs --dry-run
   "ticketsDir": "Efforts/Notes/Stage Times",
   "effortPage": "Efforts/On/🎪 Stage Times (E).md",
   "main": "main",
+  "notify": ["github:jake-lunde/stage-times", "macos"],
   "readFirst": ["CLAUDE.md", "README.md", "HANDOFF.md", "CONTEXT.md"],
   "rules": [
     "Never change normalizeArtist, UID derivation, UID_DOMAIN, a stage id, or an edition's namespace after first publish (README.md, the permanence contract).",
