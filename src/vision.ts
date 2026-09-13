@@ -6,6 +6,12 @@
  * reply is `transcribe()` in src/transcription.ts, where every judgement is
  * deterministic and unit-tested. This module never parses it.
  *
+ * Two calls live here, one per question: `screenForSchedule` is the publisher's
+ * cheap pre-spend "is this a schedule with times on it", answered by the small
+ * model the config names, and `transcribeImage` / `transcribeBytes` is the real
+ * reading. An image arrives either as a path (the local CLI) or as bytes (an
+ * upload); the API backend takes both, the `claude` CLI backend only a path.
+ *
  * Two backends:
  *   - 'sdk'  — the Anthropic SDK against the configured model, optionally with
  *              a structured-output JSON schema so the response is guaranteed
@@ -53,6 +59,23 @@ export interface VisionRequest {
   config: VisionConfig;
 }
 
+/** An image already in memory — what an upload hands over. */
+export interface ImageBytes {
+  bytes: Uint8Array;
+  /** `image/webp`, `image/png`, … */
+  mediaType: string;
+  /** Label for the log and error messages — usually the file name. */
+  name: string;
+}
+
+/** The pre-spend screen's answer: is this a schedule with times on it? */
+export interface ScheduleVerdict {
+  isSchedule: boolean;
+  /** The model's one line about what it saw. For the log, never for a page. */
+  saw: string;
+  costUsd: number | null;
+}
+
 // ---------------------------------------------------------------------------
 // The transcription prompt — encodes the CHBP-proven reading discipline.
 // ---------------------------------------------------------------------------
@@ -88,6 +111,25 @@ Respond with a single JSON object of this shape and nothing else:
   ],
   "observations": [string, ...]
 }`;
+
+/**
+ * The pre-spend screen. One question, one word back, on the cheapest model the
+ * catalog prices — so an upload that is a selfie costs pennies instead of a
+ * transcription (spec: "every upload's cost gated by a cheap check").
+ */
+export const SCHEDULE_SCREEN_PROMPT = `Look at this image. Is it a music-festival schedule showing artist names with clock times against them — a set-times poster, a grid, or a screenshot of one?
+
+A lineup with no times is NOT a schedule. A photo of a crowd, a stage, a ticket, a person, or a flyer with only dates is NOT a schedule.
+
+Answer with a single JSON object and nothing else:
+{"is_schedule": true | false, "saw": "<six words or fewer describing what the image actually is>"}`;
+
+const SCREEN_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['is_schedule', 'saw'],
+  properties: { is_schedule: { type: 'boolean' }, saw: { type: 'string' } },
+} as const;
 
 /** JSON schema for structured outputs (SDK backend). */
 const TRANSCRIPTION_SCHEMA = {
@@ -203,11 +245,11 @@ function mediaTypeFor(imagePath: string): string {
   return type;
 }
 
-async function transcribeViaSdk(imagePath: string, request: VisionRequest): Promise<VisionResult> {
+async function transcribeViaSdk(image: ImageBytes, request: VisionRequest): Promise<VisionResult> {
   const entry = visionModel(request.config, request.model);
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
   const client = new Anthropic();
-  const data = readFileSync(imagePath).toString('base64');
+  const data = Buffer.from(image.bytes).toString('base64');
 
   const response = await client.messages.create({
     model: request.model,
@@ -218,7 +260,7 @@ async function transcribeViaSdk(imagePath: string, request: VisionRequest): Prom
         content: [
           {
             type: 'image',
-            source: { type: 'base64', media_type: mediaTypeFor(imagePath) as 'image/webp', data },
+            source: { type: 'base64', media_type: image.mediaType as 'image/webp', data },
           },
           { type: 'text', text: TRANSCRIPTION_PROMPT },
         ],
@@ -242,21 +284,21 @@ async function transcribeViaSdk(imagePath: string, request: VisionRequest): Prom
 
   if (response.stop_reason === 'refusal') {
     throw new TranscribeError(
-      `the model declined to transcribe ${basename(imagePath)} (stop_reason: refusal) — retry or transcribe by hand`,
+      `the model declined to transcribe ${image.name} (stop_reason: refusal) — retry or transcribe by hand`,
     );
   }
   if (response.stop_reason === 'max_tokens') {
-    throw new TranscribeError(`transcription of ${basename(imagePath)} was truncated (max_tokens) — raise the limit`);
+    throw new TranscribeError(`transcription of ${image.name} was truncated (max_tokens) — raise the limit`);
   }
   const text = response.content.find((b) => b.type === 'text')?.text;
-  if (!text) throw new TranscribeError(`no text block in the response for ${basename(imagePath)}`);
+  if (!text) throw new TranscribeError(`no text block in the response for ${image.name}`);
 
   const usage = response.usage;
   const inputTokens =
     usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0);
   return {
     output: text,
-    source: basename(imagePath),
+    source: image.name,
     backend: 'sdk',
     model: response.model,
     costUsd: costUsd(entry, inputTokens, usage.output_tokens),
@@ -315,6 +357,80 @@ function transcribeViaCli(imagePath: string, request: VisionRequest): VisionResu
 
 export async function transcribeImage(imagePath: string, request: VisionRequest): Promise<VisionResult> {
   return request.backend === 'sdk'
-    ? transcribeViaSdk(imagePath, request)
+    ? transcribeViaSdk(
+        { bytes: readFileSync(imagePath), mediaType: mediaTypeFor(imagePath), name: basename(imagePath) },
+        request,
+      )
     : transcribeViaCli(imagePath, request);
+}
+
+/**
+ * Transcribe an image already in memory — what an upload hands over. The API
+ * backend only: the CLI backend reads a path off disk, which a serverless
+ * function has nothing useful to give it.
+ */
+export async function transcribeBytes(image: ImageBytes, request: VisionRequest): Promise<VisionResult> {
+  if (request.backend !== 'sdk') {
+    throw new TranscribeError('an uploaded image is transcribed over the API — the local `claude` CLI reads a path');
+  }
+  return transcribeViaSdk(image, request);
+}
+
+/**
+ * The pre-spend screen: one cheap question before the expensive call.
+ *
+ * An unreadable or malformed answer counts as "not a schedule". The gate exists
+ * to stop spend, so the safe failure is to stop.
+ */
+export async function screenForSchedule(image: ImageBytes, request: VisionRequest): Promise<ScheduleVerdict> {
+  const entry = visionModel(request.config, request.model);
+  const { default: Anthropic } = await import('@anthropic-ai/sdk');
+  const client = new Anthropic();
+
+  const response = await client.messages.create({
+    model: request.model,
+    max_tokens: 200,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: image.mediaType as 'image/webp',
+              data: Buffer.from(image.bytes).toString('base64'),
+            },
+          },
+          { type: 'text', text: SCHEDULE_SCREEN_PROMPT },
+        ],
+      },
+    ],
+    ...(entry.structuredOutputs
+      ? {
+          output_config: {
+            format: { type: 'json_schema' as const, schema: SCREEN_SCHEMA as unknown as Record<string, unknown> },
+          },
+        }
+      : {}),
+  });
+
+  const usage = response.usage;
+  const inputTokens =
+    usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0);
+  const cost = costUsd(entry, inputTokens, usage.output_tokens);
+  const text = response.content.find((b) => b.type === 'text')?.text ?? '';
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start === -1 || end <= start) return { isSchedule: false, saw: 'no answer from the screen', costUsd: cost };
+  try {
+    const parsed = JSON.parse(text.slice(start, end + 1)) as { is_schedule?: unknown; saw?: unknown };
+    return {
+      isSchedule: parsed.is_schedule === true,
+      saw: typeof parsed.saw === 'string' ? parsed.saw : '',
+      costUsd: cost,
+    };
+  } catch {
+    return { isSchedule: false, saw: 'the screen did not answer in JSON', costUsd: cost };
+  }
 }

@@ -278,6 +278,80 @@ test('transcribe: the log flags inferred ends, casing, afters, repeats and the a
 });
 
 // ---------------------------------------------------------------------------
+// transcribe — corrections made on review
+// ---------------------------------------------------------------------------
+
+test('transcribe: a review edit replaces the artist, start or end and lands in the YAML', () => {
+  const plain = transcribe(outputs(), OPTS);
+  const muna = plain.sets.findIndex((s) => s.artist === 'MUNA');
+  const avery = plain.sets.findIndex((s) => s.artist === 'AVERY COCHRANE');
+  const t = transcribe(outputs(), {
+    ...OPTS,
+    edits: [
+      { index: avery, artist: 'Avery Cochrane', start: '2026-08-07T15:20:00' },
+      { index: muna, end: '2026-08-07T23:55:00' },
+    ],
+  });
+  const edited = loadFestivalFromString(t.yaml, 'edited');
+  const averySet = edited.sets.find((s) => s.artist === 'Avery Cochrane')!;
+  assert.equal(averySet.start.raw, '2026-08-07T15:20:00', 'the edited start is what the schema loads');
+  assert.equal(averySet.end.raw, '2026-08-07T15:45:00', 'an unedited field keeps the machine reading');
+  const munaSet = edited.sets.find((s) => s.artist === 'MUNA')!;
+  assert.equal(munaSet.end.raw, '2026-08-07T23:55:00');
+  assert.equal(munaSet.end_inferred, false, 'a typed-in end is no longer a guess');
+  assert.doesNotMatch(munaSet.notes, /assumed 60 minutes/);
+});
+
+test('transcribe: every edit is recorded in the log, machine reading beside the correction', () => {
+  const plain = transcribe(outputs(), OPTS);
+  const avery = plain.sets.findIndex((s) => s.artist === 'AVERY COCHRANE');
+  const t = transcribe(outputs(), {
+    ...OPTS,
+    edits: [{ index: avery, artist: 'Avery Cochrane', start: '2026-08-07T15:20:00' }],
+  });
+  assert.equal(t.edits.length, 2, 'two fields changed on one set is two edits');
+  assert.deepEqual(
+    t.edits.map((e) => e.field),
+    ['artist', 'start'],
+  );
+  assert.match(t.log, /## Corrections made on review/);
+  assert.match(t.log, /\| main \| AVERY COCHRANE \| artist \| AVERY COCHRANE \| Avery Cochrane \|/);
+  assert.match(t.log, /\| main \| AVERY COCHRANE \| start \| 2026-08-07T15:15:00 \| 2026-08-07T15:20:00 \|/);
+});
+
+test('transcribe: an edit that changes nothing is not recorded, and no edits says so', () => {
+  const plain = transcribe(outputs(), OPTS);
+  const avery = plain.sets.findIndex((s) => s.artist === 'AVERY COCHRANE');
+  const t = transcribe(outputs(), { ...OPTS, edits: [{ index: avery, artist: 'AVERY COCHRANE' }] });
+  assert.deepEqual(t.edits, []);
+  assert.match(t.log, /None — every set is exactly as the machine read it\./);
+});
+
+test('transcribe: an edit pointing past the last set is a hard fail, not a silent no-op', () => {
+  assert.throws(
+    () => transcribe(outputs(), { ...OPTS, edits: [{ index: 99, artist: 'X' }] }),
+    (err: unknown) => err instanceof TranscribeError && /points at set 99, but the transcription has 8 sets/.test(err.message),
+  );
+});
+
+test('transcribe: an edited time still has to pass the schema', () => {
+  assert.throws(
+    () => transcribe(outputs(), { ...OPTS, edits: [{ index: 0, end: 'half nine' }] }),
+    (err: unknown) => err instanceof SchemaError && /`end` is not a local datetime/.test(err.message),
+  );
+});
+
+test('transcribe: verified: true writes the flag and says a human checked it', () => {
+  const t = transcribe(outputs(), { ...OPTS, verified: true });
+  assert.equal(t.edition.verified, true);
+  assert.match(t.yaml, /^verified: true$/m);
+  assert.match(t.yaml, /# verified: true — a human checked every set/);
+  assert.match(t.log, /checked set by set against the source image by a human/);
+  // The default is unchanged: nobody has looked at a bare transcription.
+  assert.equal(transcribe(outputs(), OPTS).edition.verified, false);
+});
+
+// ---------------------------------------------------------------------------
 // transcribe — a real model reply against the hand-verified edition
 // ---------------------------------------------------------------------------
 

@@ -273,6 +273,33 @@ export function slugify(name: string): string {
 // Building the festival document
 // ---------------------------------------------------------------------------
 
+/**
+ * One correction a human made on the review screen, addressed by the set's
+ * position in printed order (`BuiltSet` index — what the review payload shows).
+ *
+ * Only the three fields the review screen exposes can be edited: artist, start,
+ * end. Times are local wall-clock strings in the edition's zone,
+ * `YYYY-MM-DDTHH:MM:SS`, exactly as the YAML carries them; anything else is
+ * caught by the schema on the round-trip, naming the set.
+ */
+export interface SetEdit {
+  index: number;
+  artist?: string;
+  start?: string;
+  end?: string;
+}
+
+/** One field of one set, as the human changed it. Rendered into the log. */
+export interface AppliedEdit {
+  index: number;
+  stage: string;
+  /** The artist the set was read as, before any edit on this set. */
+  artist: string;
+  field: 'artist' | 'start' | 'end';
+  from: string;
+  to: string;
+}
+
 export interface TranscriptionOptions {
   /**
    * Which URL family the edition will publish into: `owner` at the root,
@@ -290,6 +317,18 @@ export interface TranscriptionOptions {
   timezoneAssumed?: boolean;
   /** Official URL. Defaults to the poster footer URL, if any. */
   officialUrl?: string;
+  /**
+   * Corrections a human made against the source, applied after the rules run
+   * and before the YAML is rendered. Every one is recorded in the log.
+   */
+  edits?: SetEdit[];
+  /**
+   * True when a human has checked every set against the source image — the
+   * uploader's confirm, or the owner's. Writes `verified: true`, which is what
+   * a production build requires. Defaults to false: a transcription nobody has
+   * looked at is never pre-verified.
+   */
+  verified?: boolean;
 }
 
 export interface BuiltSet {
@@ -313,8 +352,56 @@ export interface BuiltTranscription {
   yaml: string;
   log: string;
   sets: BuiltSet[];
+  /** Every human correction that was applied, field by field, in set order. */
+  edits: AppliedEdit[];
   festival: { name: string; slug: string; year: number; timezone: string; official_url: string };
   stages: { id: string; name: string }[];
+}
+
+/**
+ * Apply the review screen's corrections to the built sets, in place of the
+ * machine's reading, and report each one for the log.
+ *
+ * An edited end is no longer an inference, so `end_inferred` clears: the human
+ * typed the time off the source. An edited start leaves it alone — the end is
+ * still whatever it was.
+ */
+export function applyEdits(sets: BuiltSet[], edits: SetEdit[]): AppliedEdit[] {
+  const applied: AppliedEdit[] = [];
+  for (const edit of edits) {
+    const set = sets[edit.index];
+    if (!set) {
+      throw new TranscribeError(
+        `review edit points at set ${edit.index}, but the transcription has ${sets.length} sets (0-${sets.length - 1})`,
+      );
+    }
+    const artistBefore = set.artist;
+    const record = (field: AppliedEdit['field'], from: string, to: string) => {
+      if (from === to) return;
+      applied.push({ index: edit.index, stage: set.stage, artist: artistBefore, field, from, to });
+    };
+    if (edit.artist !== undefined) {
+      record('artist', set.artist, edit.artist);
+      set.artist = edit.artist;
+    }
+    if (edit.start !== undefined) {
+      record('start', set.start, edit.start);
+      set.start = edit.start;
+    }
+    if (edit.end !== undefined) {
+      record('end', set.end, edit.end);
+      if (set.end !== edit.end && set.end_inferred) {
+        set.end_inferred = false;
+        // The CLOSE note described a guess this edit just replaced.
+        set.notes = set.notes.replace(CLOSE_NOTE, 'End time not printed (CLOSE); read off the source on review.').trim();
+      }
+      set.end = edit.end;
+    }
+    // The "crosses midnight" YAML comment is a statement about the times, so it
+    // has to follow them rather than the reading they replaced.
+    set.crossesMidnight = set.end.slice(0, 10) !== set.posterDate;
+  }
+  return applied;
 }
 
 function isoAt(baseDate: string, absMinutes: number): string {
@@ -350,6 +437,9 @@ function buildRaw(set: RawSet): string {
   return ['AFTERS', set.artist, ...(set.annotations ?? []), set.time].join(' / ');
 }
 
+/** The note a CLOSE end carries, and what a review edit replaces. */
+const CLOSE_NOTE = 'End time not printed (CLOSE); assumed 60 minutes.';
+
 function buildNotes(set: RawSet, isClose: boolean): string {
   const parts: string[] = [];
   if (set.afters) {
@@ -359,7 +449,7 @@ function buildNotes(set: RawSet, isClose: boolean): string {
       parts.push('Two acts on one printed block — kept as one event.');
     }
   }
-  if (isClose) parts.push('End time not printed (CLOSE); assumed 60 minutes.');
+  if (isClose) parts.push(CLOSE_NOTE);
   return parts.join(' ');
 }
 
@@ -455,6 +545,11 @@ export function buildTranscription(
     }
   }
 
+  // Human corrections land here: after every deterministic rule has run, before
+  // anything is rendered or validated, so an edited set is checked by the schema
+  // exactly like a machine-read one.
+  const edits = applyEdits(sets, options.edits ?? []);
+
   const festival = { name, slug, year, timezone: options.timezone, official_url: officialUrl };
   const yaml = renderYaml(festival, stages, sets, options, sources);
 
@@ -465,8 +560,8 @@ export function buildTranscription(
   // would later commit, not an in-memory cousin of it.
   const doc = loadFestivalFromString(yaml, `transcription of ${sources.join(', ')}`);
 
-  const log = renderLog(transcriptions, days, festival, sets, options, sources);
-  return { doc, yaml, log, sets, festival, stages };
+  const log = renderLog(transcriptions, days, festival, sets, edits, options, sources);
+  return { doc, yaml, log, sets, edits, festival, stages };
 }
 
 // ---------------------------------------------------------------------------
@@ -485,6 +580,7 @@ function renderYaml(
   options: TranscriptionOptions,
   sources: string[],
 ): string {
+  const verified = options.verified === true;
   const lines: string[] = [];
   lines.push(`# ${festival.name} ${festival.year} — machine transcription of the schedule poster(s).`);
   if (sources.length > 0) {
@@ -493,11 +589,17 @@ function renderYaml(
     for (const s of sources) lines.push(`#   ${s}`);
   }
   lines.push('#');
-  lines.push('# verified: false — NOT reviewed by a human yet. Ingest is a vision task;');
-  lines.push('# review every set against the source image (see the TRANSCRIPTION log next');
-  lines.push('# to this file), then set verified: true to authorize publishing.');
+  if (verified) {
+    lines.push('# verified: true — a human checked every set against the source image above and');
+    lines.push('# confirmed it. Corrections made on review are listed in the TRANSCRIPTION log');
+    lines.push('# next to this file.');
+  } else {
+    lines.push('# verified: false — NOT reviewed by a human yet. Ingest is a vision task;');
+    lines.push('# review every set against the source image (see the TRANSCRIPTION log next');
+    lines.push('# to this file), then set verified: true to authorize publishing.');
+  }
   lines.push('');
-  lines.push('verified: false');
+  lines.push(`verified: ${verified}`);
   lines.push('');
   lines.push('# PERMANENT — decides the URL family: owner editions live at /<slug>-<year>/, fan editions at');
   lines.push('# /fan/<slug>-<year>/ (docs/adr/0001-fan-namespace-prefix.md). Never changes after first publish.');
@@ -544,13 +646,18 @@ function renderLog(
   days: RawDay[],
   festival: { name: string; slug: string; year: number; timezone: string; official_url: string },
   sets: BuiltSet[],
+  edits: AppliedEdit[],
   options: TranscriptionOptions,
   sources: string[],
 ): string {
   const L: string[] = [];
   L.push(`# Transcription log — ${festival.name} ${festival.year}`);
   L.push('');
-  L.push('Machine transcription — NOT yet human-verified.');
+  L.push(
+    options.verified === true
+      ? 'Machine transcription, checked set by set against the source image by a human.'
+      : 'Machine transcription — NOT yet human-verified.',
+  );
   if (sources.length > 0) {
     L.push('');
     L.push(`Source images: ${sources.map((s) => `\`${s}\``).join(', ')}.`);
@@ -584,6 +691,21 @@ function renderLog(
   L.push(
     `**Totals:** ${[...perDay.entries()].map(([d, n]) => `${n} on ${d}`).join(' + ')} = **${sets.length} sets**.`,
   );
+  // Every correction a human made on review, so the machine's reading and the
+  // human's disagreement are both on the record next to the published YAML.
+  L.push('');
+  L.push('---');
+  L.push('');
+  L.push('## Corrections made on review');
+  L.push('');
+  if (edits.length === 0) {
+    L.push('None — every set is exactly as the machine read it.');
+  } else {
+    L.push('| Stage | Artist | Field | Machine read | Corrected to |');
+    L.push('|---|---|---|---|---|');
+    for (const e of edits) L.push(`| ${e.stage} | ${e.artist} | ${e.field} | ${e.from} | ${e.to} |`);
+  }
+
   L.push('');
   L.push('---');
   L.push('');

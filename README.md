@@ -127,7 +127,7 @@ the namespace) keep separate histories. A blocked edition's ledger is left untou
 ## Commands
 
 ```bash
-npm test                       # all 8 validation gates, pages, copy, editions, and the transcription seam
+npm test                       # the 8 validation gates, pages, copy, editions, transcription, and the publisher
 npm run build                  # build every edition to dist/ (preview; allows unverified data)
 npm run build -- --production  # refuses to build unless every edition is verified: true
 npm run build -- data/x.yaml   # build only the named file(s); add --dry-state for a fixture
@@ -139,13 +139,16 @@ npm run ingest:eval -- --trials 2 --record 2026-09-13   # …and rewrite the com
 
 Transcription is a library: `transcribe()` in `src/transcription.ts` takes the raw model output
 per source image and returns the validated edition document and the log, with no file or model
-access inside it. `src/vision.ts` is the only module that calls a model; `npm run ingest` and the
-eval are thin wrappers over both.
+access inside it. It also takes the review screen's corrections and the `verified:` flag, so the
+publisher and the CLI produce the same YAML by the same rules. `src/vision.ts` is the only module
+that calls a model; `npm run ingest`, the eval, and the publisher's vision port are thin wrappers
+over both.
 
 ### Which model transcribes
 
-Configuration, not code. `config/vision-models.json` names the default model, the fallback, and
-the per-million-token price of every model the eval has scored; `src/models.ts` reads it and
+Configuration, not code. `config/vision-models.json` names the default model, the fallback, the
+small `screen` model that answers the publisher's pre-spend "is this a schedule" question, and the
+per-million-token price of every model the eval has scored; `src/models.ts` reads it and
 `STAGE_TIMES_VISION_MODEL` (or `npm run ingest -- --model <id>`) overrides the default for one
 run. When a call to the default model fails, the fallback — the proven model — transcribes
 instead.
@@ -157,6 +160,72 @@ all 79 hand-verified sets exactly in every trial. `npm run ingest:eval` regenera
 API only, since the local `claude` CLI bills a subscription and picks its own model, so it can
 price nothing. The eval takes the measurement date as an argument because nothing here reads the
 wall clock.
+
+---
+
+## Phase 3 — the publisher
+
+Anyone with a set-times image can publish a fan edition. `src/publisher.ts` is the one seam that
+does it: an **intent** plus injected ports for vision, repository writes, notifications, the clock
+and randomness go in, and the writes and notifications it would make come out. Nothing in it
+reads a file, calls a model, opens a socket or looks at a clock, so every rule below is tested
+with fakes and no API key (`tests/publisher.test.ts`).
+
+Two intents exist today. Correction, self-removal, the owner path, the watcher and the signal are
+the same shape and land in the same module.
+
+**`upload`** — an image plus a festival name, dates and a contact address. The gates run cheapest
+first and stop at the first failure, so a rejection never costs a call it did not have to make:
+
+| # | Gate | Costs |
+|---|---|---|
+| 1 | what the uploader typed: name, dates, address, zone | nothing |
+| 2 | type, size (10 MB), dimensions (400–8000 px) | nothing |
+| 3 | content-hash lookup — the same image is never read twice | nothing |
+| 4 | caps: 3 per address per hour, 20 per day across everyone | nothing |
+| 5 | "is this a schedule with times on it" | the `screen` model |
+| 6 | transcription | the `default` model |
+
+The caps sit ahead of the schedule check rather than behind it: that check is a model call, and a
+gate whose job is to bound spend cannot spend to run. Every rejection is one or two plain
+sentences, written under the copy rules and passed to the screen untouched. What comes back is a
+**review payload** — every set with its inferred-end flag, a low-confidence flag where the model
+singled the read out, the printed time, and the time zone marked as assumed.
+
+**`confirm`** — the review with the uploader's corrections. A set they could not verify blocks it.
+The edition is rebuilt from the saved model reply (never from anything the browser sends back),
+the corrections are applied and recorded in the transcription log, and the result goes through the
+real schema loader on its way out: if it would not build, it is not committed. One commit to
+`main` carries the edition YAML, its log, the stored source image named by content hash, and the
+state update. **The publish stamp is the injected clock** — the one place a real time enters the
+system, and it enters as committed state, so the build still never reads a wall clock.
+
+A fan intent writes `data/fan/` and `fan/<key>` and nothing else; the root namespace is
+owner-only. A second upload for a festival-year someone else already published gets a suffixed
+slug (`low-tide-2`), because nobody is blocked by another fan's work.
+
+The **update link** secret is minted from the injected randomness, returned once in the confirm
+response, and stored only as a SHA-256 hash. The contact address is stored only as a hash too —
+this repository is public — and reaches the owner through the notification instead.
+
+### The state the publisher owns
+
+| File | What it is |
+|---|---|
+| `state/published.json` | gains an `uploader` record per fan edition: secret hash, address hash, the confirm's stamp, the source image hash. Its presence is what *uploader-verified* means. The build carries it forward and never writes it. |
+| `state/uploads.json` | what the caps count. Not a log — entries older than 24 hours are dropped on every write. |
+| `state/transcriptions/<hash>.json` | the model's reply, verbatim, under the image's content hash. This is what makes a retry free. |
+| `source/images/<hash>.<ext>` | the stored source image. Never served. |
+| `source/fan/<key>/TRANSCRIPTION.md` | the edition's log, with every correction made on review. |
+
+### Over HTTP
+
+`api/upload.ts` and `api/confirm.ts` are two thin adapters: read the fields, call the publisher,
+return what it said. `src/publisher-http.ts` holds what they share (field readers, the base64
+image, the gate-to-status-code map) and `src/ports.ts` holds the live ports — GitHub's Git Data
+API for the commit (one tree per intent, because a half-applied publish is an edition whose feeds
+exist and whose state does not), a GitHub issue for the notification, and `src/vision.ts` for both
+model calls. A test asserts the adapters import nothing but those three modules.
 
 ---
 
@@ -197,7 +266,7 @@ Vercel, static output, apex `stagetimes.app`. Feeds are **not** generated from a
 function: the data only changes when the YAML changes, so on-request generation buys nothing and
 costs the determinism the whole test strategy rests on.
 
-`vercel.json` differs from the original brief in three ways, all required to actually deploy:
+`vercel.json` differs from the original brief in four ways, all required to actually deploy:
 
 1. **`outputDirectory: "dist"`** — the project has no framework, so Vercel's default output
    directory is `public/`. Without this, deploys serve nothing and every feed 404s.
@@ -206,6 +275,9 @@ costs the determinism the whole test strategy rests on.
    past.
 3. **`"source": "/(.*)\\.ics"`** — the brief's `/(.*).ics` treats `.` as regex-any, so it would
    also match `/fooXics`.
+4. **`functions."api/*.ts".includeFiles: "config/**"`** — the publisher reads
+   `config/vision-models.json` at call time (which model reads a source is configuration, not a
+   literal). Without this the functions deploy without it and every upload fails on a missing file.
 
 `$comment` keys are rejected by Vercel's schema validator, which is why this rationale is here.
 
