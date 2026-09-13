@@ -71,3 +71,41 @@ Work any ticket whose `status:` is `scoped` or `up-next` and whose
 
 Never mint tickets Jake didn't ask for: `/to-tickets` runs only on work
 he's asked to structure.
+
+## Lanes
+
+A ticket may carry `lane:` in its frontmatter. Omitted means `agent`:
+the ticket runner may claim it. `lane: jake` marks taste work (new
+screens, copy, owner decisions) that only Jake does; the runner never
+claims it and lists it as his instead. `/to-tickets` asks which tickets
+are human-lane when it publishes.
+
+## The ticket runner
+
+`~/.claude/skills/run-tickets/run.mjs` (source of truth: the vault at
+`AIOS/Scripts/ticket-runner/`) works the frontier unattended: claim,
+worktree, implement on one model, review on another against the
+acceptance boxes, merge to `main` locally, never push. It reads its
+tracker from the block below. Dry run first:
+
+```
+node ~/.claude/skills/run-tickets/run.mjs --dry-run
+```
+
+```json ticket-runner
+{
+  "tracker": "jaique",
+  "vault": "/Users/jake/jaique",
+  "effort": "Stage Times",
+  "ticketsDir": "Efforts/Notes/Stage Times",
+  "effortPage": "Efforts/On/🎪 Stage Times (E).md",
+  "main": "main",
+  "readFirst": ["CLAUDE.md", "README.md", "HANDOFF.md", "CONTEXT.md"],
+  "rules": [
+    "Never change normalizeArtist, UID derivation, UID_DOMAIN, a stage id, or an edition's namespace after first publish (README.md, the permanence contract).",
+    "Never let the build read the wall clock. No database. Never auto-list. Never delete a published slug.",
+    "Load .claude/skills/stage-times-design (and its references/copy.md) before writing any HTML, CSS, or page copy.",
+    "Don't put a feed URL, a repo path, or the word \"we\" on a page."
+  ]
+}
+```
