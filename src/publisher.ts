@@ -591,8 +591,6 @@ export async function upload(intent: UploadIntent, ports: PublisherPorts): Promi
     transcribedAt: stamp,
   };
 
-  // Written before it is read, so a reply the library rejects is still on the
-  // record — and so a retry after a rejection the uploader can fix is free.
   const commit: Commit = {
     message: `Transcribe an upload for ${intent.festival.trim()} (${hash.slice(0, 12)})`,
     files: [
@@ -618,6 +616,10 @@ async function finishUpload(
   saved: SavedTranscription,
   opts: { reused: boolean; commit: Commit | null },
 ): Promise<UploadResult> {
+  // Recorded before it is read. A reply the library then refuses is still on
+  // the record for the audit trail, and the fix-and-retry is free.
+  if (opts.commit) await ports.repo.commit(opts.commit);
+
   const timezone = intent.timezone ?? DEFAULT_TIMEZONE;
   let transcription: Transcription;
   try {
@@ -630,11 +632,8 @@ async function finishUpload(
       timezoneAssumed: intent.timezone === undefined,
     });
   } catch (err) {
-    if (opts.commit) await ports.repo.commit(opts.commit);
     return rejectedUpload(readingProblem(err), opts.commit);
   }
-
-  if (opts.commit) await ports.repo.commit(opts.commit);
 
   const published = await ports.repo.readPublished();
   const { festival, stages } = transcription.edition;
