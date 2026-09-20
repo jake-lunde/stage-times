@@ -184,3 +184,32 @@ image does not invert and should not).
 5. OG image per edition, with `@resvg/resvg-js`, golden-tested.
 
 1–3 are ticket-06 work. 4 and 5 are their own tickets; 5 is the one I would fight for.
+
+---
+
+## Addendum, 20 September 2026: generative stage art
+
+Owner ruling: the flat rule is lifted for the art area of a card, and only there. Recorded in
+the design skill (non-negotiable 3 and `references/color.md` rule 4).
+
+Explorer, with the real CHBP sets driving it: https://claude.ai/artifact/APEDRrJAfPHrbU9LSLqqmY
+
+Five families, all seeded by `festival-key/stage-id` through the build's FNV-1a and mulberry32,
+all integer-coordinate SVG:
+
+| Family | What drives it | Flat? |
+|---|---|---|
+| Rays | one wedge per set; angle = start time, width = length; source height = how late the stage runs | yes; Glow adds a radial falloff and bloom |
+| Ridgeline | one line per day; each set a hump, position = start, height = length, guessed ends softer | yes |
+| Rings | one ring per set from the center out, stroke weight = length | yes |
+| Noise field | seeded value noise, amplitude from set count; texture only | yes |
+| Capsules | the shipping art, unchanged | yes |
+
+Grounds: stage color, deep (stage color cut toward black — the neon ground without leaving the
+palette), paper. Halftone renders the rays as dot-screen wedges, the screenprint version of a
+glow, for anyone who wants the read without the gradient.
+
+Costs to measure before shipping Glow: the bloom is an SVG blur filter, cheap for four cards,
+worth pre-rendering at build for a carousel of twelve. Cream headliner text over a lit wedge
+drops under 4.5:1 near the source, so the source sits high and the names sit low, or the names
+get a flat tab.

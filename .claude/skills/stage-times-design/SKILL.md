@@ -32,7 +32,10 @@ find the tap target, it's wrong.
 2. **One decision per screen.** 500–700pt of a 926pt screen is empty. The emptiness is the
    product, not an oversight.
 3. **No shadows. No gradients.** Card edges are a single-step color change, verified at the pixel
-   level. Surfaces separate by color contrast alone.
+   level. Surfaces separate by color contrast alone. **One exemption (owner ruling, 2026-09-20):
+   the art area of a card.** Inside the art slot, gradients and blur are allowed — that is where
+   the generative stage art lives and where a glow is the point. Nothing outside the slot gets
+   either: grounds, pills, chips, type, and card edges stay flat.
 4. **Two type sizes carry ~80% of the UI** — 16pt for anything actionable or titular, 14pt for
    anything secondary. Seven sizes exist in total; you almost certainly need two.
 5. **Labels are one or two plain words.** "Add calendar", "Copy link", "Confirm". Never
@@ -228,7 +231,11 @@ Two sources of art, one per card, image area always edge-to-edge:
    identity. On stage cards the art area also carries the **headliner preview** — up to three
    artist names from the manifest, cream, ≥17pt semibold (the large-text contrast rule applies).
 
-Never a stock photo, never a gradient mesh, never AI-generated imagery.
+Never a stock photo, never AI-generated imagery. Inside the art slot the flat rule is lifted
+(non-negotiable 3): the generative art may use gradients and bloom, and it is the one place on
+the site that may. Its parameters come from the sets — count, start time, length, guessed ends,
+how late the stage runs — so the art is the schedule drawn, not a texture. Seeded exactly as
+above; still byte-reproducible.
 
 ### Navigation bar
 
