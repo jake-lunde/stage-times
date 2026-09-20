@@ -13,7 +13,7 @@
 :root[data-theme="dark"]{ --paper:#14120F; --sunk:#211E19; --line:#332E26; --ink:#F5F0E6; --soft:#A79E90; --faint:#6B6459; --red:#FF6B4A; --yellow-wash:#3A3210; }
 *,*::before,*::after{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:17px;line-height:1.5;-webkit-font-smoothing:antialiased;padding-inline:16px;padding-block:32px 80px}
-.wrap{max-width:960px;margin:0 auto}
+.wrap{max-width:1200px;margin:0 auto}
 h1,h2,h3{font-stretch:125%;font-weight:630;letter-spacing:-.01em;margin:0;text-wrap:balance}
 h1{font-size:clamp(32px,7vw,42px);line-height:1.02}
 h2{font-size:24px;line-height:1.1;margin-top:48px}
@@ -34,7 +34,8 @@ label.ctl input[type=checkbox]{accent-color:var(--red);width:16px;height:16px}
 .hint{font-family:var(--mono);font-size:12px;color:var(--soft);margin-top:12px;line-height:1.6}
 
 /* tiles */
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;margin-top:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px;margin-top:20px}
+.rowlabel{grid-column:1/-1;margin:16px 0 -8px;font-family:var(--mono);font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--soft)}
 .card{border-radius:24px;overflow:hidden;color:#FCF9F4;display:flex;flex-direction:column;transition:transform 120ms ease}
 .art{position:relative;aspect-ratio:400/240;overflow:hidden;max-width:100%}
 .art svg{position:absolute;inset:0;width:100%;height:100%;display:block}
@@ -82,15 +83,14 @@ footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--line);font-fa
 </div>
 <div class="panel" role="group" aria-label="Shape">
   <div class="seg" id="shape">
-    <button data-v="auto" aria-pressed="true">Auto</button>
+    <button data-v="polar" aria-pressed="true">Polar</button>
+    <button data-v="blob">Blob</button>
+    <button data-v="eclipse">Eclipse</button>
+    <button data-v="facets">Facets</button>
+    <button data-v="bars">Bars</button>
+    <button data-v="cluster">Cluster</button>
+    <button data-v="soft">Soft core</button>
     <button data-v="circle">Circle</button>
-    <button data-v="triangle">Triangle</button>
-    <button data-v="square">Square</button>
-    <button data-v="diamond">Diamond</button>
-    <button data-v="octagon">Octagon</button>
-    <button data-v="hexagon">Hexagon</button>
-    <button data-v="kite">Kite</button>
-    <button data-v="pentagon">Pentagon</button>
     <button data-v="point">Point (v1)</button>
   </div>
   <div class="seg" id="shapeInk" role="group" aria-label="Shape ink">
@@ -121,6 +121,7 @@ footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--line);font-fa
   <label class="ctl"><input type="checkbox" id="glow" checked> Glow</label>
   <label class="ctl"><input type="checkbox" id="text" checked> Headliners</label>
   <label class="ctl"><input type="checkbox" id="anim" checked> Drift</label>
+  <label class="ctl"><input type="checkbox" id="sheet"> Compare cores</label>
   <label class="ctl">Density <input type="range" id="density" min="30" max="200" value="70"></label>
   <label class="ctl">Variant <input type="range" id="variant" min="0" max="9" value="0"></label>
   <button class="copy" id="copysvg">Copy Main Stage SVG</button>
@@ -131,7 +132,7 @@ footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--line);font-fa
 
 <h2>What each family is, and what drives it</h2>
 <div class="fam">
-  <div class="f"><h3>Rays <span class="v v-yes">Flat</span></h3><p>A shape per stage, half the art height, and one ray per set leaving its edge. The rays are a clock: 2 PM at twelve, a set\u2019s start time is its position, its length is its width, so a stage that runs late fills the bottom of the dial. Auto assigns circle, triangle, square, octagon, kite, hexagon, diamond, pentagon by stage order, frozen like the color. Point (v1) is the earlier single-source version.</p></div>
+  <div class="f"><h3>Rays <span class="v v-yes">Flat</span></h3><p>A core per stage, half the art height, and one ray per set leaving its edge on a clock: 2 PM at twelve, a set\u2019s start is its position, its length is its width, so a late stage fills the bottom of the dial. The core is one type across the site, and each stage\u2019s is its own: Polar puts a bump on the rim for every set, aligned with its ray. Eclipse is a full disc for an afternoon stage and a thinning crescent the later it runs. Bars are the seven longest sets as capsules. Blob, Facets (the festival\u2019s globe), and Cluster vary by seed only. Soft has no edge at all.</p></div>
   <div class="f"><h3>Ridgeline <span class="v v-yes">Flat</span></h3><p>One line per day, front to back. Each set is a hump on the line: position is start time, height is length, guessed ends get a softer peak. The Unknown Pleasures gesture, but every peak is a real set.</p></div>
   <div class="f"><h3>Rings <span class="v v-yes">Flat</span></h3><p>The stage as a record. One ring per set, in running order from the center out; stroke weight is set length. The center drifts with the seed so no two stages sit the same way.</p></div>
   <div class="f"><h3>Noise field <span class="v v-ref">Seeded only</span></h3><p>Lines displaced by seeded value noise, the Book of Shapes landscape. Amplitude follows set density. It is the one family that is texture rather than information; here for comparison.</p></div>
@@ -195,25 +196,45 @@ function inks(base,ground){
   const bg=ground==='deep'?shade(base,.62):base;
   return{bg,a:CREAM,b:shade(base,ground==='deep'?.2:.3),tint:o=>`rgba(252,249,244,${o})`,op:[.85,.45,.22]};
 }
-const SHAPES=['circle','triangle','square','octagon','kite','hexagon','diamond','pentagon'];
-function shapePath(kind,cx,cy,hh){ // hh = half height; returns {svg, r(angle)->radius to perimeter}
+function core(kind,cx,cy,hh,sets,st,rand,ink,o){
   const P=pts=>pts.map(([x,y])=>`${Math.round(x)},${Math.round(y)}`).join(' ');
-  const reg=(n,R,rot)=>Array.from({length:n},(_,i)=>{const a=rot+i*2*Math.PI/n;return[cx+Math.cos(a)*R,cy+Math.sin(a)*R];});
+  const fillAttr=o.shapeInk==='cream'?`fill="${ink.a}"`:o.shapeInk==='deep'?`fill="${ink.b}"`:`fill="${ink.bg}" stroke="${ink.a}" stroke-width="4" stroke-linejoin="round"`;
+  const ring=(fn,n)=>P(Array.from({length:n},(_,i)=>{const a=-Math.PI/2+i*2*Math.PI/n;const r=fn(a,i/n);return[cx+Math.cos(a)*r,cy+Math.sin(a)*r];}));
   switch(kind){
-    case 'circle':return{el:(f)=>`<circle cx="${cx}" cy="${cy}" r="${hh}" ${f}/>`};
-    case 'triangle':{const w=hh*2/Math.sqrt(3);return{el:f=>`<polygon points="${P([[cx,cy-hh],[cx+w,cy+hh],[cx-w,cy+hh]])}" ${f}/>`};}
-    case 'square':return{el:f=>`<rect x="${cx-hh}" y="${cy-hh}" width="${hh*2}" height="${hh*2}" rx="6" ${f}/>`};
-    case 'diamond':return{el:f=>`<polygon points="${P([[cx,cy-hh],[cx+hh,cy],[cx,cy+hh],[cx-hh,cy]])}" ${f}/>`};
-    case 'octagon':return{el:f=>`<polygon points="${P(reg(8,hh/Math.cos(Math.PI/8),Math.PI/8))}" ${f}/>`};
-    case 'hexagon':return{el:f=>`<polygon points="${P(reg(6,hh/Math.cos(Math.PI/6),Math.PI/6))}" ${f}/>`};
-    case 'pentagon':{const R=hh*2/(1+Math.cos(Math.PI/5));return{el:f=>`<polygon points="${P(reg(5,R,-Math.PI/2).map(([x,y])=>[x,y+(R-hh)]))}" ${f}/>`};}
-    case 'kite':return{el:f=>`<polygon points="${P([[cx,cy-hh],[cx+hh*0.75,cy-hh*0.25],[cx,cy+hh],[cx-hh*0.75,cy-hh*0.25]])}" ${f}/>`};
+    case 'circle':return`<circle cx="${cx}" cy="${cy}" r="${hh}" ${fillAttr}/>`;
+    case 'blob':{ // three seeded harmonics on a circle: organic, no name for it
+      const h=[2,3,5].map(k=>({k,amp:0.05+rand()*0.08,ph:rand()*Math.PI*2}));
+      return`<polygon points="${ring(a=>hh*(0.84+h.reduce((acc,x)=>acc+x.amp*Math.sin(x.k*a+x.ph),0)),96)}" ${fillAttr}/>`;}
+    case 'polar':{ // the day in polar form: one bump per set at its clock angle, height = length, aligned with its ray
+      const r0=hh*0.68;
+      return`<polygon points="${ring(a=>{let b=0;for(const t of sets){const ta=-Math.PI/2+t.x*2*Math.PI;let d=Math.abs(((a-ta)%(2*Math.PI)+3*Math.PI)%(2*Math.PI)-Math.PI);const hw=0.22+t.len/60*0.18;if(d<hw)b+=(t.inf?0.7:1)*Math.min(hh*0.26,t.len*0.36)*(0.5+0.5*Math.cos(Math.PI*d/hw));}return Math.min(hh,r0+b);},180)}" ${fillAttr}/>`;}
+    case 'eclipse':{ // full disc for an afternoon stage, a thinning crescent the later it runs
+      const ang=rand()*Math.PI*2;const off=hh*(2.1-1.7*st.late);
+      const ox=Math.round(cx+Math.cos(ang)*off),oy=Math.round(cy+Math.sin(ang)*off);
+      return`<circle cx="${cx}" cy="${cy}" r="${hh}" ${fillAttr}/><circle cx="${ox}" cy="${oy}" r="${Math.round(hh*0.94)}" fill="${ink.bg}"/>`;}
+    case 'facets':{ // the disco ball: the festival's own globe motif, seeded tilt
+      const id='f'+Math.floor(rand()*1e6);const tilt=Math.round((rand()-0.5)*40);const lines=[];
+      for(let i=1;i<6;i++){const y=cy-hh+i*(hh*2/6);const w=Math.sqrt(Math.max(0,hh*hh-(y-cy)*(y-cy)));lines.push(`<line x1="${Math.round(cx-w)}" y1="${Math.round(y)}" x2="${Math.round(cx+w)}" y2="${Math.round(y)}"/>`);}
+      for(let i=1;i<6;i++){const rx=Math.round(hh*Math.abs(Math.cos(i*Math.PI/6)));if(rx>2)lines.push(`<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${hh}"/>`);}
+      return`<defs><clipPath id="${id}"><circle cx="${cx}" cy="${cy}" r="${hh}"/></clipPath></defs><circle cx="${cx}" cy="${cy}" r="${hh}" ${fillAttr}/><g clip-path="url(#${id})" transform="rotate(${tilt} ${cx} ${cy})" fill="none" stroke="${ink.bg}" stroke-width="2">${lines.join('')}</g>`;}
+    case 'bars':{ // the system's own capsules as an equalizer: the seven longest sets, tallest in the middle
+      const lens=sets.map(t=>t.len).sort((a,b)=>b-a).slice(0,7);const order=[6,4,2,0,1,3,5].map(i=>lens[i]??lens[lens.length-1]);
+      const w=14,g=6;const x0=cx-(7*w+6*g)/2;const max=Math.max(...order);
+      return order.map((l,i)=>{const h=Math.max(w,Math.round(hh*2*(0.3+0.7*l/max)));const x=Math.round(x0+i*(w+g));return`<rect x="${x}" y="${Math.round(cy-h/2)}" width="${w}" height="${h}" rx="${w/2}" ${fillAttr}/>`;}).join('');}
+    case 'cluster':{ // a seeded pile of discs, union-filled: cloud, crowd, speaker stack
+      const n=4+Math.floor(rand()*3);const out=[];
+      for(let i=0;i<n;i++){const r=Math.round(hh*(0.35+rand()*0.35));const a=rand()*Math.PI*2,d=rand()*(hh-r);out.push(`<circle cx="${Math.round(cx+Math.cos(a)*d)}" cy="${Math.round(cy+Math.sin(a)*d*0.8)}" r="${r}" ${fillAttr}/>`);}
+      return out.join('');}
+    case 'soft':{ // no edge at all: a light with no lamp
+      const id='s'+Math.floor(rand()*1e6);
+      return o.glow?`<defs><radialGradient id="${id}"><stop offset="0" stop-color="${ink.a}" stop-opacity=".95"/><stop offset=".55" stop-color="${ink.a}" stop-opacity=".5"/><stop offset="1" stop-color="${ink.a}" stop-opacity="0"/></radialGradient></defs><circle cx="${cx}" cy="${cy}" r="${Math.round(hh*1.15)}" fill="url(#${id})"/>`
+        :[1.1,0.85,0.6,0.35].map(k=>`<circle cx="${cx}" cy="${cy}" r="${Math.round(hh*k)}" fill="${ink.a}" fill-opacity=".22"/>`).join('');}
   }
 }
 function emitter(seed,base,sets,st,o,idx){
   const rand=mulberry32(fnv1a(seed));const ink=inks(base,o.ground);
   const cx=200,cy=o.text&&o.names!=="plain"?100:120,hh=60;const R=420;const uid=fnv1a(seed).toString(36);
-  const kind=o.shape==='auto'?SHAPES[idx%SHAPES.length]:o.shape;
+  const kind=o.shape;
   const gdefs=o.glow?`<defs><radialGradient id="g${uid}" gradientUnits="userSpaceOnUse" cx="${cx}" cy="${cy}" r="${R}"><stop offset="0" stop-color="${ink.a}" stop-opacity=".95"/><stop offset=".3" stop-color="${ink.a}" stop-opacity=".45"/><stop offset="1" stop-color="${ink.a}" stop-opacity="0"/></radialGradient></defs>`:'';
   const hdefs=o.halftone?`<defs><pattern id="d1${uid}" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="5" cy="5" r="3" fill="${ink.a}" fill-opacity=".8"/></pattern><pattern id="d2${uid}" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="6" cy="6" r="2" fill="${ink.a}" fill-opacity=".7"/></pattern><pattern id="d3${uid}" width="14" height="14" patternUnits="userSpaceOnUse"><circle cx="7" cy="7" r="1" fill="${ink.a}" fill-opacity=".7"/></pattern></defs>`:'';
   const out=[];
@@ -226,9 +247,8 @@ function emitter(seed,base,sets,st,o,idx){
     else if(o.halftone){out.push(wedge(w*2.2,`url(#d3${uid})`));out.push(wedge(w*1.5,`url(#d2${uid})`));out.push(wedge(w*0.8,`url(#d1${uid})`));}
     else{const k=i%3;out.push(wedge(w,k===2?ink.b:ink.tint(ink.op[k]),s.inf?' fill-opacity=".6"':''));}
   });
-  const sh=shapePath(kind,cx,cy,hh);
-  const fill=o.shapeInk==='cream'?`fill="${ink.a}"`:o.shapeInk==='deep'?`fill="${ink.b}"`:`fill="${ink.bg}" stroke="${ink.a}" stroke-width="4"`;
-  return{defs:gdefs+hdefs,body:`<g class="rot" style="--ox:${cx}px;--oy:${cy}px">${out.join('')}</g>${sh.el(fill)}`,bg:ink.bg,noBloomShape:true};
+  const coreSvg=core(kind,cx,cy,hh,sets,st,rand,ink,o);
+  return{defs:gdefs+hdefs,body:`<g class="rot" style="--ox:${cx}px;--oy:${cy}px">${out.join('')}</g>${coreSvg}`,bg:ink.bg,noBloomShape:true};
 }
 function rays(seed,base,sets,st,o,idx){
   if(o.shape!=='point')return emitter(seed,base,sets,st,o,idx);
@@ -294,15 +314,25 @@ function capsules(seed,base,sets,st,o){
 const FAM={rays,ridge,rings,field,capsules};
 
 // ---- state + render
-const state={fam:'rays',ground:'color',halftone:false,glow:true,text:true,anim:true,density:.7,variant:0,shape:'auto',shapeInk:'cream',names:'pills',pillInk:'deep'};
+const state={fam:'rays',ground:'color',halftone:false,glow:true,text:true,anim:true,density:.7,variant:0,shape:'polar',shapeInk:'cream',names:'pills',pillInk:'deep',sheet:false};
+// state in the hash, so a dialed-in configuration is a shareable link
+try{const h=new URLSearchParams(location.hash.slice(1));for(const[k,v]of h){if(!(k in state))continue;state[k]=typeof state[k]==='boolean'?v==='1':typeof state[k]==='number'?+v:v;}}catch(e){}
+function syncControls(){document.querySelectorAll('.seg').forEach(seg=>seg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===state[seg.id]))));for(const id of['halftone','glow','text','anim','sheet'])document.getElementById(id).checked=!!state[id];document.getElementById('density').value=Math.round(state.density*100);document.getElementById('variant').value=state.variant;}
+function pushHash(){const h=new URLSearchParams();for(const[k,v]of Object.entries(state))h.set(k,typeof v==='boolean'?(v?'1':'0'):String(v));history.replaceState(null,'','#'+h.toString());}
 const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
 let lastMain='';
+const CORES=['polar','blob','eclipse','facets','bars','cluster','soft'];
 function render(){
+  pushHash();
   const grid=document.getElementById('grid');grid.innerHTML='';
+  const runs=state.sheet&&state.fam==='rays'?CORES:[state.shape];
+  for(const shapeRun of runs){
+  if(state.sheet&&state.fam==='rays'){const l=document.createElement('p');l.className='rowlabel';l.textContent=shapeRun;grid.appendChild(l);}
+  const o={...state,shape:shapeRun};
   DATA.stages.forEach((stg,i)=>{
     const sets=stageSets(stg.id);const st=stats(sets);
     const seed=`capitol-hill-block-party-2026/${stg.id}`+(state.variant?`/${state.variant}`:'');
-    const r=FAM[state.fam](seed,COLORS[i],sets,st,state,i);
+    const r=FAM[state.fam](seed,COLORS[i],sets,st,o,i);
     const bid='b'+i;
     const bloomSrc=r.noBloomShape?r.body.slice(0,r.body.lastIndexOf('</g>')+4):r.body;
     const inner=state.glow?`<defs><filter id="${bid}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="${state.fam==='rays'?10:5}"/></filter></defs>${r.defs}<g filter="url(#${bid})" opacity="${state.fam==='rays'?.9:.75}">${bloomSrc}</g>${r.body}`:`${r.defs}${r.body}`;
@@ -323,8 +353,9 @@ function render(){
       <div class="pill">Add calendar</div></div>`;
     grid.appendChild(el);
   });
+  }
   document.getElementById('hint').textContent={
-    rays:'Rays: one shape per stage at half the art height, rays leave its edge. Clock mapping: 2 PM is twelve o\'clock, a set\'s start time is its ray\'s position, its length is the ray\'s width. Auto assigns the shape by stage order, frozen like the color.',
+    rays:'Rays on a clock: 2 PM at twelve, a set\'s start is its ray\'s position, its length is its width. The core is one type for every stage and varies by seed or by data: Polar and Bars are the schedule, Eclipse is how late the stage runs, Blob, Facets, and Cluster are seeded, Soft is a light with no lamp.',
     ridge:'Ridgeline: three lines, one per day, front row is Sunday. Peaks are sets; softer peaks are guessed ends.',
     rings:'Rings: one per set from the center out, weight = set length. Barboza reads thin and tight, Main reads heavy.',
     field:'Noise field: seed only. Amplitude follows set count. Compare against the data-driven families.',
@@ -333,9 +364,9 @@ function render(){
 document.querySelectorAll('.seg').forEach(seg=>seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;seg.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');state[seg.id]=b.dataset.v;render();}));
 // names protection note
 const NOTE=document.createElement('p');NOTE.className='hint';NOTE.textContent='Names: Plain is what ships. Scrim is a bottom gradient in the stage color (allowed inside the art slot now). Pills are 32px capsules; Deep pill keeps the stage hue, Cream pill matches the button so it can read as tappable, Ink pill is the neutral.';document.getElementById('hint').after(NOTE);
-for(const id of['halftone','glow','text','anim'])document.getElementById(id).addEventListener('change',e=>{state[id]=e.target.checked;render();});
+for(const id of['halftone','glow','text','anim','sheet'])document.getElementById(id).addEventListener('change',e=>{state[id]=e.target.checked;render();});
 document.getElementById('density').addEventListener('input',e=>{state.density=e.target.value/100;render();});
 document.getElementById('variant').addEventListener('input',e=>{state.variant=+e.target.value;render();});
 document.getElementById('copysvg').addEventListener('click',e=>{if(navigator.clipboard){navigator.clipboard.writeText(lastMain).then(()=>{e.target.textContent='Copied';setTimeout(()=>e.target.textContent='Copy Main Stage SVG',1400);},()=>{});}});
-render();
+syncControls();render();
 </script>
