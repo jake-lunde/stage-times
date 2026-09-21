@@ -16,7 +16,14 @@ Archivo and Fragment Mono from Google Fonts, which the site's own pages never do
   crescent the later it runs), Bars (the seven longest sets as capsules), and the seeded-only
   Blob, Facets (the festival's globe), Cluster, and Soft (no edge). Regular polygons were
   tried and dropped: they read as signage.
-- "Compare cores" renders every core as a row. The whole configuration lives in the URL hash,
+- Rays do not read as a count: sets at the same hour on different days stack into one ray.
+  Ray mapping offers Fanned by day (each day nudged a few degrees) and Even (running order, no
+  clock). Five countable families sit beside Rays, one mark per set that never merges: Petals
+  (capsules in running order), Beads (a ring per day, a dot per set at its clock position),
+  Ticks (a bezel), Stars (time left to right, day top to bottom, the closer a sparkle), Crowd
+  (scattered pills). All share the cores, names, scrim, and glow.
+- The scrim sits between the marks and the core, so the core stays cream.
+- "Compare cores" renders every core as a row; "Compare families" every countable family. The whole configuration lives in the URL hash,
   so a dialed-in look is a shareable link.
 - Names: plain, 32px pills in deep / cream / ink, or a ticker that runs the headliners along
   the bottom edge (speed from their length, static under reduced motion). Scrim is a separate
