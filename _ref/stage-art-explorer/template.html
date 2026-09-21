@@ -162,11 +162,11 @@ footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--line);font-fa
 
 <h2>What each family is, and what drives it</h2>
 <div class="fam">
-  <div class="f"><h3>Rays <span class="v v-yes">Flat</span></h3><p>A core per stage, half the art height, and one ray per set leaving its edge on a clock: 2 PM at twelve, a set\u2019s start is its position, its length is its width, so a late stage fills the bottom of the dial. The core is one type across the site, and each stage\u2019s is its own: Polar puts a bump on the rim for every set, aligned with its ray. Eclipse is a full disc for an afternoon stage and a thinning crescent the later it runs. Bars are the seven longest sets as capsules. Blob, Facets (the festival\u2019s globe), and Cluster vary by seed only. Soft has no edge at all.</p></div>
+  <div class="f"><h3>Rays <span class="v v-yes">Flat</span></h3><p>A core per stage, half the art height, and one ray per set leaving its edge on a clock: 2 PM at twelve, a set’s start is its position, its length is its width, so a late stage fills the bottom of the dial. The core is one type across the site, and each stage’s is its own: Polar puts a bump on the rim for every set, aligned with its ray. Eclipse is a full disc for an afternoon stage and a thinning crescent the later it runs. Bars are the seven longest sets as capsules. Blob, Facets (the festival’s globe), and Cluster vary by seed only. Soft has no edge at all.</p></div>
   <div class="f"><h3>Petals <span class="v v-yes">Countable</span></h3><p>One capsule per set, evenly spaced in running order, length from set length, opacity stepping down by day. Rays made countable: nothing overlaps, so twenty reads as twenty.</p></div>
   <div class="f"><h3>Beads <span class="v v-yes">Countable</span></h3><p>A ring per day, evenly spaced from the core to the card edge, a bead per set at its clock position. Bead size is set length; the ring is solid only across the hours that day runs; each ring drifts at its own speed. Stars mark the closers, or every hour-plus set. Reads as a lineup around a stage.</p></div>
   <div class="f"><h3>Ticks <span class="v v-yes">Countable</span></h3><p>A bezel with one tick per set at its clock position, fanned by day. Halfway between rays and beads: still a dial, but discrete.</p></div>
-  <div class="f"><h3>Stars <span class="v v-yes">Countable</span></h3><p>One star per set, time of day left to right, day top to bottom, joined in running order. Each night\u2019s closer is a four-point sparkle, the same mark as the festival\u2019s own art.</p></div>
+  <div class="f"><h3>Stars <span class="v v-yes">Countable</span></h3><p>One star per set, time of day left to right, day top to bottom, joined in running order. Each night’s closer is a four-point sparkle, the same mark as the festival’s own art.</p></div>
   <div class="f"><h3>Crowd <span class="v v-yes">Countable</span></h3><p>One pill per set scattered around the core without overlap, height from set length. Seeded placement, true count. The loosest of the five.</p></div>
   <div class="f"><h3>Ridgeline <span class="v v-yes">Flat</span></h3><p>One line per day, front to back. Each set is a hump on the line: position is start time, height is length, guessed ends get a softer peak. The Unknown Pleasures gesture, but every peak is a real set.</p></div>
   <div class="f"><h3>Rings <span class="v v-yes">Flat</span></h3><p>The stage as a record. One ring per set, in running order from the center out; stroke weight is set length. The center drifts with the seed so no two stages sit the same way.</p></div>
@@ -362,14 +362,15 @@ function capsules(seed,base,sets,st,o){
 // ambient name: the pill sits still at the center of the art; a line from the center to the star pops with it.
 // inside a drifting ring the line is a radius, so it turns with the ring and always points at its star.
 const popStyle=(i,n)=>`animation:pop${n} ${n*4.5}s linear infinite;animation-delay:${(i*4.5).toFixed(1)}s`;
+function pillColors(o,base){return{bg:o.pillInk==='deep'?shade(base,o.ground==='paper'?0:.5):o.pillInk==='cream'?'#FCF9F4':'#12181F',fg:o.pillInk==='cream'?'#12181F':'#FCF9F4'};}
 function centerPill(name,i,n,o,base,cx,cy){
   const est=Math.round(22+name.length*9.6);const w=Math.min(352,est),h=32;
-  const bg=o.pillInk==='deep'?shade(base,o.ground==='paper'?0:.5):o.pillInk==='cream'?'#FCF9F4':'#12181F';const fg=o.pillInk==='cream'?'#12181F':'#FCF9F4';
+  const {bg,fg}=pillColors(o,base);
   const squeeze=est>352?` textLength="${w-22}" lengthAdjust="spacingAndGlyphs"`:'';
   return`<g class="pop${i===0?' first':''}" style="${popStyle(i,n)}"><rect x="${cx-Math.round(w/2)}" y="${cy-h/2}" width="${w}" height="${h}" rx="16" fill="${bg}"/><text x="${cx}" y="${cy+6}" text-anchor="middle" fill="${fg}"${squeeze}>${esc(name)}</text></g>`;
 }
-function leader(x,y,i,n,ink,cx,cy){
-  return`<g class="pop${i===0?' first':''}" style="${popStyle(i,n)}"><line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="${ink.a}" stroke-width="1.5" stroke-opacity=".75"/></g>`;
+function lit(x,y,k,i,n,o,base){ // a copy of the sparkle in the pill's ink, popping on the same cycle as its name
+  return`<g class="pop${i===0?' first':''}" style="${popStyle(i,n)}">${sparkle(x,y,k,pillColors(o,base).bg,1)}</g>`;
 }
 function frame(seed,base,sets,st,o,marks,rot,top=''){
   const rand=mulberry32(fnv1a(seed+'/core'));const ink=inks(base,o.ground);
@@ -403,9 +404,10 @@ function beads(seed,base,sets,st,o){ // a ring per day, evenly spaced from the c
     const dots=ds.map(s=>{const a=angOf(s.x);const x=Math.round(cx+Math.cos(a)*r),y=Math.round(cy+Math.sin(a)*r);
       const rad=Math.round((4+s.len/60*5)*(0.6+o.density*0.6));
       // a sparkle counter-rotates around its own point, so it stays upright while the ring turns
-      const mark=isStar(s)?`<g class="unrot" style="transform-origin:${x}px ${y}px;--spin:${spin}s">${sparkle(x,y,Math.round(rad*2.4),ink.a,.95)}</g>`:`<circle cx="${x}" cy="${y}" r="${rad}" fill="${ink.a}" fill-opacity=".95"/>`;
-      const li=labelSets.indexOf(s);
-      if(o.names==='ambient'&&o.text&&li>=0){tops.push(centerPill(s.artist,li,labelSets.length,o,base,cx,cy));return leader(x,y,li,labelSets.length,ink,cx,cy)+mark;}
+      const li=labelSets.indexOf(s);const k=Math.round(rad*2.4);
+      const amb=o.names==='ambient'&&o.text&&li>=0;
+      if(amb)tops.push(centerPill(s.artist,li,labelSets.length,o,base,cx,cy));
+      const mark=isStar(s)?`<g class="unrot" style="transform-origin:${x}px ${y}px;--spin:${spin}s">${sparkle(x,y,k,ink.a,.95)}${amb?lit(x,y,k,li,labelSets.length,o,base):''}</g>`:`<circle cx="${x}" cy="${y}" r="${rad}" fill="${ink.a}" fill-opacity=".95"/>`;
       return mark;}).join('');
     return`<g class="rot" style="--ox:${cx}px;--oy:${cy}px;--spin:${spin}s">${ring}${dots}</g>`;}).join('');
   return frame(seed,base,sets,st,o,groups,false,tops.join(''));
@@ -426,7 +428,7 @@ function stars(seed,base,sets,st,o){ // one star per set: x is time of day, y is
   const last={};for(const p of pts)last[p.s.day]=p;
   const lab=Object.values(last);const tops=[];const {cx,cy}=geo(o);
   const marks=pts.map(p=>{const r=Math.round((2.5+p.s.len/60*3)*(0.6+o.density*0.6));
-    if(last[p.s.day]===p){const li=lab.indexOf(p);if(o.names==='ambient'&&o.text){tops.push(centerPill(p.s.artist,li,lab.length,o,base,cx,cy));return leader(p.x,p.y,li,lab.length,ink,cx,cy)+sparkle(p.x,p.y,Math.round(r*2.6),ink.a,1);}return sparkle(p.x,p.y,Math.round(r*2.6),ink.a,1);}
+    if(last[p.s.day]===p){const li=lab.indexOf(p);const k=Math.round(r*2.6);if(o.names==='ambient'&&o.text){tops.push(centerPill(p.s.artist,li,lab.length,o,base,cx,cy));return sparkle(p.x,p.y,k,ink.a,1)+lit(p.x,p.y,k,li,lab.length,o,base);}return sparkle(p.x,p.y,k,ink.a,1);}
     return`<circle cx="${p.x}" cy="${p.y}" r="${r}" fill="${ink.a}" fill-opacity=".95"/>`;}).join('');
   return frame(seed,base,sets,st,o,path+marks,false,tops.join(''));
 }
@@ -504,7 +506,7 @@ function render(){
 }
 document.querySelectorAll('.seg').forEach(seg=>seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;seg.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');state[seg.id]=b.dataset.v;render();}));
 // names protection note
-const NOTE=document.createElement('p');NOTE.className='hint';NOTE.textContent='Names: Plain is what ships. Pills are 32px capsules; Deep pill keeps the stage hue, Cream pill matches the button so it can read as tappable, Ink pill is the neutral. Ticker runs the names along the bottom edge continuously. Ambient shows each name in the center of the art for about four seconds with a line out to its star, one after another; on Beads the line turns with the ring so it always points at the star. Families without stars cycle the names at the bottom instead. Scrim is a flat 15% ink overlay on the art only, under the names.';document.getElementById('hint').after(NOTE);
+const NOTE=document.createElement('p');NOTE.className='hint';NOTE.textContent='Names: Plain is what ships. Pills are 32px capsules; Deep pill keeps the stage hue, Cream pill matches the button so it can read as tappable, Ink pill is the neutral. Ticker runs the names along the bottom edge continuously. Ambient shows each name in the center of the art for about four seconds, one after another, and its star takes the pill\'s ink while the name is up. Families without stars cycle the names at the bottom instead. Scrim is a flat 15% ink overlay on the art only, under the names.';document.getElementById('hint').after(NOTE);
 for(const id of['halftone','glow','text','anim','sheet','sheetFam','scrim'])document.getElementById(id).addEventListener('change',e=>{state[id]=e.target.checked;render();});
 document.getElementById('density').addEventListener('input',e=>{state.density=e.target.value/100;render();});
 document.getElementById('variant').addEventListener('input',e=>{state.variant=+e.target.value;render();});
