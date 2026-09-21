@@ -135,6 +135,9 @@ npm run smoke -- <base-url>    # gate 8: curl every feed of every edition, asser
 npm run ingest -- <image>      # source image → edition YAML + ambiguity log (calls the model)
 npm run ingest:eval            # re-score the CHBP posters against the 79 hand-verified sets
 npm run ingest:eval -- --trials 2 --record 2026-09-13   # …and rewrite the committed eval record
+npm run watch                  # the watcher: poll the schedule pages due on this run (calls the model on a drop)
+npm run watch -- --due         # …or just say which entries would be polled now
+npm run watch -- --force       # …or poll every entry whose festival is not over
 ```
 
 Transcription is a library: `transcribe()` in `src/transcription.ts` takes the raw model output
@@ -172,8 +175,10 @@ reads a file, calls a model, opens a socket or looks at a clock, so every rule b
 with fakes and no API key (`tests/publisher.test.ts`).
 
 Three intents exist today — `upload`, `confirm` and `remove` — each of the first two with an
-owner variant, and upload and confirm carrying an update link are a correction. The watcher and
-the signal are the same shape and land in the same module.
+owner variant, and upload and confirm carrying an update link are a correction. The **watcher**
+(`src/watcher.ts`) is the same shape from the other side: the same ports plus one for pages, and
+its reviews carry the edition exactly as the owner's confirm would commit it. The signal will be
+too.
 
 **`upload`** — the source images, one per day in day order, plus a festival name, dates and a
 contact address. One image is a list of one. The gates run cheapest first and stop at the first
@@ -264,6 +269,61 @@ page there per fan edition (`renderUploadPage(edition)`): the upload flow, but n
 and what a new screenshot replaces before anything is uploaded, with "Take it down" behind a text
 button. The secret is the fragment, so it never reaches a server log.
 
+### The watcher
+
+The automation that notices a drop, or a change after a drop, on a festival's official schedule
+page (CONTEXT: watcher). The owner names the festivals in `config/watch.yaml` — festival, year,
+the schedule page, the zone, the days and the drop window; adding one is adding an entry — and
+`.github/workflows/watch.yml` runs `npm run watch` every hour with no server to keep alive.
+Which entries a run polls is the cadence: **hourly inside the drop window, daily before it (the
+15:00 UTC run), never after the festival's last day** (`cadenceOf()`, `isDue()`).
+
+One poll of one entry (`watch()` in `src/watcher.ts`, over the publisher's ports plus a page
+port):
+
+1. fetch the page and list every image it shows (`imageUrlsIn()`: the share image, CSS
+   backgrounds, `img` and `source` with the largest `srcset` candidate, lazy `data-src`, links
+   straight to an image), narrowed by the entry's `match` when it has one;
+2. hash each image; an image seen before is already decided;
+3. a new image goes through the free gates (`imageDimensions()` reads the size off the header,
+   then the publisher's type, size and dimension checks) and then, and only then, the cheap
+   "is this a schedule" check — **once, ever, per distinct image**; the verdict is committed;
+4. the schedule images as a set against the set recorded last time: the same set is nothing;
+   a first set is a **drop**; a different set is a **change**;
+5. a drop or a change is transcribed (each image once, ever — the publisher's store, so an
+   upload of the same image is free afterwards and vice versa), read through the same library
+   and schema as an upload with `namespace: owner` and `verified: true`, and offered as a
+   **review pull request**: branch `watch/<key>/<12 hex of the image hashes>` off the run's
+   state commit, carrying `data/<key>.yaml`, the log, every source image, and
+   `state/published.json` with the edition recorded `listed: true`. **Merging it publishes and
+   lists the edition through the owner path; merging is the human check.** Nothing is
+   published by a poll.
+
+What the review says depends on what is live. An edition not yet published gets the whole
+schedule in the body — every set by stage and day with its inferred-end and look-here flags,
+the model's notes, each image inline from the branch, and a link to the log — titled
+`Set times dropped: <Festival> <Year>`. A **change to a live edition** is a per-set diff against
+the committed YAML (`diffSets()`, keyed as the UID is), titled with what moved
+(`<Festival> <Year>: <artist> moved, <artist> added`), whose commit replaces the YAML and log
+in place under the same slug and stage ids and moves `publishedAt`, so the build advances
+SEQUENCE for exactly the events that changed. A change before the first review is merged
+replaces that review: a new branch, the whole schedule again, and what moved since the earlier
+reading. A new image that reads the same as what is live (or as the earlier reading) is a
+change with nothing to review, recorded and not asked about again.
+
+What stops a review, and tells the owner why in a `watch-failed` issue with the image links:
+images that read as another year than the entry watches; a reply the library or the schema
+refuses; a change that would drop a stage the live edition has (gate 4 would refuse the build);
+a review pull request that will not open (the issue carries what it would have said). A blocked
+edition gets no review. An unreachable page is reported and writes nothing; so does a page that
+has not changed — **an hourly poll of a quiet page is free and leaves no trace.**
+
+Procedure — adding a festival, verifying from the phone, running it by hand, the secrets:
+[docs/watcher-runbook.md](./docs/watcher-runbook.md). The first three entries are ACL, III
+Points and Camp Flog Gnaw for 2026; ACL's page carries both weekends and one edition is one
+weekend (the same artist on the same stage twice collides on UID — the known limitation above),
+so its entry matches `Wk2`.
+
 ### The state the publisher owns
 
 | File | What it is |
@@ -273,6 +333,7 @@ button. The secret is the fragment, so it never reaches a server log.
 | `state/transcriptions/<hash>.json` | the model's reply for one image, verbatim, under that image's content hash. This is what makes a retry free. |
 | `source/images/<hash>.<ext>` | the stored source image. Never served. |
 | `source/fan/<key>/TRANSCRIPTION.md` | the edition's log, with every correction made on review. |
+| `state/watch.json` | what the watcher has seen on each watched page: every image by content hash with its one-time schedule verdict, and the schedule images as of the last drop or change. Written only when an image is new. Nothing in the build reads it. |
 
 ### Over HTTP
 
@@ -386,7 +447,10 @@ scripts/provision-secrets.sh
 | `OWNER_SECRET` | What the owner's bookmarked upload link is checked against | Generated by the wizard, 32 random bytes |
 
 The wizard signs you in to the Vercel CLI, opens each page, captures the value, sets it for
-both environments, and offers to rotate anything that already exists. Re-run it to rotate.
+both environments, and offers to rotate anything that already exists. Re-run it to rotate. It
+also sets `ANTHROPIC_API_KEY` as a **GitHub Actions repository secret** for the hourly watcher
+(`.github/workflows/watch.yml`); the watcher's `GITHUB_TOKEN` is the workflow's own, with
+contents, pull-requests and issues write permission declared in the workflow.
 Nothing is committed, logged, or written to the vault; the API key alone is also written to a
 gitignored `.env` so `npm run ingest` can use it locally.
 

@@ -34,6 +34,7 @@ import {
   sha256,
 } from '../src/publisher.js';
 import type { PublishedFile } from '../src/build.js';
+import type { FetchedImage, PagePort } from '../src/watcher.js';
 import { REPO_ROOT } from './helpers.js';
 
 // ---------------------------------------------------------------------------
@@ -300,4 +301,111 @@ export function fakePorts(overrides: Partial<Fakes> = {}): Fakes {
     random: overrides.random ?? fakeRandom(),
     owner: overrides.owner ?? fakeOwner(),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Image bytes with real headers, for the watcher
+// ---------------------------------------------------------------------------
+
+/**
+ * Just enough of each format for `imageDimensions()` to read a size off it —
+ * the header, then `seed` so two images of one size still hash apart. Nothing
+ * here decodes; the bytes only ever get hashed and handed to a fake.
+ */
+export function pngBytes(width: number, height: number, seed = 'png'): Uint8Array {
+  const out = new Uint8Array(33 + seed.length);
+  out.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+  const view = new DataView(out.buffer);
+  view.setUint32(8, 13);
+  out.set([0x49, 0x48, 0x44, 0x52], 12); // IHDR
+  view.setUint32(16, width);
+  view.setUint32(20, height);
+  out.set([8, 6, 0, 0, 0], 24);
+  out.set(new TextEncoder().encode(seed), 33);
+  return out;
+}
+
+export function jpegBytes(width: number, height: number, seed = 'jpeg'): Uint8Array {
+  const sof = [0xff, 0xc0, 0x00, 0x11, 0x08, (height >> 8) & 0xff, height & 0xff, (width >> 8) & 0xff, width & 0xff, 0x03, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1];
+  const app0 = [0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00];
+  const tail = new TextEncoder().encode(seed);
+  return Uint8Array.from([0xff, 0xd8, ...app0, ...sof, ...tail, 0xff, 0xd9]);
+}
+
+export function gifBytes(width: number, height: number, seed = 'gif'): Uint8Array {
+  const head = [0x47, 0x49, 0x46, 0x38, 0x39, 0x61, width & 0xff, width >> 8, height & 0xff, height >> 8, 0, 0, 0];
+  return Uint8Array.from([...head, ...new TextEncoder().encode(seed)]);
+}
+
+export function webpBytes(width: number, height: number, seed = 'webp'): Uint8Array {
+  const w = width - 1;
+  const h = height - 1;
+  const chunk = [
+    0x56, 0x50, 0x38, 0x58, 10, 0, 0, 0, // 'VP8X', size 10
+    0, 0, 0, 0,
+    w & 0xff, (w >> 8) & 0xff, (w >> 16) & 0xff,
+    h & 0xff, (h >> 8) & 0xff, (h >> 16) & 0xff,
+  ];
+  const tail = new TextEncoder().encode(seed);
+  const size = 4 + chunk.length + tail.length;
+  return Uint8Array.from([
+    0x52, 0x49, 0x46, 0x46, size & 0xff, (size >> 8) & 0xff, (size >> 16) & 0xff, (size >> 24) & 0xff,
+    0x57, 0x45, 0x42, 0x50,
+    ...chunk,
+    ...tail,
+  ]);
+}
+
+// ---------------------------------------------------------------------------
+// Pages, for the watcher
+// ---------------------------------------------------------------------------
+
+export interface FakePages extends PagePort {
+  /** Every page URL asked for, in order. */
+  pageFetches: string[];
+  /** Every image URL asked for, in order. */
+  imageFetches: string[];
+  /** Change what a URL answers with between polls. */
+  pages: Record<string, string | null>;
+  images: Record<string, FetchedImage | null>;
+}
+
+/**
+ * Recorded schedule pages: a URL answers with its HTML, an image URL with its
+ * bytes, and anything else with nothing — as a page that is down would.
+ */
+export function fakePages(initial: { pages?: Record<string, string | null>; images?: Record<string, FetchedImage | null> } = {}): FakePages {
+  const pages: FakePages = {
+    pageFetches: [],
+    imageFetches: [],
+    pages: { ...initial.pages },
+    images: { ...initial.images },
+    async page(url) {
+      pages.pageFetches.push(url);
+      return pages.pages[url] ?? null;
+    },
+    async image(url) {
+      pages.imageFetches.push(url);
+      return pages.images[url] ?? null;
+    },
+  };
+  return pages;
+}
+
+/** A schedule page showing the given images, in order, plus the logo every page has. */
+export function schedulePage(imageUrls: string[]): string {
+  return [
+    '<!DOCTYPE html><html><head><title>Schedule</title></head><body>',
+    '<img src="https://lowtide.example/img/logo.png" alt="Low Tide">',
+    ...imageUrls.map((u, i) => `<img src="${u}" alt="Day ${i + 1}">`),
+    '</body></html>',
+  ].join('\n');
+}
+
+export interface WatcherFakes extends Fakes {
+  pages: FakePages;
+}
+
+export function fakeWatcherPorts(overrides: Partial<WatcherFakes> = {}): WatcherFakes {
+  return { ...fakePorts(overrides), pages: overrides.pages ?? fakePages() };
 }

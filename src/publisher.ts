@@ -31,8 +31,10 @@
  * events whose content moved. A wrong or absent secret is simply a fresh upload
  * and never touches an existing edition (ticket 09).
  *
- * The watcher and the signal are the same shape and land here too (tickets 11,
- * 12).
+ * The watcher (`src/watcher.ts`, ticket 11) is the same shape from the other
+ * side: the same ports plus one for pages, and its review pull requests carry
+ * the edition exactly as the owner's confirm commits it. The signal (ticket
+ * 12) will be too.
  *
  * Three rules this module exists to enforce:
  *
@@ -213,15 +215,17 @@ export interface RepositoryPort {
 
 /** What the owner is told. GitHub is the channel; this is the content. */
 export interface Notification {
-  kind: 'edition-published' | 'edition-corrected';
+  kind: 'edition-published' | 'edition-corrected' | 'watch-failed';
   editionPath: string;
   title: string;
   body: string;
   /**
    * The uploader's address. The only place it appears — committed state keeps
    * a hash, because the repository is public and the address is a contact.
+   * Absent when nobody uploaded anything: the watcher's notices have no one
+   * behind them.
    */
-  email: string;
+  email?: string;
 }
 
 export interface NotifyPort {
@@ -594,7 +598,7 @@ export function claimedEdition(published: PublishedFile, claim: UpdateClaim | un
   return { path: claim.editionPath, record: record as ClaimedEdition['record'] };
 }
 
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+export const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 /**
  * Deliberately loose. This is a contact address, not a credential: the only
  * failure that matters is a typo the uploader can see in their own sentence.
@@ -710,7 +714,7 @@ function claimSlug(
 // ---------------------------------------------------------------------------
 
 /** Type, size and dimensions: everything knowable without asking anyone. */
-function checkImage(image: SourceImage): Rejection | null {
+export function checkImage(image: SourceImage): Rejection | null {
   if (!(ACCEPTED_IMAGE_TYPES as readonly string[]).includes(image.contentType)) {
     return reject('type', GATE_COPY.notImage);
   }
@@ -923,10 +927,10 @@ export async function upload(intent: UploadIntent, ports: PublisherPorts): Promi
   const commit: Commit = {
     message: `Transcribe an upload for ${intent.festival.trim()} (${paidFor.map((h) => h.slice(0, 12)).join(', ')})`,
     files: [
-      ...fresh.map((f) => ({ path: `${TRANSCRIPTION_STORE_DIR}/${f.image}.json`, contents: json(f) })),
+      ...fresh.map((f) => ({ path: `${TRANSCRIPTION_STORE_DIR}/${f.image}.json`, contents: committedJson(f) })),
       {
         path: UPLOADS_PATH,
-        contents: json({
+        contents: committedJson({
           $comment: ledger.$comment ?? UPLOADS_COMMENT,
           uploads: [
             ...pruneUploads(ledger, now),
@@ -1166,7 +1170,7 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
     files: [
       { path: `${owner ? OWNER_DATA_DIR : FAN_DATA_DIR}/${key}.yaml`, contents: transcription.yaml },
       { path: `${SOURCE_DIR}/${path}/TRANSCRIPTION.md`, contents: transcription.log },
-      { path: PUBLISHED_PATH, contents: json(nextPublished) },
+      { path: PUBLISHED_PATH, contents: committedJson(nextPublished) },
     ],
     images: saved.map((reading, i) => ({
       path: `${SOURCE_IMAGE_DIR}/${storedImageName(reading)}`,
@@ -1262,7 +1266,7 @@ function listingPullRequest(
       `Merging lists it on the homepage. The only change is \`listed\` on \`${path}\` in \`${PUBLISHED_PATH}\`.\n`,
     commit: {
       message: `List ${name} (${path})`,
-      files: [{ path: PUBLISHED_PATH, contents: json(listedState) }],
+      files: [{ path: PUBLISHED_PATH, contents: committedJson(listedState) }],
       images: [],
     },
   };
@@ -1335,7 +1339,7 @@ async function correct(
     files: [
       { path: yamlPath, contents: transcription.yaml },
       { path: `${SOURCE_DIR}/${path}/TRANSCRIPTION.md`, contents: transcription.log },
-      { path: PUBLISHED_PATH, contents: json(nextPublished) },
+      { path: PUBLISHED_PATH, contents: committedJson(nextPublished) },
     ],
     images: saved.map((reading, i) => ({
       path: `${SOURCE_IMAGE_DIR}/${storedImageName(reading)}`,
@@ -1425,14 +1429,17 @@ function span(t: SetTimes): string {
   return `${wall(t.start)}–${t.end.slice(11, 16)}`;
 }
 
+/** One changed set as a line the owner reads, in a notification or a review. */
+export function changeLine(c: SetChange): string {
+  if (c.kind === 'added') return `- Added: ${c.after!.artist} (${c.stageName}), ${span(c.after!)}`;
+  if (c.kind === 'removed') return `- Dropped: ${c.before!.artist} (${c.stageName}), was ${span(c.before!)}`;
+  const renamed = c.before!.artist !== c.after!.artist ? `${c.before!.artist} → ${c.after!.artist}` : c.after!.artist;
+  return `- ${renamed} (${c.stageName}): ${span(c.before!)} → ${span(c.after!)}`;
+}
+
 /** The notification body: one line per changed set, then where it lives. */
 function correctionBody(path: string, changes: SetChange[]): string {
-  const lines = changes.map((c) => {
-    if (c.kind === 'added') return `- Added: ${c.after!.artist} (${c.stageName}), ${span(c.after!)}`;
-    if (c.kind === 'removed') return `- Dropped: ${c.before!.artist} (${c.stageName}), was ${span(c.before!)}`;
-    const renamed = c.before!.artist !== c.after!.artist ? `${c.before!.artist} → ${c.after!.artist}` : c.after!.artist;
-    return `- ${renamed} (${c.stageName}): ${span(c.before!)} → ${span(c.after!)}`;
-  });
+  const lines = changes.map(changeLine);
   const summary =
     changes.length === 0
       ? 'The uploader re-uploaded through the update link; no set changed.'
@@ -1469,7 +1476,7 @@ export async function remove(intent: RemoveIntent, ports: PublisherPorts): Promi
     message:
       `Block ${target.path}: self-removal through its update link\n\n` +
       'The stored source image is kept; a self-removal is not a rights claim (docs/takedown-runbook.md).',
-    files: [{ path: PUBLISHED_PATH, contents: json(nextPublished) }],
+    files: [{ path: PUBLISHED_PATH, contents: committedJson(nextPublished) }],
     images: [],
   };
   await ports.repo.commit(commit);
@@ -1496,17 +1503,17 @@ export async function publish(intent: Intent, ports: PublisherPorts): Promise<Up
 // ---------------------------------------------------------------------------
 
 /** The stored name of a source image: its content hash plus a real extension. */
-function storedImageName(saved: SavedTranscription): string {
+export function storedImageName(saved: Pick<SavedTranscription, 'image' | 'contentType'>): string {
   return `${saved.image}${EXTENSIONS[saved.contentType] ?? '.bin'}`;
 }
 
 /** The saved replies as the library takes them, one source per image, in order. */
-function modelOutputs(saved: SavedTranscription[]): ModelOutput[] {
+export function modelOutputs(saved: SavedTranscription[]): ModelOutput[] {
   return saved.map((s) => ({ source: storedImageName(s), output: s.output }));
 }
 
 /** `a`, `a and b`, `a, b and c` — for a sentence the owner reads. */
-function listed(items: string[]): string {
+export function listed(items: string[]): string {
   return items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
 }
 
@@ -1533,7 +1540,7 @@ function droppedStages(names: string[]): Rejection {
  * means the edition would not build — usually a time an edit made impossible —
  * and its own problems ride along for the screen to lay out.
  */
-function readingProblem(err: unknown): Rejection {
+export function readingProblem(err: unknown): Rejection {
   if (err instanceof SchemaError) {
     return reject(
       'schema',
@@ -1548,11 +1555,11 @@ function readingProblem(err: unknown): Rejection {
 }
 
 /** JSON as committed state is written: 2-space indent, trailing newline. */
-function json(value: unknown): string {
+export function committedJson(value: unknown): string {
   return JSON.stringify(value, null, 2) + '\n';
 }
 
-function sortKeys<T>(obj: Record<string, T>): Record<string, T> {
+export function sortKeys<T>(obj: Record<string, T>): Record<string, T> {
   const out: Record<string, T> = {};
   for (const k of Object.keys(obj).sort()) out[k] = obj[k]!;
   return out;

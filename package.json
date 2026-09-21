@@ -11,6 +11,7 @@
     "ingest:eval": "tsx tests/ingest-eval.ts",
     "test": "tsx --test tests/*.test.ts",
     "smoke": "tsx tests/smoke.ts",
+    "watch": "tsx src/watch.ts",
     "vercel-build": "npm test && npm run build"
   },
   "devDependencies": {

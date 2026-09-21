@@ -7,7 +7,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { envOwner, githubRepository } from '../src/ports.js';
+import { envOwner, githubNotifier, githubRepository, livePages } from '../src/ports.js';
 import type { PullRequest } from '../src/publisher.js';
 
 interface Call {
@@ -87,4 +87,62 @@ test('ports: the owner port recognizes OWNER_SECRET and nothing else, set or uns
   assert.equal(envOwner({ OWNER_SECRET: 's3cret' }).recognizes(undefined), false);
   assert.equal(envOwner({}).recognizes('s3cret'), false);
   assert.equal(envOwner({ OWNER_SECRET: '' }).recognizes(''), false);
+});
+
+// ---------------------------------------------------------------------------
+// Pages and issues, for the watcher
+// ---------------------------------------------------------------------------
+
+/** A site that answers each URL as told, and records how it was asked. */
+function fakeSite(answers: Record<string, { status?: number; type?: string; body: string | Uint8Array }>) {
+  const asked: { url: string; init: RequestInit | undefined }[] = [];
+  return {
+    asked,
+    async fetch(url: string, init?: RequestInit): Promise<Response> {
+      asked.push({ url, init });
+      const a = answers[url];
+      if (!a) return new Response('not here', { status: 404 });
+      return new Response(a.body, { status: a.status ?? 200, headers: a.type ? { 'content-type': a.type } : {} });
+    },
+  };
+}
+
+test('ports: the page port answers with HTML for a page and nothing for anything else, and says who it is', async () => {
+  const site = fakeSite({
+    'https://fest.example/schedule': { type: 'text/html; charset=utf-8', body: '<html><img src="a.png"></html>' },
+    'https://fest.example/feed.json': { type: 'application/json', body: '{}' },
+    'https://fest.example/gone': { status: 404, type: 'text/html', body: 'gone' },
+  });
+  const pages = livePages(site.fetch);
+  assert.equal(await pages.page('https://fest.example/schedule'), '<html><img src="a.png"></html>');
+  assert.equal(await pages.page('https://fest.example/feed.json'), null, 'not a page');
+  assert.equal(await pages.page('https://fest.example/gone'), null);
+  assert.equal(await pages.page('https://fest.example/nowhere'), null);
+  const ua = (site.asked[0]!.init!.headers as Record<string, string>)['User-Agent'];
+  assert.match(ua!, /stage-times-watcher.*stagetimes\.app/, 'identifies itself honestly');
+});
+
+test('ports: the page port answers with bytes and the served type for an image, nothing for a miss', async () => {
+  const bytes = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
+  const site = fakeSite({
+    'https://cdn.example/a.png': { type: 'image/png', body: bytes },
+    'https://cdn.example/b.png': { body: bytes },
+  });
+  const pages = livePages(site.fetch);
+  const a = await pages.image('https://cdn.example/a.png');
+  assert.deepEqual(a, { bytes, contentType: 'image/png' });
+  const b = await pages.image('https://cdn.example/b.png');
+  assert.deepEqual(b, { bytes }, 'no type served, none claimed — the bytes have the last word');
+  assert.equal(await pages.image('https://cdn.example/nope.png'), null);
+});
+
+test('ports: an issue with nobody behind it carries no uploader line', async () => {
+  const gh = fakeGitHub();
+  const notify = githubNotifier({ GITHUB_TOKEN: 't' }, gh.fetch, 'o/r');
+  await notify.send({ kind: 'watch-failed', editionPath: 'low-tide-2026', title: 'Watcher: Low Tide 2026 could not be read', body: 'The images read as 2025.' });
+  await notify.send({ kind: 'edition-published', editionPath: 'fan/low-tide-2026', title: 'Fan edition published', body: 'Live.', email: 'sam@example.com' });
+  const [machine, fan] = gh.calls.filter((c) => c.path === '/repos/o/r/issues');
+  assert.equal(machine!.body!['body'], 'The images read as 2025.');
+  assert.deepEqual(machine!.body!['labels'], ['watch-failed']);
+  assert.equal(fan!.body!['body'], 'Live.\n\nUploader: sam@example.com');
 });
