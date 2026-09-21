@@ -15,9 +15,16 @@
  * publisher's own image limit, so an oversized image is refused by the platform
  * before any of this runs, with the platform's words rather than mine. The
  * upload screen (ticket 08) downscales before posting for exactly that reason.
+ *
+ * Progress (ticket 21): a client that sends `Accept: application/x-ndjson`
+ * gets the publisher's progress reports as they happen, one JSON line each
+ * (`{"progress": …}`), and then the answer as the last line — exactly the body
+ * it would have got otherwise, on one line. The status is sent before the
+ * answer is known, so it is 200; the answer's own `ok` and `gate` say the
+ * rest. A client that does not ask gets exactly what it always did.
  */
 
-import type { Gate, Rejection, SourceImage, UpdateClaim } from './publisher.js';
+import type { Gate, Progress, ProgressPort, Rejection, SourceImage, UpdateClaim } from './publisher.js';
 
 /** A request that could not be read as an intent at all. */
 export class BadRequestError extends Error {
@@ -246,4 +253,38 @@ export function rejected(rejection: Rejection): Response {
     },
     STATUS[rejection.gate],
   );
+}
+
+/** What a client asks for to get the progress lines ahead of the answer. */
+export const STREAM_TYPE = 'application/x-ndjson';
+
+/** Did the client ask for the progress stream? */
+export function wantsStream(request: Request): boolean {
+  return (request.headers.get('accept') ?? '').includes(STREAM_TYPE);
+}
+
+/**
+ * The answer, preceded by a line for every progress report made while it was
+ * worked out. `work` is handed the port to report through and returns the
+ * response a client that did not ask for the stream would get; its body goes
+ * out as the last line. Nothing about the work changes — only who hears it.
+ */
+export function streamed(work: (progress: ProgressPort) => Promise<Response>): Response {
+  const encoder = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const line = (value: unknown) => controller.enqueue(encoder.encode(JSON.stringify(value) + '\n'));
+      try {
+        const answer = await work({ report: (progress: Progress) => line({ progress }) });
+        line(JSON.parse(await answer.text()));
+        controller.close();
+      } catch (err) {
+        controller.error(err);
+      }
+    },
+  });
+  return new Response(body, {
+    status: 200,
+    headers: { 'Content-Type': `${STREAM_TYPE}; charset=utf-8`, 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' },
+  });
 }

@@ -2,13 +2,14 @@
  * POST /api/upload — the images (one per day) and what the uploader typed, in; the review to
  * check it against, out.
  *
- * Read the fields, call the publisher, return what it said. Every rule — the
+ * Read the fields, call the publisher, return what it said — and, when the
+ * page asks for it, stream what the publisher reports on the way (ticket 21). Every rule — the
  * gates, the caps, the cache, the review payload — is in `src/publisher.ts`,
  * and every reason string it hands back goes out untouched.
  */
 
 import { upload, type PublisherPorts, type UploadIntent } from '../src/publisher.js';
-import { badRequest, json, obj, optOwner, optStr, optUpdate, parseImages, readJsonBody, rejected, str } from '../src/publisher-http.js';
+import { badRequest, json, obj, optOwner, optStr, optUpdate, parseImages, readJsonBody, rejected, str, streamed, wantsStream } from '../src/publisher-http.js';
 import { livePorts } from '../src/ports.js';
 
 export async function handle(request: Request, ports: PublisherPorts): Promise<Response> {
@@ -31,8 +32,11 @@ export async function handle(request: Request, ports: PublisherPorts): Promise<R
     return badRequest(err);
   }
 
-  const result = await upload(intent, ports);
-  return result.ok ? json({ ok: true, review: result.review }, 200) : rejected(result.rejection!);
+  const answer = async (ports: PublisherPorts): Promise<Response> => {
+    const result = await upload(intent, ports);
+    return result.ok ? json({ ok: true, review: result.review }, 200) : rejected(result.rejection!);
+  };
+  return wantsStream(request) ? streamed((progress) => answer({ ...ports, progress })) : answer(ports);
 }
 
 export function POST(request: Request): Promise<Response> {

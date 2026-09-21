@@ -17,6 +17,7 @@ import { handle as handleConfirm } from '../api/confirm.js';
 import { handle as handleRemove } from '../api/remove.js';
 import { handle as handleLink } from '../api/link.js';
 import { sha256, type Review, type SourceImage } from '../src/publisher.js';
+import { STREAM_TYPE } from '../src/publisher-http.js';
 import {
   fakeLinkPorts,
   fakeOwner,
@@ -416,4 +417,92 @@ test('adapter: each file contains only request parsing and the publisher call', 
       assert.equal(code.includes(rule), false, `api/${file} mentions ${rule} — that belongs in the seam`);
     }
   }
+});
+
+// ---------------------------------------------------------------------------
+// The stream (ticket 21): progress lines ahead of the answer, on one request
+// ---------------------------------------------------------------------------
+
+function streamPost(body: unknown): Request {
+  return new Request('https://stagetimes.app/api/upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: STREAM_TYPE },
+    body: JSON.stringify(body),
+  });
+}
+
+async function lines(res: Response): Promise<unknown[]> {
+  const text = await res.text();
+  assert.ok(text.endsWith('\n'), 'every line ends in a newline, the last one too');
+  return text.trimEnd().split('\n').map((l) => JSON.parse(l) as unknown);
+}
+
+const WEEKEND_BODY = { ...UPLOAD_BODY, image: undefined, dates: { first: '2026-10-09', last: '2026-10-11' }, images: weekendImages().map(dayBody) };
+
+test('adapter stream: upload sends one line per progress report, then the answer, on the same request', async () => {
+  const res = await handleUpload(streamPost(WEEKEND_BODY), fakePorts({ vision: weekendVision() }));
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), `${STREAM_TYPE}; charset=utf-8`);
+  const all = await lines(res);
+  const progress = all.slice(0, -1) as { progress: { kind: string; step: string; done: number } }[];
+  assert.deepEqual(
+    progress.map((l) => [l.progress.step, l.progress.done]),
+    [['checked', 0], ['checked', 0], ['checked', 0], ['read', 1], ['read', 2], ['read', 3]],
+    'each report as its own line, in the order the publisher made them',
+  );
+  assert.equal((all.at(-1) as { ok: boolean }).ok, true, 'the answer comes last');
+});
+
+test("adapter stream: a client that reads only the final line gets exactly today's response body", async () => {
+  const plain = await handleUpload(post(WEEKEND_BODY), fakePorts({ vision: weekendVision() }));
+  const streamed = await handleUpload(streamPost(WEEKEND_BODY), fakePorts({ vision: weekendVision() }));
+  assert.deepEqual((await lines(streamed)).at(-1), await plain.json(), 'the same review, byte for byte once parsed');
+});
+
+test("adapter stream: a rejection's final line is today's rejection, gate, reason and image and all", async () => {
+  const body = { ...WEEKEND_BODY };
+  const plain = await handleUpload(post(body), fakePorts({ vision: weekendVision({ notSchedules: ['sunday.jpg'] }) }));
+  const streamed = await handleUpload(streamPost(body), fakePorts({ vision: weekendVision({ notSchedules: ['sunday.jpg'] }) }));
+  const all = await lines(streamed);
+  assert.deepEqual(all.at(-1), await plain.json());
+  assert.equal(all.length, 3, 'Friday and Saturday cleared the check before Sunday did not');
+});
+
+test('adapter stream: a body that is not an intent is still a plain 400, streamed or not', async () => {
+  const res = await handleUpload(streamPost({ festival: 'Low Tide' }), fakePorts());
+  assert.equal(res.status, 400);
+  assert.match(res.headers.get('content-type') ?? '', /^application\/json/);
+});
+
+test('adapter stream: without asking for the stream, the answer is exactly as it was — status and all', async () => {
+  const res = await handleUpload(post(WEEKEND_BODY), fakePorts({ vision: weekendVision({ notSchedules: ['sunday.jpg'] }) }));
+  assert.equal(res.status, 422);
+  assert.match(res.headers.get('content-type') ?? '', /^application\/json/);
+});
+
+test("adapter stream: confirm streams checking, saving, done, then today's answer", async () => {
+  const ports = fakePorts({ vision: weekendVision() });
+  const up = await handleUpload(post(WEEKEND_BODY), ports);
+  const review = ((await up.json()) as { review: Review }).review;
+  const res = await handleConfirm(
+    streamPost({
+      festival: 'Low Tide',
+      email: 'sam@example.com',
+      timezone: review.timezone,
+      timezoneAssumed: review.timezoneAssumed,
+      edits: [],
+      unverifiable: [],
+      images: WEEKEND_BODY.images,
+      reviewed: review.images,
+    }),
+    ports,
+  );
+  const all = await lines(res);
+  assert.deepEqual(
+    all.slice(0, -1).map((l) => (l as { progress: { step: string } }).progress.step),
+    ['checking', 'saving', 'done'],
+  );
+  const answer = all.at(-1) as { ok: boolean; editionPath: string; updateSecret: string; corrected: boolean };
+  assert.deepEqual(Object.keys(answer).sort(), ['corrected', 'editionPath', 'ok', 'updateSecret'], "today's confirm answer, nothing added");
+  assert.equal(answer.editionPath, 'fan/low-tide-2026');
 });
