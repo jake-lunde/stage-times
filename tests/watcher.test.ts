@@ -469,10 +469,10 @@ test('watcher: two entries in one run share one state commit, and each review br
 // The committed watch list and the schedule it runs from
 // ---------------------------------------------------------------------------
 
-test('watcher: the committed watch list names ACL, III Points and Camp Flog Gnaw for 2026, each with a schedule page and a drop window', () => {
+test('watcher: the committed watch list names ACL, III Points, Camp Flog Gnaw, EDC Orlando and Corona Capital for 2026, each with a schedule page and a drop window', () => {
   const list = loadWatchList(readFileSync(join(REPO_ROOT, 'config', 'watch.yaml'), 'utf8'));
   const keys = list.map((e) => `${e.slug}-${e.year}`);
-  assert.deepEqual(keys, ['austin-city-limits-2026', 'iii-points-2026', 'camp-flog-gnaw-2026']);
+  assert.deepEqual(keys, ['austin-city-limits-2026', 'iii-points-2026', 'camp-flog-gnaw-2026', 'edc-orlando-2026', 'corona-capital-2026']);
   for (const e of list) {
     assert.match(e.source, /^https:\/\//, `${e.festival}: the schedule page is an https link`);
     assert.ok(e.window.from < e.dates.first, `${e.festival}: the drop window opens before the festival`);
@@ -481,6 +481,14 @@ test('watcher: the committed watch list names ACL, III Points and Camp Flog Gnaw
   assert.equal(cadenceOf(list[0]!, Date.UTC(2026, 8, 21)), 'hourly', 'ACL is inside its window today');
   assert.equal(cadenceOf(list[2]!, Date.UTC(2026, 8, 21)), 'daily', 'Camp Flog Gnaw is not yet');
   assert.equal(list[0]!.match, 'Wk2', 'ACL: one weekend, or the same artist on the same stage twice collides on UID');
+  const subreddits = Object.fromEntries(list.map((e) => [e.slug, e.subreddit]));
+  assert.deepEqual(subreddits, {
+    'austin-city-limits': undefined,
+    'iii-points': 'IIIPoints',
+    'camp-flog-gnaw': 'CampFlogGnaw',
+    'edc-orlando': undefined,
+    'corona-capital': 'coronacapital',
+  }, 'the signal watches the three subreddits the owner found on 2026-09-21; ACL and EDC Orlando have none on record');
 });
 
 test('watcher: the job runs hourly from a schedule with the permissions a review needs, and no server', () => {

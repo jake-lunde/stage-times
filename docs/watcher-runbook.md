@@ -93,6 +93,20 @@ upload it through your bookmark, close the issue. The same post never arrives tw
 Nothing arrives when the subreddit is unreachable. Reddit refuses its public JSON to some networks
 without credentials; the run log says `unreachable` beside the entry when that happens.
 
+## The monthly look-ahead
+
+On the 1st of each month an issue labeled `look-ahead` lists every edition in
+`config/festivals.yaml` starting in the next ninety days: dates, when the drop is expected going
+by last year's lead, where the times appear, and whether it is watched. Under *Not watched*, each
+edition has a checkbox and its watch entry. Tick the ones worth watching, append their entries to
+`config/watch.yaml` (check the source page and the slug first — the slug is permanent once
+published), commit, push, close the issue.
+
+Keep the almanac true: add a festival's next days when they are announced, and add `dropped:
+YYYY-MM-DD` to an edition the day its set times appear — that is the lead next year's row goes
+by. `npm run look-ahead -- --dry-run` prints this month's issue without sending it;
+**Actions → Look-ahead → Run workflow** sends it now.
+
 ## Running it by hand
 
 - **Actions → Watch → Run workflow** runs it now; tick *force* to poll every entry whose

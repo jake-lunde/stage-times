@@ -38,6 +38,7 @@
   timezone: America/New_York
   dates: { first: 2026-10-16, last: 2026-10-17 }
   window: { from: 2026-10-02 }
+  subreddit: IIIPoints
 
 - festival: Camp Flog Gnaw
   year: 2026
@@ -45,3 +46,20 @@
   timezone: America/Los_Angeles
   dates: { first: 2026-11-14, last: 2026-11-15 }
   window: { from: 2026-10-31 }
+  subreddit: CampFlogGnaw
+
+# Added from the first look-ahead (owner review, 2026-09-21).
+- festival: EDC Orlando
+  year: 2026
+  source: https://orlando.edc.com/
+  timezone: America/New_York
+  dates: { first: 2026-11-06, last: 2026-11-08 }
+  window: { from: 2026-10-01 }
+
+- festival: Corona Capital
+  year: 2026
+  source: https://www.coronacapital.com.mx/
+  timezone: America/Mexico_City
+  dates: { first: 2026-11-20, last: 2026-11-22 }
+  window: { from: 2026-10-01 }
+  subreddit: coronacapital

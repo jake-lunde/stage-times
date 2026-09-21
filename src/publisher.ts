@@ -215,8 +215,9 @@ export interface RepositoryPort {
 
 /** What the owner is told. GitHub is the channel; this is the content. */
 export interface Notification {
-  kind: 'edition-published' | 'edition-corrected' | 'watch-failed' | 'signal';
-  editionPath: string;
+  kind: 'edition-published' | 'edition-corrected' | 'watch-failed' | 'signal' | 'look-ahead';
+  /** Absent on a notice about no one edition — the look-ahead's. */
+  editionPath?: string;
   title: string;
   body: string;
   /**

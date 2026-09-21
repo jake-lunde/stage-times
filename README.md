@@ -138,6 +138,8 @@ npm run ingest:eval -- --trials 2 --record 2026-09-13   # …and rewrite the com
 npm run watch                  # the watcher, then the signal: poll what is due on this run (calls the model on a drop)
 npm run watch -- --due         # …or just say which entries would be polled now
 npm run watch -- --force       # …or poll every entry whose festival is not over
+npm run look-ahead             # open this month's look-ahead issue (the 1st of each month, scheduled)
+npm run look-ahead -- --dry-run --on 2026-10-01   # …or print it, as that day's run would write it
 ```
 
 Transcription is a library: `transcribe()` in `src/transcription.ts` takes the raw model output
@@ -343,6 +345,23 @@ share a subreddit share it), six seconds between requests, and nothing more this
 or once `x-ratelimit-remaining` reaches zero. It says who it is: `web:app.stagetimes.signal:v1.0
 (+https://stagetimes.app)`. An unreachable subreddit is reported in the run log and writes
 nothing.
+
+### The look-ahead
+
+Once a month, what is coming (ticket 13). `config/festivals.yaml` is the **almanac**: the big
+festivals, each with its source page, zone, the form its set times take (`poster`, `web`, `app`,
+`social`, `unknown`), and one record per edition: its days and, once it has happened, the day its
+set times dropped. `.github/workflows/look-ahead.yml` runs `npm run look-ahead` at 15:00 UTC on
+the 1st, and `lookAhead()` in `src/look-ahead.ts` (notify and clock ports, nothing else) sends one
+`look-ahead` issue titled `Look-ahead for <Month> <Year>: <first day> to <last day>`: every
+almanac edition whose first day falls in the next ninety days, counting the run's day, with its
+dates, the drop expected at the previous edition's lead (`Around 14 Aug (8 weeks ahead, as in
+2025)`, or *No earlier drop on record*), the source form, and whether `config/watch.yaml` has it.
+An unwatched edition gets a checkbox and the exact watch entry to append, its window opening a
+week before the expected drop — or eleven weeks before the first day when there is nothing to go
+by — and never before the run's day. A festival whose next days are not in the almanac shows up
+as *Not on record* when last year's days come round, so the almanac gets fixed rather than the
+edition missed. It guesses no date, writes no state, and calls no model.
 
 ### The state the publisher owns
 

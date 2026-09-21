@@ -17,9 +17,7 @@
 import { readFileSync } from 'node:fs';
 import { signalPorts, systemClock, watcherPorts } from './ports.js';
 import { signal, type SignalReport } from './signal.js';
-import { cadenceOf, isDue, keyOf, loadWatchList, watch, type WatchReport } from './watcher.js';
-
-export const WATCH_LIST_PATH = 'config/watch.yaml';
+import { cadenceOf, isDue, keyOf, loadWatchList, watch, WATCH_LIST_PATH, type WatchReport } from './watcher.js';
 
 function line(r: WatchReport): string {
   const tail =
