@@ -82,7 +82,7 @@ import {
   type SetEntry,
 } from './schema.js';
 import { NO_OFFICIAL_URL, slugify, TranscribeError, type SetEdit } from './transcribe.js';
-import { readImage, transcribe, type Headliner, type ModelOutput, type Transcription } from './transcription.js';
+import { daysRead, movedDays, readImage, transcribe, type Headliner, type ModelOutput, type Transcription } from './transcription.js';
 import {
   filenameOf,
   hostOf,
@@ -306,7 +306,10 @@ export type Progress =
       sets: number;
       headliners: Headliner[];
     }
-  | { kind: 'confirm'; step: 'checking' | 'saving' | 'done' };
+  | { kind: 'confirm'; step: 'checking' | 'saving' | 'done' }
+  /** A link's own steps ahead of the reading: the page is being opened; its images are in hand, this many worth reading (ticket 20). */
+  | { kind: 'link'; step: 'page' }
+  | { kind: 'link'; step: 'found'; images: number };
 
 export type { Headliner };
 
@@ -462,6 +465,13 @@ export interface ConfirmIntent {
   edits: SetEdit[];
   /** Indices of sets the uploader could not verify. Any one blocks confirm. */
   unverifiable: number[];
+  /**
+   * The days as the uploader has them after checking, one for each day the
+   * images were read as, in that order (a link's `days`; ticket 20). A day
+   * that differs moves every set printed under it, and the year with it.
+   * Absent, or the same list: the days stay as read.
+   */
+  days?: string[];
   /** Present when the confirm came through an update link. A correction if it holds. */
   update?: UpdateClaim;
   /** The secret from the owner's bookmarked link, if the page had one. */
@@ -751,6 +761,7 @@ export const GATE_COPY = {
   noLink: "The image doesn't say where the times are posted. Add the link to the festival's schedule and try again.",
   removed: "This page was taken down, so it can't be changed from here.",
   wrongLink: "That update link doesn't match this page. Check you copied all of it.",
+  days: "Those days don't look right. Give each day that was read its own date.",
 } as const;
 
 /**
@@ -1321,6 +1332,7 @@ export async function link(intent: LinkIntent, ports: LinkPorts): Promise<LinkRe
   if (where === 'private') return refused(reject('address', LINK_COPY.address));
   if (where === 'nowhere') return refused(reject('unreachable', LINK_COPY.unreachable));
 
+  ports.progress?.report({ kind: 'link', step: 'page' });
   const page = await ports.web.page(target.href);
   if (!page) return refused(reject('unreachable', LINK_COPY.unreachable));
   if (isLoginWall(page)) return refused(reject('login', LINK_COPY.login));
@@ -1368,18 +1380,23 @@ export async function link(intent: LinkIntent, ports: LinkPorts): Promise<LinkRe
     .slice(0, MAX_UPLOAD_IMAGES)
     .sort((a, b) => a.order - b.order);
   const notes = candidates.length > kept.length ? [fill(LINK_COPY.tooMany, { n: candidates.length, max: kept.length })] : [];
+  ports.progress?.report({ kind: 'link', step: 'found', images: kept.length });
 
   // Each image looked up on its own, exactly as an upload's: a reply already
   // paid for is a schedule and costs nothing; a no already paid for is not
-  // asked again.
+  // asked again. Reported as an upload's images are (ticket 21), over the
+  // images kept: the page can count them the same way.
   const saved = await Promise.all(kept.map((c) => ports.repo.readTranscription(c.hash)));
   const screened = await readScreened(ports);
   const unread = kept.flatMap((c, i) => (saved[i] || screened.notSchedules[c.hash] ? [] : [i]));
+  const tally = progressOf(ports, kept.length);
+  for (const [i, reading] of saved.entries()) if (reading) tally.read('reused', i, reading);
 
   const noLonger: string[] = [];
   for (const i of unread) {
     const check = await ports.vision.looksLikeSchedule(kept[i]!.image);
     if (!check.isSchedule) noLonger.push(kept[i]!.hash);
+    else tally.checked(i);
   }
   const schedule = kept.flatMap((c, i) => (saved[i] || (unread.includes(i) && !noLonger.includes(c.hash)) ? [i] : []));
 
@@ -1391,6 +1408,7 @@ export async function link(intent: LinkIntent, ports: LinkPorts): Promise<LinkRe
     const reading: SavedTranscription = { image: hash, filename: image.filename, contentType: image.contentType, output, transcribedAt: stamp };
     fresh.push(reading);
     saved[i] = reading;
+    tally.read('read', i, reading);
   }
 
   // Anything paid for is recorded, whatever the page turns out to hold: the
@@ -1448,7 +1466,7 @@ export async function link(intent: LinkIntent, ports: LinkPorts): Promise<LinkRe
   return {
     ...read.result,
     officialUrl: target.href,
-    days: [...new Set(read.transcription!.sets.map((s) => s.posterDate))].sort(),
+    days: daysRead(modelOutputs(schedule.map((i) => saved[i]!))),
     images,
   };
 }
@@ -1546,13 +1564,19 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
   const namespace = namespaceOf(intent, ports, target);
   if (target?.record.blocked) return rejectedConfirm(reject('removed', GATE_COPY.removed));
 
+  // The days as checked (ticket 20): one date per day read, or the reading
+  // stands. A list that does not fit the reading is refused — nothing is
+  // guessed about which day the uploader meant.
+  const outputs = daysAsChecked(modelOutputs(saved), intent.days);
+  if ('gate' in outputs) return rejectedConfirm(outputs);
+
   // Two passes. The first reads the source to find out what year it is, which
   // is what decides the slug; the second builds the edition under the slug that
   // read gives it. Both are deterministic over the same saved reply. A
   // correction keeps the slug it has — the UIDs are derived from it.
   let probe: Transcription;
   try {
-    probe = transcribe(modelOutputs(saved), {
+    probe = transcribe(outputs, {
       namespace,
       name: intent.festival.trim(),
       slug: target?.record.slug ?? slugify(intent.festival),
@@ -1573,7 +1597,7 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
 
   let transcription: Transcription;
   try {
-    transcription = transcribe(modelOutputs(saved), {
+    transcription = transcribe(outputs, {
       namespace,
       name: intent.festival.trim(),
       slug,
@@ -1982,6 +2006,21 @@ export function storedImageName(saved: Pick<SavedTranscription, 'image' | 'conte
 /** The saved replies as the library takes them, one source per image, in order. */
 export function modelOutputs(saved: SavedTranscription[]): ModelOutput[] {
   return saved.map((s) => ({ source: storedImageName(s), output: s.output }));
+}
+
+/**
+ * The replies with their days as the uploader checked them (ticket 20): the
+ * list has to name one date for each day read, in that order, every one a
+ * date and no two the same. The same list as read changes nothing; absent, the
+ * reading stands. Anything else is refused rather than guessed at.
+ */
+export function daysAsChecked(outputs: ModelOutput[], days: string[] | undefined): ModelOutput[] | Rejection {
+  if (days === undefined) return outputs;
+  const read = daysRead(outputs);
+  const fits = days.length === read.length && days.every((d) => ISO_DATE_RE.test(d)) && new Set(days).size === days.length;
+  if (!fits) return reject('review', GATE_COPY.days);
+  if (days.every((d, i) => d === read[i])) return outputs;
+  return movedDays(outputs, read, days);
 }
 
 /** `a`, `a and b`, `a, b and c` — for a sentence the owner reads. */

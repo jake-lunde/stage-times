@@ -177,10 +177,10 @@ async function checkPage(url: string, { blocked = false, listed, upload = false 
     }
   }
   if (upload) {
-    for (const screen of ['details', 'upload', 'review', 'publishing', 'success']) {
+    for (const screen of ['link', 'details', 'upload', 'review', 'publishing', 'success']) {
       if (!body.includes(`data-screen="${screen}"`)) add(`upload page is missing its "${screen}" screen`);
     }
-    if (!body.includes('/api/upload') || !body.includes('/api/confirm')) add('upload page does not talk to both adapters');
+    if (!body.includes('/api/link') || !body.includes('/api/upload') || !body.includes('/api/confirm')) add('upload page does not talk to all three adapters');
   }
   return failures;
 }

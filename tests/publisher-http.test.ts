@@ -480,6 +480,51 @@ test('adapter stream: without asking for the stream, the answer is exactly as it
   assert.match(res.headers.get('content-type') ?? '', /^application\/json/);
 });
 
+test('adapter stream: a link sends its own steps, then each check and reading, then the answer, on the same request (ticket 20)', async () => {
+  const ports = fakeLinkPorts({ vision: weekendVision(), web: weekendPage() });
+  const res = await handleLink(
+    new Request('https://stagetimes.app/api/link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: STREAM_TYPE },
+      body: JSON.stringify({ url: SCHEDULE, email: 'sam@example.com' }),
+    }),
+    ports,
+  );
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), `${STREAM_TYPE}; charset=utf-8`);
+  const all = await lines(res);
+  const progress = all.slice(0, -1) as { progress: { kind: string; step: string; images?: number; done?: number } }[];
+  assert.deepEqual(
+    progress.map((l) => [l.progress.kind, l.progress.step, l.progress.images ?? l.progress.done]),
+    [['link', 'page', undefined], ['link', 'found', 3], ['read', 'checked', 0], ['read', 'checked', 0], ['read', 'checked', 0], ['read', 'read', 1], ['read', 'read', 2], ['read', 'read', 3]],
+  );
+  const answer = all.at(-1) as { ok: boolean; days: string[]; images: unknown[] };
+  assert.equal(answer.ok, true);
+  assert.deepEqual(answer.days, ['2026-10-09', '2026-10-10', '2026-10-11']);
+  assert.equal(answer.images.length, 3, 'the same body a plain request gets, as the last line');
+  const plain = await handleLink(post({ url: SCHEDULE, email: 'sam@example.com' }), fakeLinkPorts({ vision: weekendVision(), web: weekendPage() }));
+  assert.deepEqual(answer, await plain.json());
+});
+
+test('adapter: confirm reads `days` as the days as checked, and refuses a list that is not one', async () => {
+  const ports = fakeLinkPorts({ vision: weekendVision(), web: weekendPage() });
+  const linked = (await (await handleLink(post({ url: SCHEDULE, email: 'sam@example.com' }), ports)).json()) as { review: Review; officialUrl: string; images: Record<string, unknown>[] };
+  const body = {
+    images: linked.images,
+    reviewed: linked.review.images,
+    festival: 'Low Tide',
+    email: 'sam@example.com',
+    timezone: linked.review.timezone,
+    timezoneAssumed: linked.review.timezoneAssumed,
+    officialUrl: linked.officialUrl,
+  };
+  const bad = await handleConfirm(post({ ...body, days: 'next weekend' }), ports);
+  assert.equal(bad.status, 400, 'not a list: the request could not be read');
+  const moved = await handleConfirm(post({ ...body, days: ['2027-10-08', '2027-10-09', '2027-10-10'] }), ports);
+  assert.equal(moved.status, 200, await moved.clone().text());
+  assert.equal(((await moved.json()) as { editionPath: string }).editionPath, 'fan/low-tide-2027', 'the days moved, and the year with them');
+});
+
 test("adapter stream: confirm streams checking, saving, done, then today's answer", async () => {
   const ports = fakePorts({ vision: weekendVision() });
   const up = await handleUpload(post(WEEKEND_BODY), ports);
