@@ -30,6 +30,7 @@ festival:
   year: 2026
   timezone: "America/Los_Angeles"      # PDT (UTC-7) throughout; no DST transition in window
   official_url: "https://www.capitolhillblockparty.com/"
+  city: "Seattle"                      # display only (the homepage card); never in a feed
 
 # `headliners` is display only (the card art and the headliner preview) and never touches a
 # feed: the act each night's poster column ends on, skipping the AFTERS blocks, in night order.

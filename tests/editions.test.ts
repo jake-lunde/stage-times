@@ -31,7 +31,9 @@ import { renderBlockedPage, renderSitePages, type SiteManifest } from '../src/pa
 import {
   GOLDEN_PUBLISHED_AT,
   HARBOR_FIXTURE_PATH,
+  HARBOR_PATH,
   PIER_FIXTURE_PATH,
+  PIER_PATH,
   buildFixtureSite,
   docFromText,
   emptySequences,
@@ -40,24 +42,14 @@ import {
   pierYamlText,
   publishedFor,
   recordFor,
+  visibleText,
 } from './helpers.js';
 
 const harbor = harborDoc();
 const pier = pierDoc();
-const PIER_PATH = 'fan/pier-nine-2026';
-const HARBOR_PATH = 'harbor-lights-2026';
 
 function parseIcs(text: string): ICAL.Component {
   return new ICAL.Component(ICAL.parse(text));
-}
-
-/** Visible text only: strip script/style, then tags. */
-function visibleText(html: string): string {
-  return html
-    .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/g, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/\s+/g, ' ');
 }
 
 // ===========================================================================
@@ -454,8 +446,11 @@ test('run(): builds every edition under data/ into dist/, both namespaces, and i
         ['/harbor-lights-2026', 'owner', false, false],
       ],
     );
-    // Nothing is listed, so the landing page features the first unblocked edition.
-    assert.ok(first.get('index.html')!.toString('utf8').includes('href="/fan/pier-nine-2026/"'));
+    // Nothing is listed, so the landing page shows no card — never an unlisted edition.
+    const landing = first.get('index.html')!.toString('utf8');
+    assert.equal(landing.includes('class="shelf-card"'), false, 'no card for an unlisted edition');
+    assert.equal(landing.includes('pier-nine-2026'), false, 'the unlisted fan edition is nowhere on the landing page');
+    assert.equal(landing.includes('harbor-lights-2026'), false, 'the unlisted owner edition is nowhere on the landing page');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -463,7 +458,11 @@ test('run(): builds every edition under data/ into dist/, both namespaces, and i
 
 test('run(): a blocked edition serves the removed page at its path and the landing page skips it', async () => {
   const root = scratchRepo(
-    publishedFor([harbor, pier], { [PIER_PATH]: { listed: true, blocked: true } }, '20260808T000000Z'),
+    publishedFor(
+      [harbor, pier],
+      { [HARBOR_PATH]: { listed: true }, [PIER_PATH]: { listed: true, blocked: true } },
+      '20260808T000000Z',
+    ),
   );
   try {
     await run({ repoRoot: root, log: () => {} });
@@ -474,7 +473,9 @@ test('run(): a blocked edition serves the removed page at its path and the landi
     assert.equal(feed.includes('BEGIN:VEVENT'), false);
     assert.ok(feed.includes('X-WR-CALNAME:Pier Stage — Pier Nine 26'));
     const landing = readFileSync(join(root, 'dist', 'index.html'), 'utf8');
-    assert.ok(landing.includes('href="/harbor-lights-2026/"'), 'the landing page never features a blocked edition');
+    assert.ok(landing.includes('<a class="shelf-card" href="/harbor-lights-2026/"'), 'the listed edition gets its card');
+    assert.equal(landing.includes('pier-nine-2026'), false, 'the landing page never lists a blocked edition');
+    assert.equal((landing.match(/class="shelf-card"/g) ?? []).length, 1, 'one card, for the one listed edition');
     // The block is recorded verbatim; the listing survives for the revert.
     const published = readPublished(join(root, 'state', 'published.json'));
     assert.equal(published.editions[PIER_PATH]!.blocked, true);

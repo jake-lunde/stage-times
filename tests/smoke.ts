@@ -24,7 +24,9 @@
  * And for the HTML pages (landing + one per edition) it asserts the inverse: the
  * Vercel Web Analytics script IS present, so a refactor can't silently drop
  * measurement. A blocked edition's page must be the removed page — no calendar
- * links on it.
+ * links on it. The landing page must carry exactly one card per listed edition,
+ * each linking to that edition's page in its namespace, and none for anything
+ * unlisted or blocked.
  *
  * The body checks exist because of Vercel Deployment Protection: a protected
  * preview returns 200 with an HTML login page, which a header-only check happily
@@ -35,6 +37,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Manifest, SiteManifest } from '../src/build.js';
+import { listedEditions, type Manifest as PageManifest } from '../src/pages.js';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const EXPECTED_CONTENT_TYPE = 'text/calendar; charset=utf-8';
@@ -121,8 +124,14 @@ async function checkFeed(url: string, blocked: boolean): Promise<Failure[]> {
   return failures;
 }
 
+interface PageCheck {
+  blocked?: boolean;
+  /** For the landing page: the editions whose cards must be there, and only those. */
+  listed?: PageManifest[];
+}
+
 /** HTML pages must carry the analytics snippet — the positive half of the check. */
-async function checkPage(url: string, blocked = false): Promise<Failure[]> {
+async function checkPage(url: string, { blocked = false, listed }: PageCheck = {}): Promise<Failure[]> {
   const failures: Failure[] = [];
   const add = (problem: string) => failures.push({ url, problem });
 
@@ -150,6 +159,13 @@ async function checkPage(url: string, blocked = false): Promise<Failure[]> {
     if (body.includes('webcal:')) add('blocked edition still serves the subscribe page — the removed page did not deploy');
     if (!body.includes('Taken down')) add('blocked edition page does not say it was taken down');
   }
+  if (listed) {
+    const cards = (body.match(/class="shelf-card"/g) ?? []).length;
+    if (cards !== listed.length) add(`homepage carries ${cards} card(s), expected one per listed edition (${listed.length})`);
+    for (const m of listed) {
+      if (!body.includes(`href="${m.festival.basePath}/"`)) add(`homepage has no card linking to ${m.festival.basePath}/`);
+    }
+  }
   return failures;
 }
 
@@ -175,9 +191,11 @@ async function main(): Promise<void> {
 
   const site = loadManifest();
   const feeds = site.editions.flatMap((m) => feedPaths(m).map((p) => ({ path: p, blocked: m.blocked })));
-  const pages = [
-    { path: '/', blocked: false },
-    ...site.editions.map((m) => ({ path: `${m.festival.basePath}/`, blocked: m.blocked })),
+  // The same rule the homepage renders from, so the check cannot drift from the page.
+  const listed = listedEditions(site);
+  const pages: { path: string; check: PageCheck }[] = [
+    { path: '/', check: { listed } },
+    ...site.editions.map((m) => ({ path: `${m.festival.basePath}/`, check: { blocked: m.blocked } })),
   ];
   const blockedCount = site.editions.filter((m) => m.blocked).length;
 
@@ -196,9 +214,10 @@ async function main(): Promise<void> {
   }
   for (const p of pages) {
     const url = new URL(p.path.replace(/^\//, ''), base).toString();
-    const failures = await checkPage(url, p.blocked);
+    const failures = await checkPage(url, p.check);
     allFailures.push(...failures);
-    process.stdout.write(`  ${failures.length === 0 ? 'ok  ' : 'FAIL'}  ${url}${p.blocked ? '  (blocked: removed page)' : ''}\n`);
+    const note = p.check.blocked ? '  (blocked: removed page)' : p.check.listed ? `  (${p.check.listed.length} listed card(s))` : '';
+    process.stdout.write(`  ${failures.length === 0 ? 'ok  ' : 'FAIL'}  ${url}${note}\n`);
     for (const x of failures) process.stdout.write(`          ${x.problem}\n`);
   }
 

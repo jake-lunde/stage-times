@@ -14,6 +14,44 @@ review, plus tickets 02, 04, and 15. Nothing user-facing changes until Jake push
 
 ---
 
+## What happened 2026-09-20 (ticket 06, Fable)
+
+**The homepage is the directory.** `renderLandingPage(site, { images })` in `src/pages.ts`
+renders one shelf card per listed edition — `listedEditions()` filters `listed && !blocked` and
+orders by first festival day, then name, then path — after the unchanged red hero and a
+two-sentence section header. The whole card is the link to the edition's page in its
+namespace. Each card: eyebrow (`Aug 7–9, 2026 · Seattle`; on a fan edition the `Fan-made` mark
+in `--red-deep` takes the slot and the dates drop to the first quiet line), the festival name,
+`79 sets across 4 stages.`, the first stage's billed headliners, then art to the bottom edge:
+the committed image from `assets/festivals/`, else `facetsArt()` — the explorer's Facets core,
+the disco ball, seeded by festival key, on the light ground of the first stage color. The old
+featured card, `featuredEdition()`, `renderPages()`, and `capsuleArt()` are gone.
+
+Rulings applied: one 18px `--r-card` on every card and tile on both page types
+(`--r-card-media` retired; stage cards moved from 24, compact cards from 16); the Store
+density tokens (`--pad-shelf` 28, `--gap-shelf` 20 — the stage carousel inherits it —,
+`--gap-section`, `--h-shelf-card` 450/500, `--w-shelf-card` = viewport − margins − 24px peek,
+400 from 735px); `city:` is an optional display-only field under `festival:` (CHBP says
+Seattle, no `publishedAt` bump — no feed byte moved); `shortDates()` is the eyebrow form.
+The shelf keeps one left edge with the header and the prose and runs to the viewport's right
+edge, so a 1024 desktop shows two cards and a phone one with the 24px peek.
+
+Tests: **257 pass**. `tests/landing.test.ts` covers count, order, links, the fan mark, the
+city, the radius token, the Facets fallback (same bytes twice), the density tokens, and the
+copy rules; the smoke test now asserts the live homepage carries one card per listed edition.
+All five CHBP feeds are byte-identical to the previous build. Verified in the browser at 375
+and 1024, light and dark.
+
+**Three taste calls for Jake** (his lane; each a one-line edit in `renderLandingPage` /
+`directoryCard` / `shortDates`): the section header line — shipped as *Pick a festival.* /
+*Then add the stages you want.* (the Store-density draft *Listed festivals.* fails `copy.md`:
+"listed" is glossary vocabulary); the quiet line, shipped as the main stage's billed
+headliners rather than the draft's *Fri–Sun. Pacific time.*; and the year in the eyebrow —
+shipped as `Aug 7–9, 2026` per the audit's block-out, where the ruling's example was
+`AUG 7–9`. The year is there so two years of one festival read as two cards.
+
+---
+
 ## What happened 2026-09-06
 
 The morning session (Opus) settled the glossary (`CONTEXT.md`), the agent docs, ADR-0001, and
@@ -69,8 +107,8 @@ All from the 6 Sep grilling; recorded on the vault effort page and, where perman
 
 ## The frontier (read the vault for the full tickets)
 
-- **Ready now:** 06 (homepage lists listed editions), 07 (publisher seam: upload and confirm),
-  14 (sponsor card and the festival footer link).
+- **Ready now:** 14 (sponsor card and the festival footer link), 16 (stage subtitle line and
+  poster colors), 08 (upload, review and success screens — Jake's lane). 06 and 07 are done.
 - **Waiting on Jake:** 03 (provision secrets: vision API key, GitHub token, owner secret). It
   gates 05 (pick the transcription model on evidence) and 08 (upload, review, success screens).
 - **Owner calls outstanding:** the rights-holder takedown email address (G2 — the footer line

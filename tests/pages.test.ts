@@ -23,7 +23,7 @@ const VA_STUB = 'window.va = window.va || function () { (window.vaq = window.vaq
 const harborBuild = buildFeeds(harborDoc(), emptyState('20260808T000000Z'));
 const dstBuild = buildDst();
 
-const landing = renderLandingPage(harborBuild.manifest);
+const landing = renderLandingPage(buildFixtureSite([harborDoc()], { 'harbor-lights-2026': { listed: true } }).site);
 const subscribe = renderSubscribePage(harborBuild.manifest);
 
 // ===========================================================================

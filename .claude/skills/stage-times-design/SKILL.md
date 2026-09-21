@@ -135,6 +135,7 @@ see the contrast table in `references/color.md`.
 | Hero wordmark | 56–64 | 650 / expanded, uppercase | Archivo |
 | Screen title (festival name) | 40 / 1.02 | 630 / expanded | Archivo |
 | Card heading (stage / festival name on card) | 28–34 / 1.05 | 600 / expanded | Archivo |
+| Shelf card title · shelf section header (`references/store-density.md`) | 24 phone / 28 | 600 / expanded | Archivo |
 | Row title · button label | 16–17 | 600 / normal | Archivo |
 | Body | 16–17 / 1.5 | 400 / normal | Archivo |
 | Caption · metadata line | 13 | 400 | Fragment Mono |
@@ -205,8 +206,9 @@ Use one per screen; don't blend them.
 2. **Stacked action pair** — 44pt tonal above 44pt primary.
 3. **Media card** — the Apple Store / Cash App "More for you" card: image area on top (edge to
    edge inside the card, no padding), then eyebrow, then a big light-weight heading, then a
-   footer row with metadata left and the action right. Radius 18pt like every card. **This was
-   the festival card on the landing page until ticket 06; the directory uses the shelf (6).**
+   footer row with metadata left and the action right. Radius 18pt like every card. **Retired
+   from the landing page by ticket 06 (2026-09-20); the directory uses the shelf (6).** Nothing
+   on the site uses it today.
 4. **Card carousel** — horizontal scroll of media cards, one per snap stop: cards ~86% of the
    viewport wide, `scroll-snap-type: x mandatory`, snap to center, the next card peeking ~24pt.
    Scrollbar hidden; the peek IS the affordance. This is CSS scroll-snap doing the "scroll-jack"
@@ -233,8 +235,13 @@ the phone reading as one card while the desktop reads as a row.
 Two sources of art, one per card, image area always edge-to-edge:
 
 1. **A real festival image** when one exists — `assets/festivals/<festival-key>.<ext>`, copied to
-   `dist/assets/festivals/` by the build. Landing-card hero. Store the file in the repo; never
-   hotlink the festival's CDN (their cache headers, their outages, their tracking).
+   `dist/assets/festivals/` by the build. The art of that edition's directory card on the
+   homepage. Store the file in the repo; never hotlink the festival's CDN (their cache headers,
+   their outages, their tracking). A directory card with no image draws **the Facets core**
+   (owner ruling 2026-09-20; `facetsArt()` in `src/pages.ts`, "Facets" in the explorer): the
+   disco ball, the festival's own globe motif — a cream disc on the light ground of the
+   edition's first stage color, the ground cutting five chords and two meridians back through
+   it, tilted by an angle seeded from the festival key. The tilt is the only seeded value.
 2. **The beads** on every stage card (owner pick, 2026-09-21; `beadsArt()` in `src/pages.ts`,
    explorer and rationale in `_ref/stage-art-explorer/`). The art area is the stage color mixed
    45% toward cream. On it: a ring per festival day, evenly spaced from the center to the card
@@ -247,15 +254,14 @@ Two sources of art, one per card, image area always edge-to-edge:
    each, and the closer's star lights in the stage color while its name is up. Rings drift at
    their own speeds; stars stay upright. Nothing is random: every mark is a set. CSS animation on
    static SVG, so the build stays byte-reproducible; under reduced motion the first name stays.
-   The old seeded capsules (`capsuleArt()`) survive only as the landing card's no-image fallback
-   until ticket 06 replaces that fallback with the explorer's **Facets** core, the disco ball
-   (owner ruling 2026-09-20; `references/store-density.md`).
+   The old seeded capsules retired with ticket 06 (2026-09-20).
 
 Never a stock photo, never AI-generated imagery. Inside the art slot the flat rule is lifted
 (non-negotiable 3): the generative art may use gradients and bloom, and it is the one place on
 the site that may. Its parameters come from the sets — count, start time, length, guessed ends,
 how late the stage runs — so the art is the schedule drawn, not a texture. Seeded exactly as
-above; still byte-reproducible.
+above; still byte-reproducible. The one mark not drawn from the sets is the directory card's
+Facets fallback, which has no sets to draw and is seeded by festival key instead.
 
 ### Navigation bar
 
@@ -311,7 +317,8 @@ The six that decide most lines:
 - [ ] Everything tappable shrinks on press (`scale(.96)`, 120ms) — zeroed under reduced motion
 - [ ] Card headings are big and light (600–650 expanded), never small and heavy
 - [ ] Carousels are CSS scroll-snap — no JS scroll hijacking, no visible scrollbar
-- [ ] Card art is drawn from the sets, never from a clock or `Math.random()` — build output stays byte-identical
+- [ ] Card art is drawn from the sets (the directory fallback, from the festival key), never
+      from a clock or `Math.random()` — build output stays byte-identical
 - [ ] No `box-shadow`, no `linear-gradient`
 - [ ] Nothing is pure `#FFF` or pure `#000`
 - [ ] No cream text under 17pt on any colored surface (see contrast table)
