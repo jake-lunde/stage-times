@@ -22,6 +22,19 @@ owner's call; the build wait polls the page's own origin, so on a preview it alw
 Left for later, deliberately: the day-rolling for time edits is a browser-side reading of a time picker
 (the publisher's `SetEdit` takes wall time); moving it into the publisher means changing 07's seam.
 
+**2026-09-21, ticket 17 — multi-day uploads through the publisher, on branch
+`ticket/17-multi-day-uploads-through-the-publisher`.** Both intents take `images` (day order; the
+old `image` is a list of one and reads exactly as before). Each image is gated, hashed and cached
+on its own; every unread image clears the schedule check before any is transcribed; the caps
+count the request; `MAX_UPLOAD_IMAGES` is 7. The review is one set list across every day, each
+set carrying `image` (its hash) and the review carrying `images`; confirm needs that list back
+as `reviewed` for more than one image, stores every image, and records `images` on the uploader
+record. `BuiltSet.source` in the library says which source a set was read from. Tests:
+`tests/publisher-days.test.ts`. **Not done:** the `/upload/` page still sends one image — taking
+several (and saying "Day 2:" on the right one) is screen work, Jake's lane. Owner calls: the
+limit of 7, and the worst-day spend it implies (20 uploads × 7 images, against the ~$5 the caps
+were sized for).
+
 Status: **everything from 6 Sep sits on `main` unpushed** — the morning's glossary, ADR, and copy
 review, plus tickets 02, 04, and 15. Nothing user-facing changes until Jake pushes.
 
