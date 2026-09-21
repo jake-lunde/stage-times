@@ -13,7 +13,7 @@ URL it ever served keeps answering — empty — so no subscriber ever sees a 40
 | Requester | Channel | What happens to the stored source image |
 |---|---|---|
 | **Rights holder** — the festival or its representative | Email to the owner, at the address on every page | **Deleted** in the same commit as the block |
-| **Uploader** — the person holding the edition's update link | Self-removal from the update link (ticket 09); until that ships, email the owner | **Kept** — a self-removal is not a rights claim, and the image is the evidence behind the times |
+| **Uploader** — the person holding the edition's update link | "Take it down" on the update link's page: the publisher commits the block itself (`remove` in `src/publisher.ts`) | **Kept** — a self-removal is not a rights claim, and the image is the evidence behind the times |
 | Anyone reporting a wrong time | The public issue link on the page | Not a takedown. Fix the YAML instead. |
 
 Plausible means: the requester names the edition and plausibly speaks for the festival. Do not

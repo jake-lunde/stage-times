@@ -35,6 +35,21 @@ several (and saying "Day 2:" on the right one) is screen work, Jake's lane. Owne
 limit of 7, and the worst-day spend it implies (20 uploads × 7 images, against the ~$5 the caps
 were sized for).
 
+**2026-09-21, ticket 09 — correction and self-removal through the update link, on branch
+`ticket/09-correction-and-self-removal-via-the-upda`.** Upload and confirm take an optional
+`update: {editionPath, secret}`; when its hash matches the edition's `uploader.secretHash`
+(`claimedEdition()`), confirm replaces that edition's YAML and log in place under the same slug,
+year and stage ids and moves `publishedAt` — the build's ledger then bumps only changed events. A
+wrong or absent secret is a fresh (suffixed) upload. A listed edition's correction sends an
+`edition-corrected` notification with a per-set diff (`diffSets()`); an unlisted one sends none. A
+correction may not drop a published stage or change year (refused in words). New `remove` intent
+and `api/remove.ts`: `blocked: true`, image kept, wrong secret refused. The build writes
+`/update/fan/<key>/` per fan edition (`renderUploadPage(edition)`). Tests:
+`tests/publisher-correction.test.ts`, plus the adapter and page suites. **Owner calls:** whether a
+self-removal should notify him (it doesn't; the commit says "self-removal"); whether an uploader
+can undo their own removal through the link (they can't — unblocking stays a revert); the update
+page's copy (Jake's lane — shipped as drafted in `screens.md`).
+
 Status: **everything from 6 Sep sits on `main` unpushed** — the morning's glossary, ADR, and copy
 review, plus tickets 02, 04, and 15. Nothing user-facing changes until Jake pushes.
 
