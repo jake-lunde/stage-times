@@ -8,7 +8,9 @@ Set times, by stage. One iCalendar feed per festival stage at stagetimes.app.
   derivation, and artist normalization are frozen from first publish, and
   the build enforces it. Read it before touching `src/`, `data/`, or
   `state/`.
-- `HANDOFF.md` — where the last session left things and what's next.
+- `HANDOFF.md` — standing facts, the working agreement, and the gotchas.
+  Ticket state lives in the vault, never here; do not add per-ticket
+  paragraphs to it.
 - `CONTEXT.md` — the glossary. Use its terms in every ticket, spec, test
   name, and page.
 - `.claude/skills/stage-times-design/` — load before writing or changing

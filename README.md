@@ -9,7 +9,8 @@ The insight the architecture rests on: **iCalendar has no field for "which calen
 belong to."** Calendar assignment happens at subscribe time, one target calendar per feed URL.
 Per-stage calendars are therefore only expressible as N separate feeds. That's the product.
 
-Current session status and open decisions: **[HANDOFF.md](./HANDOFF.md)**.
+Where the work stands lives in the jaique vault (`docs/agents/issue-tracker.md`); the standing
+facts and the working agreement are in **[HANDOFF.md](./HANDOFF.md)**.
 
 ---
 
