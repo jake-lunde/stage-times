@@ -58,7 +58,23 @@ subreddits to watch (none are in `config/watch.yaml`; `r/ACL` is a knee-injury s
 Points and Camp Flog Gnaw guesses did not answer); whether to register a Reddit app for OAuth if the public
 JSON stays blocked; the vote threshold (10); a Reddit username for the User-Agent's `(by /u/…)`.
 
-**2026-09-21, ticket 17 — multi-day uploads through the publisher, on branch
+**2026-09-21, ticket 13 — the monthly look-ahead, on branch `ticket/13-monthly-ninety-day-helper`.**
+`src/look-ahead.ts`: `lookAhead({kind: 'look-ahead', almanac, list}, {notify, clock})` sends one
+`look-ahead` issue per run, `Look-ahead for <Month> <Year>: <from> to <to>` — every edition in the
+new almanac (`config/festivals.yaml`) starting in the next ninety days, with dates, the drop
+expected at the previous edition's lead, source form and watched status, and for an unwatched one a
+checkbox and the exact `config/watch.yaml` entry. `.github/workflows/look-ahead.yml` runs it at
+15:00 UTC on the 1st; the first scheduled run is 1 Oct 2026 and covers October and November
+(`npm run look-ahead -- --dry-run --on 2026-10-01` prints it). Tests: `tests/look-ahead.test.ts`.
+**The almanac holds only what was on record** (the spec's 2026-09-06 dates and the watch list): no
+2025 edition or drop date is in it, so every first-run row says *No earlier drop on record*, and
+this session had no web access to check more. **Owner calls:** review the first run and add
+watchers from it (EDC Orlando and Corona Capital are unwatched; their source URLs and derived slugs
+`edc-orlando`, `corona-capital` need checking); fill in 2025 drop dates and more festivals; the
+source form for III Points, Camp Flog Gnaw and Corona Capital (`unknown`); whether the almanac
+should be refreshed by a model or a scheduled agent rather than by hand.
+
+ — multi-day uploads through the publisher, on branch
 `ticket/17-multi-day-uploads-through-the-publisher`.** Both intents take `images` (day order; the
 old `image` is a list of one and reads exactly as before). Each image is gated, hashed and cached
 on its own; every unread image clears the schedule check before any is transcribed; the caps
