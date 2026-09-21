@@ -1,5 +1,8 @@
 # Stage art explorer
 
+**Shipped 21 Sep 2026:** the default state below is what `beadsArt()` in `src/pages.ts` draws on
+every stage card. The explorer stays for the next round (poster palette, subtitle line).
+
 Default state (owner pick, 21 Sep 2026): Beads, no core, Light ground (the stage color mixed
 45% toward cream behind the art only; the card body stays the stage color), no glow, drift,
 no scrim, ambient names in the Poster block treatment in ink, stars on the closers lit in the stage color.

@@ -61,11 +61,11 @@ product. Every design decision here is subordinate to that tap.
 │                              │
 │  PICK YOUR STAGES            │  eyebrow, mono
 │ ┌───────────────────┐┌────── │  CAROUSEL — scroll-snap x, card ~86vw,
-│ │ ░░ procedural ░░  ││       │  next card peeks ~24pt, no scrollbar
-│ │ ░░ capsule art ░░ ││ next  │
-│ │  NIMINO           ││ stage │  headliner preview in the art area,
-│ │  MARIAH CAREY     ││       │  cream ≥17pt semibold
-│ │  TURNSTILE        ││       │
+│ │ ·  ·  beads   ·   ││       │  next card peeks ~24pt, no scrollbar
+│ │ ·  FRIDAY·10:40PM ││ next  │  the beads: a ring per day, a bead per
+│ │ ·     MUNA      · ││ stage │  set; the headliner names cycle in the
+│ │  ·   ·   ✦   ·    ││       │  center as a poster block, ink on the
+│ │      ·   ·        ││       │  light ground (SKILL.md, Card art)
 │ │                   ││       │
 │ │ Main Stage        ││       │  28–30pt / 600 expanded, cream
 │ │ 24 SETS · FRI–SUN ││       │  mono caption, cream 85%

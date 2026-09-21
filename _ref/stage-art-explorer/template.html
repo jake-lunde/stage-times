@@ -85,6 +85,12 @@ footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--line);font-fa
 <h1>Stage art, drawn from the set times</h1>
 <p class="lede">Five generative families, seeded the way the build already seeds its capsules, with the real Capitol Hill Block Party 2026 sets driving every parameter. Pick a family, a ground, and Glow, and look at the four stages side by side.</p>
 
+<div class="panel" role="group" aria-label="Palette">
+  <div class="seg" id="palette">
+    <button data-v="st" aria-pressed="true">Stage Times colors</button>
+    <button data-v="poster">Poster colors</button>
+  </div>
+</div>
 <div class="panel" role="group" aria-label="Family">
   <div class="seg" id="fam">
     <button data-v="rays" aria-pressed="true">Rays</button>
@@ -215,7 +221,10 @@ footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--line);font-fa
 
 <script>
 const DATA = __DATA__;
-const COLORS = ['#C42408','#045CAC','#1F7A4C','#B5307A'];
+const ST_COLORS=['#C42408','#045CAC','#1F7A4C','#B5307A'];
+// sampled off the CHBP daily posters: teal, magenta, powder blue, olive
+const POSTER_COLORS=['#3E8F86','#B8408F','#7FA3BD','#8E8A2E'];
+let COLORS=ST_COLORS;
 const CREAM = '#FCF9F4';
 // ---- the build's PRNG, verbatim
 function fnv1a(s){let h=0x811c9dc5;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193);}return h>>>0;}
@@ -485,7 +494,7 @@ const FAM={rays,petals,beads,ticks,stars,crowd,ridge,rings,field,capsules};
 const CORE_FAMS=['rays','petals','beads','ticks','stars','crowd'];
 
 // ---- state + render
-const state={fam:'beads',ground:'light',lightPct:45,halftone:false,glow:false,text:true,anim:true,density:.7,variant:0,shape:'none',shapeInk:'cream',names:'ambient',pillInk:'deep',sheet:false,sheetFam:false,scrim:false,scrimPct:25,rayMap:'clock',beadStar:'closers',hl:'poster',nameInk:'ink'};
+const state={fam:'beads',ground:'light',lightPct:45,halftone:false,glow:false,text:true,anim:true,density:.7,variant:0,shape:'none',shapeInk:'cream',names:'ambient',pillInk:'deep',sheet:false,sheetFam:false,scrim:false,scrimPct:25,rayMap:'clock',beadStar:'closers',hl:'poster',nameInk:'ink',palette:'st'};
 // state in the hash, so a dialed-in configuration is a shareable link
 try{const h=new URLSearchParams(location.hash.slice(1));for(const[k,v]of h){if(!(k in state))continue;state[k]=typeof state[k]==='boolean'?v==='1':typeof state[k]==='number'?+v:v;}}catch(e){}
 function syncControls(){document.querySelectorAll('.seg').forEach(seg=>seg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===state[seg.id]))));for(const id of['halftone','glow','text','anim','sheet','sheetFam','scrim'])document.getElementById(id).checked=!!state[id];document.getElementById('density').value=Math.round(state.density*100);document.getElementById('variant').value=state.variant;document.getElementById('scrimPct').value=state.scrimPct;document.getElementById('lightPct').value=state.lightPct;}
@@ -496,7 +505,7 @@ const CORES=['polar','blob','eclipse','facets','bars','cluster','soft'];
 // pop keyframes for 1..12 names sharing one cycle: each shows for its slice, ~4s of a 4.5s slot
 (()=>{let css='';for(let n=1;n<=12;n++){const k=100/n;css+=`@keyframes pop${n}{0%{opacity:0}${(k*0.08).toFixed(2)}%{opacity:1}${(k*0.82).toFixed(2)}%{opacity:1}${(k*0.92).toFixed(2)}%{opacity:0}100%{opacity:0}}`;}const el=document.createElement('style');el.textContent=css;document.head.appendChild(el);})();
 function render(){
-  pushHash();LIGHT_PCT=state.lightPct;
+  pushHash();LIGHT_PCT=state.lightPct;COLORS=state.palette==='poster'?POSTER_COLORS:ST_COLORS;
   const grid=document.getElementById('grid');grid.innerHTML='';
   const runs=state.sheetFam?CORE_FAMS.map(f=>({fam:f,shape:state.shape})):state.sheet&&CORE_FAMS.includes(state.fam)?CORES.map(c=>({fam:state.fam,shape:c})):[{fam:state.fam,shape:state.shape}];
   for(const run of runs){
@@ -527,7 +536,8 @@ function render(){
       :`<p class="lineup">${st.headliners.map(a=>`<span>${esc(a)}</span>`).join('')}</p>`):'';
     el.innerHTML=`<div class="art" style="background:${r.bg}">${svg}${scrim}${names}</div>
       <div class="body"><h3>${esc(stg.name)}</h3><p class="meta">${st.n} sets · Fri–Sun</p>
-      <p class="map">${st.n} sets · first ${hm(st.first)} · last ends ${hm(st.lastEnd)} · median ${st.median} min · late ${Math.round(st.late*100)}%</p>
+      <p class="map">${hm(st.first)} to ${hm(st.lastEnd)} · ${st.median}-minute sets</p>
+      ${stg.description?`<p class="map" style="opacity:.95">${esc(stg.description)}</p>`:''}
       <div class="pill">Add calendar</div></div>`;
     grid.appendChild(el);
   });

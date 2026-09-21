@@ -190,6 +190,8 @@ export interface StageManifest {
   lastSetEnd: string;
   /** The artist closing each day on this stage, in day order, deduped — the "headliner preview". */
   headliners: string[];
+  /** Every set on this stage in start order, local wall times, for the card art. */
+  sets: { artist: string; start: string; end: string }[];
   icsPath: string;
 }
 
@@ -372,6 +374,7 @@ export function buildFeeds(doc: FestivalDoc, state: BuildState, flags: EditionFl
       lastSet: starts[starts.length - 1] ?? '',
       lastSetEnd: ends[ends.length - 1] ?? '',
       headliners,
+      sets: mySets.map((s) => ({ artist: s.artist, start: isoLocal(s.start), end: isoLocal(s.end) })),
       icsPath,
     });
   }

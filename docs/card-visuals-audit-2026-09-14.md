@@ -213,3 +213,31 @@ Costs to measure before shipping Glow: the bloom is an SVG blur filter, cheap fo
 worth pre-rendering at build for a carousel of twelve. Cream headliner text over a lit wedge
 drops under 4.5:1 near the source, so the source sits high and the names sit low, or the names
 get a flat tab.
+
+---
+
+## Addendum, 21 September 2026: the beads ship
+
+Owner pick after dialing the explorer: **Beads**, no core, on a light ground (the stage color
+mixed 45% toward cream behind the art only), no glow, no scrim, drift on, ambient headliner
+names as a **poster block** (night and start time above the name) in ink, each night's closer a
+star that lights in the stage color while its name is up. Ported to `beadsArt()` in
+`src/pages.ts`; the manifest now carries every set's start and end per stage for it. Spec in
+the design skill under Card art. 235 tests pass; the CHBP feeds are unchanged.
+
+Two things the owner flagged for next:
+
+- **Stage colors from the posters.** Revisit §3.6: the explorer has a Poster colors toggle with
+  the four CHBP poster hues sampled (teal, magenta, powder blue, olive) so the two palettes can
+  be compared on the live art. Any change means a `color:` per stage in the YAML and a ruling
+  on `references/color.md`'s assign-by-order rule.
+- **The stage subtitle.** The explorer's debug line ("late 75%") is gone; it now proposes
+  `2:45 PM to 2:15 AM · 45-minute sets` under the set count, with the YAML description below.
+  The build still prints `20 sets · Fri – Sun` plus the description until the owner picks the
+  line.
+
+Open from before, now load-bearing: the headliner override (§4). The card headlines each
+night's closer, so Neumos and Barboza show the afters DJ combos and the 39-character names
+shrink to fit. The card also assigns a post-midnight set to the night it belongs to, so
+Saturday's Main Stage headliner reads Instant Crush (1:45 AM) where the glossary's calendar-day
+rule would say Disco Lines. That is a glossary question for the owner.
