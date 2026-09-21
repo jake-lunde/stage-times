@@ -35,6 +35,20 @@ several (and saying "Day 2:" on the right one) is screen work, Jake's lane. Owne
 limit of 7, and the worst-day spend it implies (20 uploads × 7 images, against the ~$5 the caps
 were sized for).
 
+**2026-09-21, ticket 10 — the owner path, on branch `ticket/10-owner-path`.** Both intents take
+an optional `owner` secret; the publisher asks a new **owner port** (`envOwner()` over
+`ownerMatches()`) and, on a yes, publishes into the root with `listed: true` in the one commit,
+with no pull request and no notification. Every no is a fan, indistinguishably. A fan confirm
+opens a listing pull request (`list/fan/<key>`, one-line diff, branched off the publish commit —
+`RepositoryPort.commit` now returns the commit id); if it will not open, the confirm still
+succeeds and the notification says to list by hand. The page reads `#owner=` from the fragment,
+clears it from the address bar, and sends it with both posts — no visible change. Runbook with
+rotation: `docs/owner-runbook.md`. Tests: `tests/publisher-owner.test.ts`, `tests/ports.test.ts`,
+the owner cases in `tests/publisher-http.test.ts` and `tests/upload-page.test.ts`. **Owner calls:**
+whether the upload caps should exempt the owner (they apply today; the global 20/day could lock
+you out on a drop day); whether an owner re-upload of an existing root edition should become a
+correction (refused today). Unprobed live: pull-request write on the real token.
+
 Status: **everything from 6 Sep sits on `main` unpushed** — the morning's glossary, ADR, and copy
 review, plus tickets 02, 04, and 15. Nothing user-facing changes until Jake pushes.
 

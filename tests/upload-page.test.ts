@@ -18,7 +18,7 @@ import { join } from 'node:path';
 import { ACCEPTED_IMAGE_TYPES, EMAIL_RE, GATE_COPY, MAX_IMAGE_EDGE, MIN_IMAGE_EDGE, type Gate } from '../src/publisher.js';
 import { renderSitePages } from '../src/pages.js';
 import { addDay, editedEnd, editedStart, GATE_SCREENS, ownerFromFragment, ownerLink, renderUploadPage, REVIEW_ZONES, updateLink, type Screen } from '../src/upload-pages.js';
-import { buildFixtureSite, harborDoc, visibleText } from './helpers.js';
+import { buildFixtureSite, harborDoc, REPO_ROOT, visibleText } from './helpers.js';
 
 const html = renderUploadPage();
 const text = visibleText(html);
@@ -303,4 +303,15 @@ test('renderSitePages: the upload page is written at /upload/ beside the edition
   } finally {
     rmSync(out, { recursive: true, force: true });
   }
+});
+
+test('owner runbook: documents the bookmark link exactly as the page reads it, and how to rotate it', () => {
+  const runbook = readFileSync(join(REPO_ROOT, 'docs', 'owner-runbook.md'), 'utf8');
+  assert.ok(runbook.includes(ownerLink('<OWNER_SECRET>').replace('%3C', '<').replace('%3E', '>')), 'the bookmark shape is ownerLink()');
+  assert.match(runbook, /## Rotating the owner secret/);
+  assert.match(runbook, /scripts\/provision-secrets\.sh/);
+  assert.match(runbook, /Redeploy/);
+  assert.match(runbook, /replace the bookmark/);
+  const wizard = readFileSync(join(REPO_ROOT, 'scripts', 'provision-secrets.sh'), 'utf8');
+  assert.ok(wizard.includes('LINK="$SITE/upload/#owner=$OWNER_SECRET"'), 'the wizard prints the same link');
 });
