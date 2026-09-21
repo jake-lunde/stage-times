@@ -2,11 +2,18 @@
  * Stage Times — the upload flow: one static page at `/upload/`, five screens.
  *
  *   details     festival name, first and last day, an email — one form
- *   upload      one file action; the image is checked and posted from here
- *   review      the uploader's own image beside every set the model read, with
- *               the inferred-end and look-closer flags, artist/start/end edits
+ *   upload      one image per day (ticket 18). A one-day festival is one file
+ *               action that posts as soon as an image is chosen — exactly as
+ *               before. More days is a row per day, offered one at a time as
+ *               the one before it fills, each swappable until the read starts,
+ *               and one pill that reads whatever is chosen; a day with no
+ *               times yet can be left out. A rejection about one image lands
+ *               under that day's row.
+ *   review      each day's own image above the sets read off it, with the
+ *               inferred-end and look-closer flags, artist/start/end edits
  *               inline, a "can't read it" toggle that blocks confirm, and the
- *               time zone shown as a guess and changeable
+ *               time zone shown as a guess and changeable. Every row's day is
+ *               the night it belongs to, so it matches the image above it.
  *   publishing  the honest wait: the times are saved, the page is building,
  *               and the update link is handed over now rather than after
  *   success     the share link and the update link, explained in one line
@@ -37,7 +44,7 @@
  * screens.md — the third page type).
  */
 
-import { ACCEPTED_IMAGE_TYPES, EMAIL_RE, GATE_COPY, MAX_IMAGE_EDGE, MIN_IMAGE_EDGE, fill, type Gate } from './publisher.js';
+import { ACCEPTED_IMAGE_TYPES, EMAIL_RE, GATE_COPY, MAX_IMAGE_EDGE, MAX_UPLOAD_IMAGES, MIN_IMAGE_EDGE, fill, type Gate } from './publisher.js';
 import { esc, ICON_BACK, ICON_CHECK, ICON_LINK, page, PROD_ORIGIN } from './pages.js';
 
 export type Screen = 'details' | 'upload' | 'review' | 'publishing' | 'success' | 'remove' | 'removed';
@@ -120,6 +127,43 @@ export function editedEnd(start: string, hhmm: string): string {
 }
 
 /**
+ * The days an upload can carry an image for: every day from the first to the
+ * last, inclusive, and no more than the publisher takes in one upload.
+ */
+export function festivalDays(first: string, last: string, max: number): string[] {
+  var days = [];
+  for (var d = first; d <= last && days.length < max; d = addDay(d, 1)) days.push(d);
+  return days;
+}
+
+/**
+ * The night a set belongs to. A night runs until 6 AM (CONTEXT: headliner), so
+ * a 1:00 AM set is the evening before's — the day printed over it on the
+ * poster, and the image it was read from.
+ */
+export function nightOf(start: string): string {
+  var date = start.slice(0, 10);
+  return start.slice(11, 16) < '06:00' ? addDay(date, -1) : date;
+}
+
+/** `FRI`, or with the date `FRI 9 OCT` — the day as the site's captions print it. */
+export function dayLabel(iso: string, withDate?: boolean): string {
+  var p = iso.slice(0, 10).split('-').map(Number);
+  var d = new Date(Date.UTC(p[0]!, p[1]! - 1, p[2]!));
+  var wd = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][d.getUTCDay()]!;
+  if (!withDate) return wd;
+  var mo = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'][d.getUTCMonth()]!;
+  return wd + ' ' + d.getUTCDate() + ' ' + mo;
+}
+
+/** `FRI 9 OCT`, or `FRI 9 – SAT 10 OCT` when an image's sets span more than one night. */
+export function daysLabel(first: string, last: string): string {
+  var a = dayLabel(first, true), b = dayLabel(last, true);
+  if (first === last) return a;
+  return (a.slice(-3) === b.slice(-3) ? a.slice(0, -4) : a) + ' – ' + b;
+}
+
+/**
  * The update link: the edition's path under `/update/`, the secret in the
  * fragment so it never reaches a server log. Ticket 09 builds what it opens;
  * this is the one place its shape is decided.
@@ -154,14 +198,18 @@ export function ownerFromFragment(hash: string): string {
 /**
  * What the browser checks before it posts, and how it shrinks a photo so the
  * request fits under the platform's body cap (well below the publisher's own
- * 10 MB). A screenshot never needs shrinking; a 12-megapixel photo of a poster
- * does. The same bytes go to upload and to confirm, so the hash matches.
+ * 10 MB). One post carries every day's image, so the byte budget is shared
+ * out over the days: a lone screenshot never needs shrinking; three days of
+ * them, or a 12-megapixel photo of a poster, do. The same bytes go to upload
+ * and to confirm, so the hashes match.
  */
 const LIMITS = {
   minEdge: MIN_IMAGE_EDGE,
   maxEdge: MAX_IMAGE_EDGE,
   types: ACCEPTED_IMAGE_TYPES,
-  /** Bytes to post at most; base64 adds a third, and the platform caps the body around 4.5 MB. */
+  /** One image per day, and no more than the publisher takes in one upload. */
+  maxImages: MAX_UPLOAD_IMAGES,
+  /** Bytes to post at most, all images together; base64 adds a third, and the platform caps the body around 4.5 MB. */
   postBytes: 2_800_000,
   /** Long edge to shrink to when a photo is over the byte budget or the publisher's edge cap. */
   postEdge: 3000,
@@ -201,10 +249,41 @@ button.text-btn{background:none; border:0; padding:0; font-family:inherit}
 .file-btn{position:relative; overflow:hidden}
 .file-btn input{position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; font-size:0}
 
+/* one row per day: the row list — a 56pt tile at the margin, the day and the
+   action beside it, 80pt pitch, no dividers. The whole row is the file action. */
+.days{list-style:none; margin:var(--gap-2) 0 0; padding:0}
+.day-row{
+  display:flex; align-items:center; gap:var(--gap-3); min-height:80px;
+  border-radius:var(--r-card); cursor:pointer; -webkit-tap-highlight-color:transparent;
+  transition:transform var(--t-press) ease;
+}
+.day-row:active{transform:var(--press)}
+.day-row:focus-within{outline:2px solid var(--red-deep); outline-offset:2px}
+.thumb{
+  flex:none; width:56px; height:56px; border-radius:var(--r-card); overflow:hidden;
+  background:var(--paper-sunk); color:var(--ink-soft);
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-mono); font-size:var(--t-body);
+}
+.thumb img{display:block; width:100%; height:100%; object-fit:cover}
+.thumb img[hidden]{display:none}
+.day-text{display:flex; flex-direction:column; gap:4px; min-width:0}
+.day-action{font-size:var(--t-body); font-weight:600; color:var(--ink)}
+.day.is-chosen .day-action{font-weight:500; color:var(--ink-soft)}
+.day>.problem{margin:0 0 var(--gap-2)}
+.fewer{margin:var(--gap-2) 0 0}
+
 /* the uploader's own image, in a card, tall enough to read a poster off */
 .source{margin:var(--gap-4) 0 0; background:var(--paper-sunk); border-radius:var(--r-card); overflow:hidden}
 .source img{display:block; width:100%; height:auto; max-height:70vh; object-fit:contain}
 .source figcaption{padding:0 var(--pad-card) 6px}
+/* a day of the review: its image, then its sets — the next day well below */
+.day-review{margin-top:var(--gap-6)}
+.day-review:first-child{margin-top:0}
+.day-review>.eyebrow{margin:var(--gap-4) 0 0}
+.day-review:not(:first-child)>.eyebrow{margin-top:0}
+.day-review>.eyebrow+.source{margin-top:var(--gap-1)}
+.day-review>.small{margin:var(--gap-2) 0 0}
 
 /* the review rows: one set at a time, no dividers */
 .stage-group{margin-top:var(--gap-5)}
@@ -233,6 +312,9 @@ button.text-btn{background:none; border:0; padding:0; font-family:inherit}
 .link-row code.url{flex:1; margin-top:0}
 .btn--danger{color:var(--red-deep)}
 .vh{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
+@media (prefers-reduced-motion: reduce){
+  .day-row:active{transform:none}
+}
 @media (max-width:359px){
   .field-pair{grid-template-columns:1fr}
 }
@@ -272,7 +354,7 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     : `<header>
     <p class="lockup">Stage&nbsp;Times</p>
     <h2>Add a festival</h2>
-    <p class="title-meta mono-cap">From one screenshot of the set times</p>
+    <p class="title-meta mono-cap">From a screenshot of the set times, one per day</p>
   </header>`;
 
   const changing = f
@@ -349,23 +431,42 @@ export function renderUploadPage(edition?: UpdateTarget): string {
   </section>
 
   <section class="screen" data-screen="upload" hidden>
-    <h3>Your screenshot</h3>
+    <h3 data-title>Your screenshot</h3>
     <p class="lead">The schedule with the times on it, not the lineup. A screenshot from the app or a photo of the poster both work.</p>
     <p class="problem" role="alert" hidden></p>
     <p class="status" aria-live="polite" hidden></p>
-    <label class="btn btn--primary file-btn"><span>Choose image</span><input type="file" accept="image/*" name="image"></label>
+    <div data-one>
+      <label class="btn btn--primary file-btn"><span>Choose image</span><input type="file" accept="image/*" name="image"></label>
+    </div>
+    <div data-many hidden>
+      <ol class="days" data-days></ol>
+      <template id="day-slot">
+        <li class="day" data-slot="">
+          <label class="day-row">
+            <span class="thumb" aria-hidden="true"><img alt="" hidden><span data-n></span></span>
+            <span class="day-text"><span class="mono-cap" data-day></span><span class="day-action" data-action>Choose image</span></span>
+            <input class="vh" type="file" accept="image/*" data-slot-input>
+          </label>
+          <p class="problem" role="alert" hidden></p>
+        </li>
+      </template>
+      <button class="btn btn--primary" type="button" data-read disabled>Read the times</button>
+      <p class="small fewer">A day with no times yet can be left out.</p>
+    </div>
   </section>
 
   <section class="screen" data-screen="review" hidden>
     <h3>Check every set</h3>
-    <p class="lead">Against your image. Fix what's off, and mark anything you can't read.</p>
+    <p class="lead" data-review-lead>Against your image. Fix what's off, and mark anything you can't read.</p>
     <p class="status" data-address></p>
-    <figure class="source"><img alt="Your image"><figcaption><a class="text-btn" target="_blank" rel="noopener">See it bigger ↗</a></figcaption></figure>
     <p class="problem" role="alert" hidden></p>
     <p class="problem" data-year hidden></p>
     <label class="field"><span>Time zone</span><select name="timezone">${zones}</select>
       <span class="hint" data-zone-hint>A guess, since the image can't say. Change it if the festival is somewhere else.</span></label>
     <div id="sets"></div>
+    <template id="day-figure">
+      <figure class="source"><img alt="Your image"><figcaption><a class="text-btn" target="_blank" rel="noopener">See it bigger ↗</a></figcaption></figure>
+    </template>
     <template id="set-row">
       <li class="set" data-index="">
         <label class="field"><span class="vh">Artist</span><input type="text" data-field="artist" autocomplete="off"></label>
@@ -385,7 +486,7 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     </details>
     <button class="btn btn--primary" type="button" data-confirm>Confirm</button>
     <p class="small blocked" data-blocked hidden></p>
-    <button class="text-btn" type="button" data-back="upload">Different image</button>
+    <button class="text-btn" type="button" data-back="upload" data-swap>Different image</button>
   </section>
 
   <section class="screen" data-screen="publishing" hidden>
@@ -428,7 +529,6 @@ export function renderUploadPage(edition?: UpdateTarget): string {
   // fragment: it never reaches a server log, and it goes out only in a body.
   var UPDATE = ${JSON.stringify(f ? { editionPath: f.basePath.replace(/^\//, '') } : null)};
   function updateClaim() { return UPDATE ? { editionPath: UPDATE.editionPath, secret: location.hash.slice(1) } : undefined; }
-  var WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
   var BUILD_WAIT_MS = 5 * 60 * 1000;
   var POLL_MS = 10 * 1000;
 
@@ -439,7 +539,11 @@ export function renderUploadPage(edition?: UpdateTarget): string {
   if (OWNER && history.replaceState) history.replaceState(null, '', location.pathname + location.search);
   function withOwner(body) { if (OWNER) body.owner = OWNER; return body; }
 
-  var state = { details: null, image: null, imageUrl: null, review: null, unreadable: {}, timezoneAssumed: true, published: null, live: false };
+  // state.days is every day an image can be chosen for; state.images is what
+  // has been, by day, in day order and without gaps — the rows are offered one at a time.
+  var state = { details: null, days: [], images: [], review: null, unreadable: {}, timezoneAssumed: true, published: null, live: false };
+  function chosen() { return state.images.filter(function (im) { return !!im; }); }
+  function multiDay() { return state.days.length > 1; }
 
   function $(sel, root) { return (root || document).querySelector(sel); }
   function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
@@ -468,6 +572,18 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     problem(name, reason, rest);
   }
   function screenFor(gate, fallback) { return GATES[gate] || fallback; }
+  // A rejection lands on the screen that can fix it — and one about a single
+  // image of several lands under that day's row, in the publisher's own words.
+  function land(body, fallback) {
+    var to = screenFor(body.gate, fallback);
+    if (to === 'upload' && multiDay() && typeof body.image === 'number' && slotOf(body.image)) {
+      problem('upload', '');
+      slotProblem(body.image, body.reason);
+    } else {
+      fail(to, body);
+    }
+    show(to);
+  }
 
   function post(path, body) {
     return fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -495,16 +611,76 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     if (!EMAIL_RE.test(d.email)) return problem('details', COPY.email);
     problem('details', '');
     state.details = d;
+    var days = festivalDays(d.first, d.last, LIMITS.maxImages);
+    if (days.join() !== state.days.join()) {
+      state.images.forEach(function (im) { if (im) URL.revokeObjectURL(im.url); });
+      state.images = [];
+      state.days = days;
+    }
+    renderSlots();
     show('upload');
   });
 
   // ── upload ───────────────────────────────────────────────────────────────
-  var fileInput = $('input[type="file"]');
+  ${festivalDays.toString()}
+  ${nightOf.toString()}
+  ${dayLabel.toString()}
+  ${daysLabel.toString()}
+
+  // One day is the one file pill, posting on choose. More is a row per day:
+  // the rows are offered one at a time, each one tappable again to swap its
+  // image, and one pill reads whatever has been chosen.
+  var fileInput = $('input[name="image"]');
   fileInput.addEventListener('change', function () {
     var file = fileInput.files && fileInput.files[0];
     fileInput.value = '';
-    if (file) takeImage(file);
+    if (file) takeImage(file, 0);
   });
+  var dayList = $('[data-days]'), slotTpl = $('#day-slot'), readBtn = $('[data-read]');
+  function slotOf(i) { return $('[data-slot="' + i + '"]', dayList); }
+  function slotProblem(i, text) {
+    var p = $('.problem', slotOf(i));
+    p.textContent = text || '';
+    p.hidden = !text;
+  }
+  function renderSlots() {
+    var multi = multiDay();
+    $('[data-title]', screens.upload).textContent = multi ? 'Your screenshots' : 'Your screenshot';
+    $('[data-one]', screens.upload).hidden = multi;
+    $('[data-many]', screens.upload).hidden = !multi;
+    if (!multi) return;
+    var offered = Math.min(chosen().length + 1, state.days.length);
+    var problems = {};
+    $$('[data-slot]', dayList).forEach(function (li) { var p = $('.problem', li); if (!p.hidden) problems[li.getAttribute('data-slot')] = p.textContent; });
+    dayList.textContent = '';
+    state.days.slice(0, offered).forEach(function (day, i) {
+      var li = slotTpl.content.firstElementChild.cloneNode(true);
+      var im = state.images[i];
+      li.setAttribute('data-slot', String(i));
+      $('[data-day]', li).textContent = dayLabel(day, true);
+      $('[data-n]', li).textContent = String(Number(day.slice(8, 10)));
+      var img = $('img', li);
+      if (im) {
+        li.classList.add('is-chosen');
+        img.src = im.url;
+        img.hidden = false;
+        $('[data-n]', li).hidden = true;
+        $('[data-action]', li).textContent = 'Swap image';
+      }
+      dayList.appendChild(li);
+      if (problems[String(i)]) slotProblem(i, problems[String(i)]);
+    });
+    readBtn.disabled = chosen().length === 0;
+  }
+  dayList.addEventListener('change', function (e) {
+    var input = e.target.closest('[data-slot-input]');
+    if (!input) return;
+    var slot = Number(input.closest('[data-slot]').getAttribute('data-slot'));
+    var file = input.files && input.files[0];
+    input.value = '';
+    if (file) takeImage(file, slot);
+  });
+  readBtn.addEventListener('click', function () { if (chosen().length) sendUpload(); });
 
   function loadImage(blob) {
     return new Promise(function (resolve, reject) {
@@ -520,8 +696,10 @@ export function renderUploadPage(edition?: UpdateTarget): string {
       canvas.toBlob(function (b) { b ? resolve(b) : reject(new Error('encode')); }, 'image/jpeg', quality);
     });
   }
-  // Shrink a photo until it fits the budget: a screenshot never gets here.
-  function shrink(img) {
+  // One post carries every day, so each image gets its share of the budget.
+  function budget() { return Math.floor(LIMITS.postBytes / Math.max(1, state.days.length)); }
+  // Shrink an image until it fits its share: a lone screenshot never gets here.
+  function shrink(img, bytes) {
     var steps = [[LIMITS.postEdge, 0.85], [Math.round(LIMITS.postEdge * 0.75), 0.75], [Math.round(LIMITS.postEdge * 0.55), 0.7]];
     var long = Math.max(img.naturalWidth, img.naturalHeight);
     var i = 0;
@@ -534,7 +712,7 @@ export function renderUploadPage(edition?: UpdateTarget): string {
       c.getContext('2d').drawImage(img, 0, 0, w, h);
       return toBlob(c, quality).then(function (blob) {
         i += 1;
-        if (blob.size <= LIMITS.postBytes || i >= steps.length) return { blob: blob, width: w, height: h };
+        if (blob.size <= bytes || i >= steps.length) return { blob: blob, width: w, height: h };
         return attempt();
       });
     }
@@ -550,61 +728,81 @@ export function renderUploadPage(edition?: UpdateTarget): string {
   }
   function mb(bytes) { return (bytes / (1024 * 1024)).toFixed(1).replace(/\\.0$/, ''); }
 
-  function takeImage(file) {
-    problem('upload', '');
+  // What the browser can tell about an image before it costs anything goes
+  // under that day's row when there are several, on the screen's own line
+  // when there is one.
+  function problemAt(slot, text) {
+    if (multiDay() && slotOf(slot)) slotProblem(slot, text); else problem('upload', text);
+  }
+
+  function takeImage(file, slot) {
+    problemAt(slot, '');
     if (LIMITS.types.indexOf(file.type) === -1) {
-      return problem('upload', COPY.notImage);
+      return problemAt(slot, COPY.notImage);
     }
+    var bytes = budget();
     loadImage(file).then(function (loaded) {
       var img = loaded.img;
       var w = img.naturalWidth, h = img.naturalHeight;
       var short = Math.min(w, h), long = Math.max(w, h);
       if (short < LIMITS.minEdge) {
         URL.revokeObjectURL(loaded.url);
-        return problem('upload', fill(COPY.tooSmall, { short: short, min: LIMITS.minEdge }));
+        return problemAt(slot, fill(COPY.tooSmall, { short: short, min: LIMITS.minEdge }));
       }
-      var ready = (file.size > LIMITS.postBytes || long > LIMITS.postEdge)
-        ? shrink(img)
+      var ready = (file.size > bytes || long > LIMITS.postEdge)
+        ? shrink(img, bytes)
         : Promise.resolve({ blob: file, width: w, height: h });
       return ready.then(function (fit) {
         URL.revokeObjectURL(loaded.url);
-        if (fit.blob.size > LIMITS.postBytes) {
-          return problem('upload', 'That image is still ' + mb(fit.blob.size) + ' MB after shrinking. A screenshot is usually well under that.');
+        if (fit.blob.size > bytes) {
+          return problemAt(slot, 'That image is still ' + mb(fit.blob.size) + ' MB after shrinking. ' + (multiDay()
+            ? 'With ' + state.days.length + ' days, each one has to be under ' + mb(bytes) + ' MB.'
+            : 'A screenshot is usually well under that.'));
         }
         return base64(fit.blob).then(function (data) {
-          state.image = { blob: fit.blob, filename: file.name || 'image', contentType: fit.blob.type || file.type, width: fit.width, height: fit.height, data: data };
-          if (state.imageUrl) URL.revokeObjectURL(state.imageUrl);
-          state.imageUrl = URL.createObjectURL(fit.blob);
-          return sendUpload();
+          var was = state.images[slot];
+          if (was) URL.revokeObjectURL(was.url);
+          state.images[slot] = { blob: fit.blob, url: URL.createObjectURL(fit.blob), filename: file.name || 'image', contentType: fit.blob.type || file.type, width: fit.width, height: fit.height, data: data };
+          if (!multiDay()) return sendUpload();
+          renderSlots();
         });
       });
     }, function () {
-      problem('upload', 'I couldn\\'t open that image. Try a screenshot instead.');
+      problemAt(slot, 'I couldn\\'t open that image. Try a screenshot instead.');
     });
   }
 
-  function imageBody() {
-    var im = state.image;
+  function imageBody(im) {
     return { filename: im.filename, contentType: im.contentType, width: im.width, height: im.height, data: im.data };
+  }
+  // The images as the adapters read them: one is image, as it always was;
+  // more is images, in day order.
+  function withImages(body) {
+    var list = chosen().map(imageBody);
+    if (list.length === 1) body.image = list[0]; else body.images = list;
+    return body;
   }
 
   function sendUpload() {
-    var btn = $('.file-btn'), label = $('span', btn), status = $('.status', screens.upload);
-    var d = state.details;
+    var multi = multiDay();
+    var btn = multi ? readBtn : $('.file-btn'), label = multi ? readBtn : $('span', btn), status = $('.status', screens.upload);
+    var d = state.details, n = chosen().length;
+    var total = chosen().reduce(function (sum, im) { return sum + im.blob.size; }, 0);
+    if (total > LIMITS.postBytes) {
+      return problem('upload', 'Those images add up to ' + mb(total) + ' MB, more than I can send in one go. Screenshots are usually well under that.');
+    }
+    problem('upload', '');
     btn.classList.add('is-loading');
     label.textContent = 'Reading\\u2026';
-    status.textContent = 'Reading the times off your image. Usually under a minute.';
+    status.textContent = n === 1
+      ? 'Reading the times off your image. Usually under a minute.'
+      : 'Reading the times off your ' + n + ' images. Usually a minute or two.';
     status.hidden = false;
-    return post('/api/upload', withOwner({ festival: d.festival, dates: { first: d.first, last: d.last }, email: d.email, image: imageBody(), update: updateClaim() })).then(function (r) {
+    return post('/api/upload', withOwner(withImages({ festival: d.festival, dates: { first: d.first, last: d.last }, email: d.email, update: updateClaim() }))).then(function (r) {
       btn.classList.remove('is-loading');
-      label.textContent = 'Choose image';
+      label.textContent = multi ? 'Read the times' : 'Choose image';
       status.hidden = true;
-      if (!r.ok) {
-        var to = screenFor(r.body.gate, 'upload');
-        fail(to, r.body);
-        show(to);
-        return;
-      }
+      if (!r.ok) return land(r.body, 'upload');
       state.review = r.body.review;
       state.unreadable = {};
       state.timezoneAssumed = state.review.timezoneAssumed;
@@ -615,10 +813,6 @@ export function renderUploadPage(edition?: UpdateTarget): string {
 
   // ── review ───────────────────────────────────────────────────────────────
   var zone = $('select[name="timezone"]');
-  function dayLabel(iso) {
-    var p = iso.slice(0, 10).split('-').map(Number);
-    return WEEKDAYS[new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay()];
-  }
   ${addDay.toString()}
   ${editedStart.toString()}
   ${editedEnd.toString()}
@@ -631,8 +825,11 @@ export function renderUploadPage(edition?: UpdateTarget): string {
 
   function renderReview() {
     var rv = state.review;
-    $('.source img').src = state.imageUrl;
-    $('.source a').href = state.imageUrl;
+    var multi = rv.images.length > 1;
+    $('[data-review-lead]').textContent = multi
+      ? 'Each day against its own image. Fix what\\'s off, and mark anything you can\\'t read.'
+      : 'Against your image. Fix what\\'s off, and mark anything you can\\'t read.';
+    $('[data-swap]').textContent = multi ? 'Swap an image' : 'Different image';
     if (!$$('option', zone).some(function (o) { return o.value === rv.timezone; })) {
       var extra = document.createElement('option');
       extra.value = rv.timezone;
@@ -650,33 +847,62 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     year.textContent = rv.yearMismatch ? 'The image reads as ' + rv.year + ', not the year you typed. Check your dates against it.' : '';
     year.hidden = !rv.yearMismatch;
 
-    var host = $('#sets'), tpl = $('#set-row');
+    // One day at a time: the image the sets were read from, then those sets
+    // by stage. The review's images are in the order they were posted, which
+    // is the order they were chosen in. A row's day is the night it belongs
+    // to, so it reads the same as the image above it.
+    var host = $('#sets'), tpl = $('#set-row'), figTpl = $('#day-figure'), images = chosen();
     host.textContent = '';
-    rv.stages.forEach(function (stage) {
-      var sets = rv.sets.filter(function (s) { return s.stage === stage.id; });
-      if (!sets.length) return;
-      var group = document.createElement('div');
-      group.className = 'stage-group';
-      var head = document.createElement('p');
-      head.className = 'eyebrow';
-      head.textContent = stage.name;
-      group.appendChild(head);
-      var ol = document.createElement('ol');
-      ol.className = 'sets';
-      sets.forEach(function (s) {
-        var li = tpl.content.firstElementChild.cloneNode(true);
-        li.setAttribute('data-index', String(s.index));
-        $('[data-field="artist"]', li).value = s.artist;
-        $('[data-day]', li).textContent = dayLabel(s.start);
-        $('[data-field="start"]', li).value = s.start.slice(11, 16);
-        $('[data-field="end"]', li).value = s.end.slice(11, 16);
-        $('[data-printed]', li).textContent = s.printedTime;
-        if (!s.endInferred) $('[data-flag="end"]', li).remove();
-        if (!s.lowConfidence) $('[data-flag="low"]', li).remove();
-        ol.appendChild(li);
+    rv.images.forEach(function (hash, k) {
+      var im = images[k];
+      var daySets = rv.sets.filter(function (s) { return s.image === hash; });
+      var day = document.createElement('section');
+      day.className = 'day-review';
+      var nights = daySets.map(function (s) { return nightOf(s.start); }).sort();
+      var label = nights.length ? daysLabel(nights[0], nights[nights.length - 1]) : dayLabel(state.days[k] || state.days[0], true);
+      if (multi) {
+        var head = document.createElement('p');
+        head.className = 'eyebrow';
+        head.textContent = label;
+        day.appendChild(head);
+      }
+      var fig = figTpl.content.firstElementChild.cloneNode(true);
+      if (multi) $('img', fig).alt = 'Your ' + label + ' image';
+      if (im) { $('img', fig).src = im.url; $('a', fig).href = im.url; }
+      day.appendChild(fig);
+      if (!daySets.length) {
+        var none = document.createElement('p');
+        none.className = 'small';
+        none.textContent = 'No times were read off this one.';
+        day.appendChild(none);
+      }
+      rv.stages.forEach(function (stage) {
+        var sets = daySets.filter(function (s) { return s.stage === stage.id; });
+        if (!sets.length) return;
+        var group = document.createElement('div');
+        group.className = 'stage-group';
+        var stageHead = document.createElement('p');
+        stageHead.className = 'eyebrow';
+        stageHead.textContent = stage.name;
+        group.appendChild(stageHead);
+        var ol = document.createElement('ol');
+        ol.className = 'sets';
+        sets.forEach(function (s) {
+          var li = tpl.content.firstElementChild.cloneNode(true);
+          li.setAttribute('data-index', String(s.index));
+          $('[data-field="artist"]', li).value = s.artist;
+          $('[data-day]', li).textContent = dayLabel(nightOf(s.start));
+          $('[data-field="start"]', li).value = s.start.slice(11, 16);
+          $('[data-field="end"]', li).value = s.end.slice(11, 16);
+          $('[data-printed]', li).textContent = s.printedTime;
+          if (!s.endInferred) $('[data-flag="end"]', li).remove();
+          if (!s.lowConfidence) $('[data-flag="low"]', li).remove();
+          ol.appendChild(li);
+        });
+        group.appendChild(ol);
+        day.appendChild(group);
       });
-      group.appendChild(ol);
-      host.appendChild(group);
+      host.appendChild(day);
     });
 
     var notes = $('details.notes'), list = $('[data-observations]');
@@ -728,7 +954,10 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     var was = btn.textContent;
     btn.classList.add('is-loading');
     btn.textContent = 'Saving\\u2026';
-    var body = withOwner({ festival: d.festival, email: d.email, timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: unverifiable, image: imageBody(), update: updateClaim() });
+    // Every image goes back, and with more than one, the review's own list of
+    // them — so what is published is exactly what was checked.
+    var body = withOwner(withImages({ festival: d.festival, email: d.email, timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: unverifiable, update: updateClaim() }));
+    if (rv.images.length > 1) body.reviewed = rv.images;
     // A correction's calendar already answers, so the wait is for it to change:
     // note what it answers with now, before the new times are sent.
     (rv.correcting ? currentTag(rv.editionPath) : Promise.resolve(null)).then(function (before) {
@@ -737,12 +966,7 @@ export function renderUploadPage(edition?: UpdateTarget): string {
       var r = x.r;
       btn.classList.remove('is-loading');
       btn.textContent = was;
-      if (!r.ok) {
-        var to = screenFor(r.body.gate, 'review');
-        fail(to, r.body);
-        show(to);
-        return;
-      }
+      if (!r.ok) return land(r.body, 'review');
       state.published = r.body;
       var update = UPDATE_LINK.replace('{path}', r.body.editionPath).replace('{secret}', r.body.updateSecret);
       $$('[data-update]').forEach(function (el) { el.textContent = update; $('[data-copy]', el.parentNode).setAttribute('data-copy', update); });
