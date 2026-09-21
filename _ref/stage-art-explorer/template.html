@@ -43,7 +43,13 @@ label.ctl input[type=checkbox]{accent-color:var(--red);width:16px;height:16px}
 .lineup span{display:block}
 .lineup.pills{display:flex;flex-wrap:wrap;gap:6px;bottom:14px}
 .lineup.pills span{display:inline-block;height:32px;line-height:32px;padding:0 14px;border-radius:16px;font-size:15px;font-weight:600;white-space:nowrap;max-width:100%;min-width:0;overflow:hidden;text-overflow:ellipsis}
-.scrim{position:absolute;left:0;right:0;bottom:0;height:62%;pointer-events:none}
+.scrim{position:absolute;inset:0;background:rgba(18,24,31,.15);pointer-events:none}
+.ticker{position:absolute;left:0;right:0;bottom:12px;margin:0;overflow:hidden;white-space:nowrap;font-size:16px;font-weight:600;line-height:32px;-webkit-mask-image:linear-gradient(to right,transparent,#000 24px,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(to right,transparent,#000 24px,#000 calc(100% - 24px),transparent)}
+.ticker .track{display:inline-block;animation:ticker var(--dur,24s) linear infinite;will-change:transform}
+.ticker .track span{display:inline-block;padding-right:16px}
+.ticker .track span::after{content:"\00b7";display:inline-block;padding-left:16px;opacity:.6}
+@keyframes ticker{to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion: reduce){.ticker .track{animation:none}}
 .body{padding:0 16px 16px}
 .body h3{font-size:28px;line-height:1.05;font-weight:600;margin-top:10px}
 .body .meta{font-family:var(--mono);font-size:12px;letter-spacing:.05em;text-transform:uppercase;opacity:.85;margin:6px 0 0}
@@ -102,9 +108,10 @@ footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--line);font-fa
 <div class="panel" role="group" aria-label="Names">
   <div class="seg" id="names">
     <button data-v="plain">Plain names</button>
-    <button data-v="scrim">Scrim</button>
     <button data-v="pills" aria-pressed="true">Pills</button>
+    <button data-v="ticker">Ticker</button>
   </div>
+  <label class="ctl"><input type="checkbox" id="scrim"> Scrim 15%</label>
   <div class="seg" id="pillInk" role="group" aria-label="Pill fill">
     <button data-v="deep" aria-pressed="true">Deep pill</button>
     <button data-v="cream">Cream pill</button>
@@ -233,7 +240,7 @@ function core(kind,cx,cy,hh,sets,st,rand,ink,o){
 }
 function emitter(seed,base,sets,st,o,idx){
   const rand=mulberry32(fnv1a(seed));const ink=inks(base,o.ground);
-  const cx=200,cy=o.text&&o.names!=="plain"?100:120,hh=60;const R=420;const uid=fnv1a(seed).toString(36);
+  const cx=200,cy=o.text&&o.names==="pills"?100:120,hh=60;const R=420;const uid=fnv1a(seed).toString(36);
   const kind=o.shape;
   const gdefs=o.glow?`<defs><radialGradient id="g${uid}" gradientUnits="userSpaceOnUse" cx="${cx}" cy="${cy}" r="${R}"><stop offset="0" stop-color="${ink.a}" stop-opacity=".95"/><stop offset=".3" stop-color="${ink.a}" stop-opacity=".45"/><stop offset="1" stop-color="${ink.a}" stop-opacity="0"/></radialGradient></defs>`:'';
   const hdefs=o.halftone?`<defs><pattern id="d1${uid}" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="5" cy="5" r="3" fill="${ink.a}" fill-opacity=".8"/></pattern><pattern id="d2${uid}" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="6" cy="6" r="2" fill="${ink.a}" fill-opacity=".7"/></pattern><pattern id="d3${uid}" width="14" height="14" patternUnits="userSpaceOnUse"><circle cx="7" cy="7" r="1" fill="${ink.a}" fill-opacity=".7"/></pattern></defs>`:'';
@@ -314,10 +321,10 @@ function capsules(seed,base,sets,st,o){
 const FAM={rays,ridge,rings,field,capsules};
 
 // ---- state + render
-const state={fam:'rays',ground:'color',halftone:false,glow:true,text:true,anim:true,density:.7,variant:0,shape:'polar',shapeInk:'cream',names:'pills',pillInk:'deep',sheet:false};
+const state={fam:'rays',ground:'color',halftone:false,glow:true,text:true,anim:true,density:.7,variant:0,shape:'polar',shapeInk:'cream',names:'pills',pillInk:'deep',sheet:false,scrim:false};
 // state in the hash, so a dialed-in configuration is a shareable link
 try{const h=new URLSearchParams(location.hash.slice(1));for(const[k,v]of h){if(!(k in state))continue;state[k]=typeof state[k]==='boolean'?v==='1':typeof state[k]==='number'?+v:v;}}catch(e){}
-function syncControls(){document.querySelectorAll('.seg').forEach(seg=>seg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===state[seg.id]))));for(const id of['halftone','glow','text','anim','sheet'])document.getElementById(id).checked=!!state[id];document.getElementById('density').value=Math.round(state.density*100);document.getElementById('variant').value=state.variant;}
+function syncControls(){document.querySelectorAll('.seg').forEach(seg=>seg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===state[seg.id]))));for(const id of['halftone','glow','text','anim','sheet','scrim'])document.getElementById(id).checked=!!state[id];document.getElementById('density').value=Math.round(state.density*100);document.getElementById('variant').value=state.variant;}
 function pushHash(){const h=new URLSearchParams();for(const[k,v]of Object.entries(state))h.set(k,typeof v==='boolean'?(v?'1':'0'):String(v));history.replaceState(null,'','#'+h.toString());}
 const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
 let lastMain='';
@@ -342,10 +349,13 @@ function render(){
     const el=document.createElement('div');el.className='card'+(onPaper?' on-paper':'')+(state.anim?' anim':'');el.style.background=r.bg;
     const pillBg=state.pillInk==='deep'?shade(COLORS[i],onPaper?0:.5):state.pillInk==='cream'?'#FCF9F4':'#12181F';
     const pillFg=state.pillInk==='cream'?'#12181F':'#FCF9F4';
-    const scrimTo=onPaper?'#F2EDE4':shade(COLORS[i],state.ground==='deep'?.72:.45);
-    const scrim=state.text&&state.names==='scrim'?`<div class="scrim" style="background:linear-gradient(to bottom, ${scrimTo}00 0%, ${scrimTo}f2 70%)"></div>`:'';
+    const scrim=state.scrim?`<div class="scrim"></div>`:'';
+    const tickerNames=st.headliners.map(a=>`<span>${esc(a)}</span>`).join('');
+    const dur=Math.max(14,Math.round(st.headliners.join('').length*0.55));
     const names=state.text?(state.names==='pills'
       ?`<p class="lineup pills">${st.headliners.map(a=>`<span style="background:${pillBg};color:${pillFg}">${esc(a)}</span>`).join('')}</p>`
+      :state.names==='ticker'
+      ?`<p class="ticker" style="--dur:${dur}s"><span class="track">${tickerNames}${tickerNames}</span></p>`
       :`<p class="lineup">${st.headliners.map(a=>`<span>${esc(a)}</span>`).join('')}</p>`):'';
     el.innerHTML=`<div class="art">${svg}${scrim}${names}</div>
       <div class="body"><h3>${esc(stg.name)}</h3><p class="meta">${st.n} sets · Fri–Sun</p>
@@ -363,8 +373,8 @@ function render(){
 }
 document.querySelectorAll('.seg').forEach(seg=>seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;seg.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');state[seg.id]=b.dataset.v;render();}));
 // names protection note
-const NOTE=document.createElement('p');NOTE.className='hint';NOTE.textContent='Names: Plain is what ships. Scrim is a bottom gradient in the stage color (allowed inside the art slot now). Pills are 32px capsules; Deep pill keeps the stage hue, Cream pill matches the button so it can read as tappable, Ink pill is the neutral.';document.getElementById('hint').after(NOTE);
-for(const id of['halftone','glow','text','anim','sheet'])document.getElementById(id).addEventListener('change',e=>{state[id]=e.target.checked;render();});
+const NOTE=document.createElement('p');NOTE.className='hint';NOTE.textContent='Names: Plain is what ships. Pills are 32px capsules; Deep pill keeps the stage hue, Cream pill matches the button so it can read as tappable, Ink pill is the neutral. Ticker runs the names along the bottom edge continuously, speed set by their length, still under reduced motion. Scrim is a flat 15% ink overlay on the art only, under the names, and combines with any of them.';document.getElementById('hint').after(NOTE);
+for(const id of['halftone','glow','text','anim','sheet','scrim'])document.getElementById(id).addEventListener('change',e=>{state[id]=e.target.checked;render();});
 document.getElementById('density').addEventListener('input',e=>{state.density=e.target.value/100;render();});
 document.getElementById('variant').addEventListener('input',e=>{state.variant=+e.target.value;render();});
 document.getElementById('copysvg').addEventListener('click',e=>{if(navigator.clipboard){navigator.clipboard.writeText(lastMain).then(()=>{e.target.textContent='Copied';setTimeout(()=>e.target.textContent='Copy Main Stage SVG',1400);},()=>{});}});

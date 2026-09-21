@@ -18,7 +18,9 @@ Archivo and Fragment Mono from Google Fonts, which the site's own pages never do
   tried and dropped: they read as signage.
 - "Compare cores" renders every core as a row. The whole configuration lives in the URL hash,
   so a dialed-in look is a shareable link.
-- Names: plain, scrim, or 32px pills in deep / cream / ink.
+- Names: plain, 32px pills in deep / cream / ink, or a ticker that runs the headliners along
+  the bottom edge (speed from their length, static under reduced motion). Scrim is a separate
+  toggle: a flat 15% ink overlay on the art area only, under the names.
 
 Regenerate `index.html` after editing the template:
 
