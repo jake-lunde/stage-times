@@ -22,7 +22,7 @@ owner's call; the build wait polls the page's own origin, so on a preview it alw
 Left for later, deliberately: the day-rolling for time edits is a browser-side reading of a time picker
 (the publisher's `SetEdit` takes wall time); moving it into the publisher means changing 07's seam.
 
-**2026-09-21, ticket 11 — the drop watcher, on branch `ticket/11-drop-watcher`.** `src/watcher.ts`
+**2026-09-21, ticket 11 — the drop watcher, merged to `main` (`1abfaca`), not pushed.** `src/watcher.ts`
 is the publisher seam from the other side: `watch({kind: 'watch', list}, ports)` over the publisher's
 ports plus a page port. Per due entry it reads every image on the schedule page, decides each new one
 once (free gates, then the cheap check; verdicts committed to `state/watch.json`), and compares the
@@ -36,7 +36,7 @@ day; the job is `.github/workflows/watch.yml` on an hourly cron with no server. 
 run will open that review), III Points 2026 (the lineup page; no schedule page exists yet) and Camp Flog
 Gnaw 2026 (same). Verified against the live ACL page without spend: the extractor finds exactly the
 three Wk2 images and the header parser reads their sizes. Runbook: `docs/watcher-runbook.md`. Tests:
-`tests/watcher.test.ts`, the page-port and notice cases in `tests/ports.test.ts`. **Before it runs:**
+`tests/watcher.test.ts`, the page-port and issue cases in `tests/ports.test.ts`; 377 pass. **Before it runs:**
 `ANTHROPIC_API_KEY` must exist as a GitHub Actions repository secret (the wizard now sets it, or
 `gh secret set`), and the workflow only exists once `main` is pushed. **Owner calls:** the daily slot
 (15:00 UTC); whether a page unreachable for days should notify (it is silent); whether a self-superseded
