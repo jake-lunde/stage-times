@@ -28,8 +28,9 @@ Archivo and Fragment Mono from Google Fonts, which the site's own pages never do
 - "Compare cores" renders every core as a row; "Compare families" every countable family. The whole configuration lives in the URL hash,
   so a dialed-in look is a shareable link.
 - Names: plain, 32px pills in deep / cream / ink, a ticker that runs the headliners along
-  the bottom edge, or Ambient, which shows each name at the center of the art for about four seconds in turn
-  and its star takes the pill's ink while the name is up; the pill is drawn above the core, and
+  the bottom edge, or Ambient, which shows each headliner at the center of the art for about four seconds in
+  turn, in one of six treatments (Marquee, Poster block, Crop, Ghost day, Stamp, Pill) while
+  its star grows, or takes the pill's ink for Pill; the pill is drawn above the core, and
   on Beads the sparkles counter-rotate to stay upright (families without stars
   cycle the names at the bottom instead). Nothing is dimmed for a guessed end any more. Scrim is a separate
   toggle: a flat 15% ink overlay on the art area only, under the names.

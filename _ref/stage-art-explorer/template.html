@@ -72,6 +72,8 @@ footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--line);font-fa
 .anim .rot{transform-origin:var(--ox) var(--oy);animation:spin var(--spin,240s) linear infinite}
 .anim .unrot{animation:spin var(--spin,240s) linear infinite reverse}
 .lbl{font-family:var(--sans);font-weight:600;font-size:17px}
+.lbl .disp{font-stretch:125%;font-weight:630;letter-spacing:-.01em}
+.lbl .eb{font-family:var(--mono);font-weight:400;font-size:11px;letter-spacing:.07em;text-transform:uppercase}
 .lbl .pop{opacity:0}
 .ambient{position:absolute;left:16px;right:16px;bottom:14px;margin:0;height:26px;pointer-events:none}
 .ambient span{position:absolute;left:0;bottom:0;display:inline-block;height:26px;line-height:26px;padding:0 20px;border-radius:13px;font-size:14px;font-weight:600;white-space:nowrap;opacity:0}
@@ -134,6 +136,14 @@ footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--line);font-fa
     <button data-v="ambient">Ambient</button>
   </div>
   <label class="ctl"><input type="checkbox" id="scrim"> Scrim 15%</label>
+  <div class="seg" id="hl" role="group" aria-label="Headliner style">
+    <button data-v="marquee" aria-pressed="true">Marquee</button>
+    <button data-v="poster">Poster block</button>
+    <button data-v="crop">Crop</button>
+    <button data-v="ghost">Ghost day</button>
+    <button data-v="stamp">Stamp</button>
+    <button data-v="pill">Pill</button>
+  </div>
   <div class="seg" id="pillInk" role="group" aria-label="Pill fill">
     <button data-v="deep" aria-pressed="true">Deep pill</button>
     <button data-v="cream">Cream pill</button>
@@ -363,14 +373,31 @@ function capsules(seed,base,sets,st,o){
 // inside a drifting ring the line is a radius, so it turns with the ring and always points at its star.
 const popStyle=(i,n)=>`animation:pop${n} ${n*4.5}s linear infinite;animation-delay:${(i*4.5).toFixed(1)}s`;
 function pillColors(o,base){return{bg:o.pillInk==='deep'?shade(base,o.ground==='paper'?0:.5):o.pillInk==='cream'?'#FCF9F4':'#12181F',fg:o.pillInk==='cream'?'#12181F':'#FCF9F4'};}
-function centerPill(name,i,n,o,base,cx,cy){
-  const est=Math.round(44+name.length*9.6);const w=Math.min(360,est),h=32;
-  const {bg,fg}=pillColors(o,base);
-  const squeeze=est>360?` textLength="${w-44}" lengthAdjust="spacingAndGlyphs"`:'';
-  return`<g class="pop${i===0?' first':''}" style="${popStyle(i,n)}"><rect x="${cx-Math.round(w/2)}" y="${cy-h/2}" width="${w}" height="${h}" rx="16" fill="${bg}"/><text x="${cx}" y="${cy+6}" text-anchor="middle" fill="${fg}"${squeeze}>${esc(name)}</text></g>`;
+const WEEKDAY=['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+const dayName=d=>{const [y,m,dd]=days[d].split('-').map(Number);return WEEKDAY[new Date(Date.UTC(y,m-1,dd)).getUTCDay()];};
+// display size that fits the name across the art: expanded Archivo caps run about 0.78em per character
+const fit=(name,max,min=22,width=340)=>Math.max(min,Math.min(max,Math.floor(width/(name.length*0.78))));
+function centerName(set,i,n,o,base,cx,cy){
+  const name=set.artist;const wrap=inner=>`<g class="pop${i===0?' first':''}" style="${popStyle(i,n)}">${inner}</g>`;
+  const {bg,fg}=pillColors(o,base);const ink=inks(base,o.ground);
+  switch(o.hl){
+    case 'pill':{const est=Math.round(44+name.length*9.6);const w=Math.min(360,est),h=32;const squeeze=est>360?` textLength="${w-44}" lengthAdjust="spacingAndGlyphs"`:'';
+      return wrap(`<rect x="${cx-Math.round(w/2)}" y="${cy-h/2}" width="${w}" height="${h}" rx="16" fill="${bg}"/><text x="${cx}" y="${cy+6}" text-anchor="middle" fill="${fg}"${squeeze}>${esc(name)}</text>`);}
+    case 'marquee':{ // the name alone, big and light, expanded. the poster's own move.
+      const fs=fit(name,56);return wrap(`<text class="disp" x="${cx}" y="${cy+Math.round(fs*0.36)}" font-size="${fs}" text-anchor="middle" fill="${ink.a}">${esc(name)}</text>`);}
+    case 'poster':{ // what the poster prints: the night and the time above, the name below
+      const fs=fit(name,48);return wrap(`<text class="eb" x="${cx}" y="${cy-Math.round(fs*0.5)-10}" text-anchor="middle" fill="${ink.a}" fill-opacity=".85">${dayName(set.day)} \u00b7 ${hm(set.am)}</text><text class="disp" x="${cx}" y="${cy+Math.round(fs*0.42)}" font-size="${fs}" text-anchor="middle" fill="${ink.a}">${esc(name)}</text>`);}
+    case 'crop':{ // oversized, cropped by the card, like a poster pinned too close
+      const fs=Math.max(72,fit(name,120,72,520));return wrap(`<text class="disp" x="${cx}" y="${cy+Math.round(fs*0.36)}" font-size="${fs}" text-anchor="middle" fill="${ink.a}">${esc(name)}</text>`);}
+    case 'ghost':{ // the night, huge and faint, behind the name
+      const fs=fit(name,52);return wrap(`<text class="disp" x="${cx}" y="${cy+44}" font-size="120" text-anchor="middle" fill="${ink.a}" fill-opacity=".14">${dayName(set.day).slice(0,3)}</text><text class="disp" x="${cx}" y="${cy+Math.round(fs*0.36)}" font-size="${fs}" text-anchor="middle" fill="${ink.a}">${esc(name)}</text>`);}
+    case 'stamp':{ // an outlined capsule with the sparkle in it, a ticket stub
+      const fs=fit(name,30,18,280);const w=Math.min(372,Math.round(fs*0.78*name.length+fs*2.2)),h=Math.round(fs*1.7);
+      return wrap(`<rect x="${cx-Math.round(w/2)}" y="${cy-Math.round(h/2)}" width="${w}" height="${h}" rx="${Math.round(h/2)}" fill="none" stroke="${ink.a}" stroke-width="2"/>${sparkle(cx-Math.round(w/2)+Math.round(h*0.55),cy,Math.round(h*0.22),ink.a,1)}<text class="disp" x="${cx+Math.round(h*0.28)}" y="${cy+Math.round(fs*0.36)}" font-size="${fs}" text-anchor="middle" fill="${ink.a}">${esc(name)}</text>`);}
+  }
 }
-function lit(x,y,k,i,n,o,base){ // a copy of the sparkle in the pill's ink, popping on the same cycle as its name
-  return`<g class="pop${i===0?' first':''}" style="${popStyle(i,n)}">${sparkle(x,y,k,pillColors(o,base).bg,1)}</g>`;
+function lit(x,y,k,i,n,o,base){ // while its name is up: the pill's ink for the pill style, otherwise the star grows
+  const big=o.hl!=='pill';return`<g class="pop${i===0?' first':''}" style="${popStyle(i,n)}">${sparkle(x,y,big?Math.round(k*1.8):k,big?'#FCF9F4':pillColors(o,base).bg,1)}</g>`;
 }
 function frame(seed,base,sets,st,o,marks,rot,top=''){
   const rand=mulberry32(fnv1a(seed+'/core'));const ink=inks(base,o.ground);
@@ -406,7 +433,7 @@ function beads(seed,base,sets,st,o){ // a ring per day, evenly spaced from the c
       // a sparkle counter-rotates around its own point, so it stays upright while the ring turns
       const li=labelSets.indexOf(s);const k=Math.round(rad*2.4);
       const amb=o.names==='ambient'&&o.text&&li>=0;
-      if(amb)tops.push(centerPill(s.artist,li,labelSets.length,o,base,cx,cy));
+      if(amb)tops.push(centerName(s,li,labelSets.length,o,base,cx,cy));
       const mark=isStar(s)?`<g class="unrot" style="transform-origin:${x}px ${y}px;--spin:${spin}s">${sparkle(x,y,k,ink.a,.95)}${amb?lit(x,y,k,li,labelSets.length,o,base):''}</g>`:`<circle cx="${x}" cy="${y}" r="${rad}" fill="${ink.a}" fill-opacity=".95"/>`;
       return mark;}).join('');
     return`<g class="rot" style="--ox:${cx}px;--oy:${cy}px;--spin:${spin}s">${ring}${dots}</g>`;}).join('');
@@ -428,7 +455,7 @@ function stars(seed,base,sets,st,o){ // one star per set: x is time of day, y is
   const last={};for(const p of pts)last[p.s.day]=p;
   const lab=Object.values(last);const tops=[];const {cx,cy}=geo(o);
   const marks=pts.map(p=>{const r=Math.round((2.5+p.s.len/60*3)*(0.6+o.density*0.6));
-    if(last[p.s.day]===p){const li=lab.indexOf(p);const k=Math.round(r*2.6);if(o.names==='ambient'&&o.text){tops.push(centerPill(p.s.artist,li,lab.length,o,base,cx,cy));return sparkle(p.x,p.y,k,ink.a,1)+lit(p.x,p.y,k,li,lab.length,o,base);}return sparkle(p.x,p.y,k,ink.a,1);}
+    if(last[p.s.day]===p){const li=lab.indexOf(p);const k=Math.round(r*2.6);if(o.names==='ambient'&&o.text){tops.push(centerName(p.s,li,lab.length,o,base,cx,cy));return sparkle(p.x,p.y,k,ink.a,1)+lit(p.x,p.y,k,li,lab.length,o,base);}return sparkle(p.x,p.y,k,ink.a,1);}
     return`<circle cx="${p.x}" cy="${p.y}" r="${r}" fill="${ink.a}" fill-opacity=".95"/>`;}).join('');
   return frame(seed,base,sets,st,o,path+marks,false,tops.join(''));
 }
@@ -445,7 +472,7 @@ const FAM={rays,petals,beads,ticks,stars,crowd,ridge,rings,field,capsules};
 const CORE_FAMS=['rays','petals','beads','ticks','stars','crowd'];
 
 // ---- state + render
-const state={fam:'rays',ground:'color',halftone:false,glow:true,text:true,anim:true,density:.7,variant:0,shape:'polar',shapeInk:'cream',names:'pills',pillInk:'deep',sheet:false,sheetFam:false,scrim:false,rayMap:'clock',beadStar:'closers'};
+const state={fam:'rays',ground:'color',halftone:false,glow:true,text:true,anim:true,density:.7,variant:0,shape:'polar',shapeInk:'cream',names:'pills',pillInk:'deep',sheet:false,sheetFam:false,scrim:false,rayMap:'clock',beadStar:'closers',hl:'marquee'};
 // state in the hash, so a dialed-in configuration is a shareable link
 try{const h=new URLSearchParams(location.hash.slice(1));for(const[k,v]of h){if(!(k in state))continue;state[k]=typeof state[k]==='boolean'?v==='1':typeof state[k]==='number'?+v:v;}}catch(e){}
 function syncControls(){document.querySelectorAll('.seg').forEach(seg=>seg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===state[seg.id]))));for(const id of['halftone','glow','text','anim','sheet','sheetFam','scrim'])document.getElementById(id).checked=!!state[id];document.getElementById('density').value=Math.round(state.density*100);document.getElementById('variant').value=state.variant;}
@@ -506,7 +533,7 @@ function render(){
 }
 document.querySelectorAll('.seg').forEach(seg=>seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;seg.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');state[seg.id]=b.dataset.v;render();}));
 // names protection note
-const NOTE=document.createElement('p');NOTE.className='hint';NOTE.textContent='Names: Plain is what ships. Pills are 32px capsules; Deep pill keeps the stage hue, Cream pill matches the button so it can read as tappable, Ink pill is the neutral. Ticker runs the names along the bottom edge continuously. Ambient shows each name in the center of the art for about four seconds, one after another, and its star takes the pill\'s ink while the name is up. Families without stars cycle the names at the bottom instead. Scrim is a flat 15% ink overlay on the art only, under the names.';document.getElementById('hint').after(NOTE);
+const NOTE=document.createElement('p');NOTE.className='hint';NOTE.textContent='Names: Plain is what ships. Pills are 32px capsules; Deep pill keeps the stage hue, Cream pill matches the button so it can read as tappable, Ink pill is the neutral. Ticker runs the names along the bottom edge continuously. Ambient shows each headliner in the center of the art for about four seconds, one after another, in the Headliner style you pick: Marquee is the name alone, big and expanded; Poster block adds the night and the start time above it; Crop oversizes it past the card edge; Ghost day puts the night huge and faint behind it; Stamp is an outlined capsule with the sparkle; Pill is the filled chip. Its star grows while the name is up (or takes the pill ink, for Pill). Families without stars cycle the names at the bottom instead. Scrim is a flat 15% ink overlay on the art only, under the names.';document.getElementById('hint').after(NOTE);
 for(const id of['halftone','glow','text','anim','sheet','sheetFam','scrim'])document.getElementById(id).addEventListener('change',e=>{state[id]=e.target.checked;render();});
 document.getElementById('density').addEventListener('input',e=>{state.density=e.target.value/100;render();});
 document.getElementById('variant').addEventListener('input',e=>{state.variant=+e.target.value;render();});
