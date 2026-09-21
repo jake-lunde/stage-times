@@ -4,7 +4,8 @@
  *
  * Read the fields, call the publisher, return what it said. The update-link
  * secret comes back in this response and in no other, ever: committed state
- * keeps only its hash.
+ * keeps only its hash. With a valid `update` link the confirm is a correction
+ * of that edition, and `corrected` says so.
  */
 
 import { confirm, type ConfirmIntent, type PublisherPorts } from '../src/publisher.js';
@@ -16,6 +17,7 @@ import {
   json,
   optHashList,
   optStr,
+  optUpdate,
   parseImages,
   readJsonBody,
   rejected,
@@ -38,6 +40,7 @@ export async function handle(request: Request, ports: PublisherPorts): Promise<R
       unverifiable: indexList(body, 'unverifiable'),
       ...parseImages(body),
       ...(optHashList(body, 'reviewed') !== undefined ? { reviewed: optHashList(body, 'reviewed')! } : {}),
+      ...optUpdate(body),
     };
   } catch (err) {
     return badRequest(err);
@@ -45,7 +48,7 @@ export async function handle(request: Request, ports: PublisherPorts): Promise<R
 
   const result = await confirm(intent, ports);
   return result.ok
-    ? json({ ok: true, editionPath: result.editionPath, updateSecret: result.updateSecret }, 200)
+    ? json({ ok: true, editionPath: result.editionPath, updateSecret: result.updateSecret, corrected: result.corrected }, 200)
     : rejected(result.rejection!);
 }
 

@@ -14,6 +14,7 @@ import { join } from 'node:path';
 
 import { handle as handleUpload } from '../api/upload.js';
 import { handle as handleConfirm } from '../api/confirm.js';
+import { handle as handleRemove } from '../api/remove.js';
 import { sha256, type Review, type SourceImage } from '../src/publisher.js';
 import { fakePorts, image, weekendImages, weekendVision, type Fakes } from './publisher-fakes.js';
 import { REPO_ROOT } from './helpers.js';
@@ -210,6 +211,55 @@ test('adapter: an images field that is not a list of images is a 400', async () 
 // The adapters hold no rules
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// The update link
+// ---------------------------------------------------------------------------
+
+async function publishedLink(ports: Fakes): Promise<{ editionPath: string; secret: string }> {
+  const review = await uploadOk(ports);
+  const res = await handleConfirm(
+    post({ festival: 'Low Tide', email: 'sam@example.com', timezone: review.timezone, timezoneAssumed: true, edits: [], unverifiable: [], image: imageBody() }),
+    ports,
+  );
+  const body = (await res.json()) as { editionPath: string; updateSecret: string };
+  return { editionPath: body.editionPath, secret: body.updateSecret };
+}
+
+test('adapter: an update link rides through upload and confirm as a correction', async () => {
+  const ports = fakePorts();
+  const update = await publishedLink(ports);
+  const up = await handleUpload(post({ ...UPLOAD_BODY, update }), ports);
+  assert.equal(up.status, 200, await up.clone().text());
+  const review = ((await up.json()) as { review: Review }).review;
+  assert.equal(review.correcting, true);
+  assert.equal(review.editionPath, 'fan/low-tide-2026');
+
+  const res = await handleConfirm(
+    post({ festival: 'Low Tide', email: 'sam@example.com', timezone: review.timezone, timezoneAssumed: true, edits: [], unverifiable: [], image: imageBody(), update }),
+    ports,
+  );
+  const body = (await res.json()) as { editionPath: string; updateSecret: string; corrected: boolean };
+  assert.equal(body.corrected, true);
+  assert.equal(body.editionPath, 'fan/low-tide-2026');
+  assert.equal(body.updateSecret, update.secret);
+});
+
+test('adapter: remove takes the edition down with the right link and answers 403 with a wrong one', async () => {
+  const ports = fakePorts();
+  const update = await publishedLink(ports);
+  const wrong = await handleRemove(post({ update: { ...update, secret: 'nope' } }), ports);
+  assert.equal(wrong.status, 403);
+  assert.equal(((await wrong.json()) as { gate: string }).gate, 'update-link');
+  assert.equal(ports.repo.published.editions['fan/low-tide-2026']!.blocked, false);
+
+  const res = await handleRemove(post({ update }), ports);
+  assert.equal(res.status, 200, await res.clone().text());
+  assert.equal(ports.repo.published.editions['fan/low-tide-2026']!.blocked, true);
+
+  const bad = await handleRemove(post({}), ports);
+  assert.equal(bad.status, 400, 'no link, nothing to go on');
+});
+
 test('adapter: each file contains only request parsing and the publisher call', () => {
   const allowed = new Set(['../src/publisher.js', '../src/publisher-http.js', '../src/ports.js']);
   // Anything that decides rather than parses. If one of these ever appears in
@@ -229,7 +279,7 @@ test('adapter: each file contains only request parsing and the publisher call', 
     'randomBytes',
   ];
 
-  for (const file of ['upload.ts', 'confirm.ts']) {
+  for (const file of ['upload.ts', 'confirm.ts', 'remove.ts']) {
     const source = readFileSync(join(REPO_ROOT, 'api', file), 'utf8');
     const code = source.replace(/\/\*\*[\s\S]*?\*\//g, ''); // the header comment explains; it does not run
     const imports = [...code.matchAll(/from '([^']+)'/g)].map((m) => m[1]!);
