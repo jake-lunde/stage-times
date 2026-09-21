@@ -68,23 +68,68 @@ export interface FakeVision extends VisionPort {
   checks: number;
   /** How many times the expensive call was made. This is the spend. */
   transcriptions: number;
+  /** The file name of every image the cheap check was asked about, in order. */
+  checked: string[];
+  /** The file name of every image that was transcribed, in order. */
+  transcribed: string[];
 }
 
-export function fakeVision(options: { reply?: string; isSchedule?: boolean; saw?: string } = {}): FakeVision {
+export interface FakeVisionOptions {
+  /** The reply for any image without one of its own in `replies`. */
+  reply?: string;
+  /** A reply per image, by file name — one day's image, one day's reply. */
+  replies?: Record<string, string>;
+  isSchedule?: boolean;
+  /** File names the cheap check says no to. Everything else is a schedule. */
+  notSchedules?: string[];
+  saw?: string;
+}
+
+export function fakeVision(options: FakeVisionOptions = {}): FakeVision {
   const reply = options.reply ?? recordedReply();
   const vision: FakeVision = {
     checks: 0,
     transcriptions: 0,
-    async looksLikeSchedule(): Promise<ScheduleCheck> {
+    checked: [],
+    transcribed: [],
+    async looksLikeSchedule(image): Promise<ScheduleCheck> {
       vision.checks += 1;
-      return options.isSchedule === false ? { isSchedule: false, saw: options.saw ?? 'a crowd' } : { isSchedule: true };
+      vision.checked.push(image.filename);
+      const no = options.isSchedule === false || (options.notSchedules ?? []).includes(image.filename);
+      return no ? { isSchedule: false, saw: options.saw ?? 'a crowd' } : { isSchedule: true };
     },
-    async transcribe(): Promise<string> {
+    async transcribe(image): Promise<string> {
       vision.transcriptions += 1;
-      return reply;
+      vision.transcribed.push(image.filename);
+      return options.replies?.[image.filename] ?? reply;
     },
   };
   return vision;
+}
+
+/**
+ * Three days of Low Tide, one image each, in day order. Friday is the
+ * one-image fixture everything else uses; Saturday and Sunday add a set list
+ * of their own, and Sunday a stage the other days do not have.
+ */
+export function weekendImages(): SourceImage[] {
+  return [
+    image({ filename: 'friday.webp', bytes: new TextEncoder().encode('the friday schedule, as pixels') }),
+    image({ filename: 'saturday.png', contentType: 'image/png', bytes: new TextEncoder().encode('the saturday schedule, as pixels') }),
+    image({ filename: 'sunday.jpg', contentType: 'image/jpeg', bytes: new TextEncoder().encode('the sunday schedule, as pixels') }),
+  ];
+}
+
+/** The fake vision for `weekendImages()`: each day's image reads as that day. */
+export function weekendVision(options: Omit<FakeVisionOptions, 'replies'> = {}): FakeVision {
+  return fakeVision({
+    ...options,
+    replies: {
+      'friday.webp': recordedReply('low-tide.json'),
+      'saturday.png': recordedReply('low-tide-saturday.json'),
+      'sunday.jpg': recordedReply('low-tide-sunday.json'),
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------

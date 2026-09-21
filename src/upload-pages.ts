@@ -40,6 +40,7 @@ export type Screen = 'details' | 'upload' | 'review' | 'publishing' | 'success';
  */
 export const GATE_SCREENS: Record<Gate, Screen> = {
   details: 'details',
+  images: 'upload',
   type: 'upload',
   size: 'upload',
   dimensions: 'upload',

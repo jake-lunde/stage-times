@@ -1,0 +1,26 @@
+{
+  "festival_name": "LOW TIDE",
+  "official_url": "LOWTIDE.EXAMPLE",
+  "days": [
+    {
+      "date": "2026-10-10",
+      "header": "SATURDAY OCTOBER 10, 2026",
+      "stages": [
+        {
+          "name": "MAIN STAGE",
+          "sets": [
+            { "artist": "SUNNY WAR", "time": "4:00-4:45PM", "afters": false, "annotations": [] },
+            { "artist": "JAPANESE BREAKFAST", "time": "9:30-10:45PM", "afters": false, "annotations": [] }
+          ]
+        },
+        {
+          "name": "CELLAR STAGE",
+          "sets": [
+            { "artist": "TOMBERLIN", "time": "11:00-11:45PM", "afters": false, "annotations": [] }
+          ]
+        }
+      ]
+    }
+  ],
+  "observations": []
+}
