@@ -512,6 +512,55 @@ function buildNotes(set: RawSet, noEnd: 'close' | 'bare' | undefined): string {
 }
 
 /**
+ * One poster day's sets, stage by stage, in printed order, with every time
+ * rule applied: meridiems resolved, midnight crossed, a missing end made start
+ * plus an hour. One set per printed set, in the order `day.stages` prints
+ * them, so the two can be read side by side.
+ */
+export function readDay(day: RawDay, source: string): BuiltSet[] {
+  const sets: BuiltSet[] = [];
+  for (const stage of day.stages) {
+    const stageId = stageIdFromName(stage.name);
+    let dayOffset = 0;
+    let prevAbsStart: number | null = null;
+    for (const rawSet of stage.sets) {
+      const range = parseTimeRange(rawSet.time);
+      const { startMin, endMin } = resolveRange(range, prevAbsStart);
+      let absStart = startMin + dayOffset * 1440;
+      if (prevAbsStart !== null && absStart < prevAbsStart) {
+        // A set printed later in the column that starts at an earlier clock
+        // time has crossed midnight: shift to the next calendar date.
+        dayOffset += 1;
+        absStart += 1440;
+      }
+      const isClose = endMin === null;
+      let absEnd: number;
+      if (isClose) {
+        absEnd = absStart + 60; // owner's rule: no printed end → start + 60 min
+      } else {
+        absEnd = endMin + dayOffset * 1440;
+        while (absEnd <= absStart) absEnd += 1440;
+      }
+      sets.push({
+        stage: stageId,
+        artist: rawSet.artist,
+        raw: buildRaw(rawSet),
+        start: isoAt(day.date, absStart),
+        end: isoAt(day.date, absEnd),
+        end_inferred: isClose,
+        notes: buildNotes(rawSet, isClose ? range.noEnd : undefined),
+        posterDate: day.date,
+        source,
+        printedTime: rawSet.time,
+        crossesMidnight: absEnd >= 1440,
+      });
+      prevAbsStart = absStart;
+    }
+  }
+  return sets;
+}
+
+/**
  * Turn raw transcriptions (one per poster image) into a validated festival
  * document, YAML text, and a TRANSCRIPTION.md-style log.
  *
@@ -567,47 +616,7 @@ export function buildTranscription(
   }
 
   // Sets, day by day, stage by stage, in printed order.
-  const sets: BuiltSet[] = [];
-  for (const day of days) {
-    for (const stage of day.stages) {
-      const stageId = stageIdFromName(stage.name);
-      let dayOffset = 0;
-      let prevAbsStart: number | null = null;
-      for (const rawSet of stage.sets) {
-        const range = parseTimeRange(rawSet.time);
-        const { startMin, endMin } = resolveRange(range, prevAbsStart);
-        let absStart = startMin + dayOffset * 1440;
-        if (prevAbsStart !== null && absStart < prevAbsStart) {
-          // A set printed later in the column that starts at an earlier clock
-          // time has crossed midnight: shift to the next calendar date.
-          dayOffset += 1;
-          absStart += 1440;
-        }
-        const isClose = endMin === null;
-        let absEnd: number;
-        if (isClose) {
-          absEnd = absStart + 60; // owner's rule: no printed end → start + 60 min
-        } else {
-          absEnd = endMin + dayOffset * 1440;
-          while (absEnd <= absStart) absEnd += 1440;
-        }
-        sets.push({
-          stage: stageId,
-          artist: rawSet.artist,
-          raw: buildRaw(rawSet),
-          start: isoAt(day.date, absStart),
-          end: isoAt(day.date, absEnd),
-          end_inferred: isClose,
-          notes: buildNotes(rawSet, isClose ? range.noEnd : undefined),
-          posterDate: day.date,
-          source: sourceOfDate.get(day.date)!,
-          printedTime: rawSet.time,
-          crossesMidnight: absEnd >= 1440,
-        });
-        prevAbsStart = absStart;
-      }
-    }
-  }
+  const sets: BuiltSet[] = days.flatMap((day) => readDay(day, sourceOfDate.get(day.date)!));
 
   // The same artist twice on one stage collides on UID — the known limitation
   // (README): UID excludes the start time on purpose. ACL runs a silent disco
