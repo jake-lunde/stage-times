@@ -1,5 +1,8 @@
 # Stage art explorer
 
+Default state (owner pick, 21 Sep 2026): Beads, no core, stage-color ground, glow, drift,
+scrim at 25%, ambient names in the Poster block treatment, cream ink, stars on the closers.
+
 A knob-turning tool for the generative stage-card art (ticket 06 follow-on, 20 Sep 2026).
 Open `index.html` in a browser. It is a design instrument, not a page of the site: it loads
 Archivo and Fragment Mono from Google Fonts, which the site's own pages never do.
@@ -33,7 +36,8 @@ Archivo and Fragment Mono from Google Fonts, which the site's own pages never do
   its star grows, or takes the pill's ink for Pill; the pill is drawn above the core, and
   on Beads the sparkles counter-rotate to stay upright (families without stars
   cycle the names at the bottom instead). Nothing is dimmed for a guessed end any more. Scrim is a separate
-  toggle: a flat 15% ink overlay on the art area only, under the names.
+  toggle with a slider: a flat ink overlay on the art area only, under the names. Name ink
+  (cream, deep, ink) colors the text treatments and the star while its name is up.
 
 Regenerate `index.html` after editing the template:
 
