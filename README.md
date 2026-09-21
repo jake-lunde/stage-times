@@ -135,7 +135,7 @@ npm run smoke -- <base-url>    # gate 8: curl every feed of every edition, asser
 npm run ingest -- <image>      # source image → edition YAML + ambiguity log (calls the model)
 npm run ingest:eval            # re-score the CHBP posters against the 79 hand-verified sets
 npm run ingest:eval -- --trials 2 --record 2026-09-13   # …and rewrite the committed eval record
-npm run watch                  # the watcher: poll the schedule pages due on this run (calls the model on a drop)
+npm run watch                  # the watcher, then the signal: poll what is due on this run (calls the model on a drop)
 npm run watch -- --due         # …or just say which entries would be polled now
 npm run watch -- --force       # …or poll every entry whose festival is not over
 ```
@@ -177,8 +177,8 @@ with fakes and no API key (`tests/publisher.test.ts`).
 Three intents exist today — `upload`, `confirm` and `remove` — each of the first two with an
 owner variant, and upload and confirm carrying an update link are a correction. The **watcher**
 (`src/watcher.ts`) is the same shape from the other side: the same ports plus one for pages, and
-its reviews carry the edition exactly as the owner's confirm would commit it. The signal will be
-too.
+its reviews carry the edition exactly as the owner's confirm would commit it. The **signal**
+(`src/signal.ts`) is a third, for festivals the watcher cannot read.
 
 **`upload`** — the source images, one per day in day order, plus a festival name, dates and a
 contact address. One image is a list of one. The gates run cheapest first and stop at the first
@@ -324,6 +324,26 @@ Points and Camp Flog Gnaw for 2026; ACL's page carries both weekends and one edi
 weekend (the same artist on the same stage twice collides on UID — the known limitation above),
 so its entry matches `Wk2`.
 
+### The signal
+
+For a festival whose set times only appear in an app or a social post (CONTEXT: signal). A watch
+entry may name the festival's subreddit (`subreddit: <name>`); the same hourly job, after the
+watcher, reads each named subreddit's newest posts **inside the entry's drop window only**, through
+Reddit's public JSON listing with no credentials (`signal()` over the publisher's ports plus a
+Reddit port). A post fires when its title is about set times (`SET_TIMES_RE`: set times, stage
+times, timetable, schedule), it was posted inside the window, it names no other year, and it has
+at least `SIGNAL_MIN_VOTES` (10). Each post fires **once, ever**: the owner gets a `signal` issue
+titled `Set times on Reddit: <Festival> <Year>` whose body is the post's reddit.com link and
+nothing else, and the post id is recorded in `state/signal.json`. A notice that will not send is
+not recorded, so the next run sends it. No image is fetched, no model is called, nothing is
+created; the owner goes and gets the screenshot and uploads it through the bookmark.
+
+Staying inside the public endpoint's limits: one request per subreddit per run (entries that
+share a subreddit share it), six seconds between requests, and nothing more this run after a 429
+or once `x-ratelimit-remaining` reaches zero. It says who it is: `web:app.stagetimes.signal:v1.0
+(+https://stagetimes.app)`. An unreachable subreddit is reported in the run log and writes
+nothing.
+
 ### The state the publisher owns
 
 | File | What it is |
@@ -333,6 +353,7 @@ so its entry matches `Wk2`.
 | `state/transcriptions/<hash>.json` | the model's reply for one image, verbatim, under that image's content hash. This is what makes a retry free. |
 | `source/images/<hash>.<ext>` | the stored source image. Never served. |
 | `source/fan/<key>/TRANSCRIPTION.md` | the edition's log, with every correction made on review. |
+| `state/signal.json` | every subreddit post the signal has sent the owner, per edition, by post id. Written only when a post was sent. Nothing in the build reads it. |
 | `state/watch.json` | what the watcher has seen on each watched page: every image by content hash with its one-time schedule verdict, and the schedule images as of the last drop or change. Written only when an image is new. Nothing in the build reads it. |
 
 ### Over HTTP

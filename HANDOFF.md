@@ -42,6 +42,22 @@ three Wk2 images and the header parser reads their sizes. Runbook: `docs/watcher
 (15:00 UTC); whether a page unreachable for days should notify (it is silent); whether a self-superseded
 review should be closed by the watcher (it is left open); the ACL weekend choice.
 
+**2026-09-21, ticket 12 — the Reddit signal, on branch `ticket/12-reddit-signal`.** `src/signal.ts` is
+the third intent through the seam: `signal({kind: 'signal', list}, ports)` over the publisher's ports plus
+a Reddit port. A watch entry may name `subreddit:`; inside the entry's drop window (hourly cadence only;
+`--force` for any non-dormant entry) the hourly job, after the watcher, reads the subreddit's `new.json`
+once per run and sends a `signal` issue — title `Set times on Reddit: <Festival> <Year>`, body the post
+link, nothing else — for each post about set times, posted inside the window, naming no other year, with
+≥10 votes; each post once, ever (`state/signal.json`). The live port (`liveReddit()`) sends
+`web:app.stagetimes.signal:v1.0 (+https://stagetimes.app)`, spaces requests 6 s, and stops for the run
+after a 429 or a spent `x-ratelimit-remaining`. Tests: `tests/signal.test.ts`, the Reddit cases in
+`tests/ports.test.ts`; 391 pass. **Found while building:** Reddit answered this machine's unauthenticated
+`.json` requests with a 403 block page (its RSS answered 200), so the public JSON may be refused from
+GitHub Actions too — the run log would say `unreachable` and nothing else. **Owner calls:** which
+subreddits to watch (none are in `config/watch.yaml`; `r/ACL` is a knee-injury subreddit, and the III
+Points and Camp Flog Gnaw guesses did not answer); whether to register a Reddit app for OAuth if the public
+JSON stays blocked; the vote threshold (10); a Reddit username for the User-Agent's `(by /u/…)`.
+
 **2026-09-21, ticket 17 — multi-day uploads through the publisher, on branch
 `ticket/17-multi-day-uploads-through-the-publisher`.** Both intents take `images` (day order; the
 old `image` is a list of one and reads exactly as before). Each image is gated, hashed and cached
