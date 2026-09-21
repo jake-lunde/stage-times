@@ -16,7 +16,7 @@ Purpose: explain what this is in under five seconds and send people to the festi
 │                              │
 ├──────────────────────────────┤  cream below here
 │  ┌────────────────────────┐  │
-│  │                        │  │  MEDIA CARD, 24pt radius, --paper-sunk
+│  │                        │  │  MEDIA CARD, 18pt radius, --paper-sunk
 │  │   [festival image or   │  │  image area edge-to-edge, no padding
 │  │    procedural art]     │  │  (assets/festivals/<key>.<ext>)
 │  │                        │  │
