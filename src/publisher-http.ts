@@ -101,17 +101,48 @@ export function editList(body: Body, field: string): { index: number; artist?: s
 
 /** `{filename, contentType, width, height, data}` with base64 bytes. */
 export function parseImage(body: Body, field = 'image'): SourceImage {
-  const raw = obj(body, field);
+  return imageFrom(obj(body, field), field);
+}
+
+/**
+ * The intent's source images: an `images` list, one per day in day order, or
+ * a single `image` — which the publisher reads as a list of one.
+ */
+export function parseImages(body: Body): { images: SourceImage[] } | { image: SourceImage } {
+  const list = body['images'];
+  if (list === undefined || list === null) return { image: parseImage(body) };
+  if (!Array.isArray(list)) throw new BadRequestError('`images` must be a list of images');
+  return {
+    images: list.map((raw, i) => {
+      if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+        throw new BadRequestError(`\`images[${i}]\` must be an object`);
+      }
+      return imageFrom(raw as Body, `images[${i}]`);
+    }),
+  };
+}
+
+/** The review's image hashes, echoed back on confirm. Optional. */
+export function optHashList(body: Body, field: string): string[] | undefined {
+  const value = body[field];
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value) || value.some((h) => typeof h !== 'string')) {
+    throw new BadRequestError(`\`${field}\` must be a list of image hashes`);
+  }
+  return value as string[];
+}
+
+function imageFrom(raw: Body, label: string): SourceImage {
   const width = raw['width'];
   const height = raw['height'];
   if (!Number.isFinite(width) || !Number.isFinite(height)) {
-    throw new BadRequestError('`image.width` and `image.height` are required numbers');
+    throw new BadRequestError(`\`${label}.width\` and \`${label}.height\` are required numbers`);
   }
   let bytes: Uint8Array;
   try {
     bytes = new Uint8Array(Buffer.from(str(raw, 'data'), 'base64'));
   } catch {
-    throw new BadRequestError('`image.data` is not base64');
+    throw new BadRequestError(`\`${label}.data\` is not base64`);
   }
   return {
     filename: str(raw, 'filename'),
@@ -128,6 +159,7 @@ export function parseImage(body: Body, field = 'image'): SourceImage {
  */
 const STATUS: Record<Gate, number> = {
   details: 400,
+  images: 400,
   type: 400,
   size: 413,
   dimensions: 400,
@@ -154,7 +186,13 @@ export function badRequest(err: unknown): Response {
 
 export function rejected(rejection: Rejection): Response {
   return json(
-    { ok: false, gate: rejection.gate, reason: rejection.reason, ...(rejection.problems ? { problems: rejection.problems } : {}) },
+    {
+      ok: false,
+      gate: rejection.gate,
+      reason: rejection.reason,
+      ...(rejection.problems ? { problems: rejection.problems } : {}),
+      ...(rejection.image !== undefined ? { image: rejection.image } : {}),
+    },
     STATUS[rejection.gate],
   );
 }

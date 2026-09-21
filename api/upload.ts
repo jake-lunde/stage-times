@@ -1,5 +1,5 @@
 /**
- * POST /api/upload — an image and what the uploader typed, in; the review to
+ * POST /api/upload — the images (one per day) and what the uploader typed, in; the review to
  * check it against, out.
  *
  * Read the fields, call the publisher, return what it said. Every rule — the
@@ -8,7 +8,7 @@
  */
 
 import { upload, type PublisherPorts, type UploadIntent } from '../src/publisher.js';
-import { badRequest, json, obj, optStr, parseImage, readJsonBody, rejected, str } from '../src/publisher-http.js';
+import { badRequest, json, obj, optStr, parseImages, readJsonBody, rejected, str } from '../src/publisher-http.js';
 import { livePorts } from '../src/ports.js';
 
 export async function handle(request: Request, ports: PublisherPorts): Promise<Response> {
@@ -23,7 +23,7 @@ export async function handle(request: Request, ports: PublisherPorts): Promise<R
       email: str(body, 'email'),
       ...(optStr(body, 'timezone') !== undefined ? { timezone: optStr(body, 'timezone')! } : {}),
       ...(optStr(body, 'officialUrl') !== undefined ? { officialUrl: optStr(body, 'officialUrl')! } : {}),
-      image: parseImage(body),
+      ...parseImages(body),
     };
   } catch (err) {
     return badRequest(err);
