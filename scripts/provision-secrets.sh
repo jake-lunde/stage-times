@@ -315,11 +315,10 @@ else
     OWNER_SECRET=$(node -e 'console.log(require("crypto").randomBytes(32).toString("hex"))')
   fi
   set_vercel_env OWNER_SECRET "$OWNER_SECRET"
-  LINK="$SITE/upload#owner=$OWNER_SECRET"
+  LINK="$SITE/upload/#owner=$OWNER_SECRET"
   printf '\n'
-  say "Your owner link (the path is provisional until the upload screen ships; the"
-  say "secret is what matters — it is checked from the URL fragment, which never"
-  say "reaches a server log):"
+  say "Your owner link (the secret rides in the URL fragment, which never reaches a"
+  say "server log; the page sends it with each post). Runbook: docs/owner-runbook.md"
   printf '\n    %s%s%s\n\n' "$BOLD" "$LINK" "$RESET"
   if command -v pbcopy >/dev/null 2>&1; then printf '%s' "$LINK" | pbcopy; note "(copied to your clipboard)"; fi
   warn "Store it in 1Password now. It is not saved anywhere else and will not be shown again."

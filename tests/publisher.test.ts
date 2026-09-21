@@ -9,8 +9,8 @@
  * reason a gate gave — never how the module is arranged inside.
  *
  * The two intents covered are the two that make a fan edition exist: upload and
- * confirm. Correction, self-removal and the owner path are the same shape and
- * arrive later (tickets 09, 10).
+ * confirm. The owner path is tests/publisher-owner.test.ts; correction and
+ * self-removal are the same shape and arrive later (ticket 09).
  */
 
 import test from 'node:test';

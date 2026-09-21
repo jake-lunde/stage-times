@@ -17,8 +17,8 @@ import { join } from 'node:path';
 
 import { ACCEPTED_IMAGE_TYPES, EMAIL_RE, GATE_COPY, MAX_IMAGE_EDGE, MIN_IMAGE_EDGE, type Gate } from '../src/publisher.js';
 import { renderSitePages } from '../src/pages.js';
-import { addDay, editedEnd, editedStart, GATE_SCREENS, renderUploadPage, REVIEW_ZONES, updateLink, type Screen } from '../src/upload-pages.js';
-import { buildFixtureSite, harborDoc, visibleText } from './helpers.js';
+import { addDay, editedEnd, editedStart, GATE_SCREENS, ownerFromFragment, ownerLink, renderUploadPage, REVIEW_ZONES, updateLink, type Screen } from '../src/upload-pages.js';
+import { buildFixtureSite, harborDoc, REPO_ROOT, visibleText } from './helpers.js';
 
 const html = renderUploadPage();
 const text = visibleText(html);
@@ -202,13 +202,25 @@ test('upload page: the page embeds those helpers by source and reads a moved sta
 });
 
 test('upload page: the script posts exactly the fields the two adapters read', () => {
-  assert.ok(html.includes("post('/api/upload', { festival: d.festival, dates: { first: d.first, last: d.last }, email: d.email, image: imageBody() })"));
+  assert.ok(html.includes("post('/api/upload', withOwner({ festival: d.festival, dates: { first: d.first, last: d.last }, email: d.email, image: imageBody() }))"));
   assert.ok(
     html.includes(
-      "post('/api/confirm', { festival: d.festival, email: d.email, timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: unverifiable, image: imageBody() })",
+      "post('/api/confirm', withOwner({ festival: d.festival, email: d.email, timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: unverifiable, image: imageBody() }))",
     ),
   );
   assert.ok(html.includes('filename: im.filename, contentType: im.contentType, width: im.width, height: im.height, data: im.data'));
+});
+
+test('upload page: the owner bookmark is read from the fragment, cleared, and sent as owner with both posts', () => {
+  assert.equal(ownerLink('a+b/c'), 'https://stagetimes.app/upload/#owner=a%2Bb%2Fc');
+  assert.equal(ownerFromFragment(new URL(ownerLink('a+b/c')).hash), 'a+b/c', 'the page reads back what the link carries');
+  assert.equal(ownerFromFragment(''), '');
+  assert.equal(ownerFromFragment('#something-else'), '');
+  assert.equal(ownerFromFragment('#owner=%E0%A4%A'), '', 'a mangled fragment is no secret, not an error');
+  assert.ok(html.includes(ownerFromFragment.toString()), 'the page embeds the same reader by source');
+  assert.ok(html.includes('var OWNER = ownerFromFragment(location.hash);'));
+  assert.ok(html.includes("history.replaceState(null, '', location.pathname + location.search)"), 'cleared from the address bar');
+  assert.ok(html.includes('function withOwner(body) { if (OWNER) body.owner = OWNER; return body; }'), 'absent unless the bookmark carried one');
 });
 
 test('upload page: a failed request has a plain line and the button comes back', () => {
@@ -291,4 +303,15 @@ test('renderSitePages: the upload page is written at /upload/ beside the edition
   } finally {
     rmSync(out, { recursive: true, force: true });
   }
+});
+
+test('owner runbook: documents the bookmark link exactly as the page reads it, and how to rotate it', () => {
+  const runbook = readFileSync(join(REPO_ROOT, 'docs', 'owner-runbook.md'), 'utf8');
+  assert.ok(runbook.includes(ownerLink('<OWNER_SECRET>').replace('%3C', '<').replace('%3E', '>')), 'the bookmark shape is ownerLink()');
+  assert.match(runbook, /## Rotating the owner secret/);
+  assert.match(runbook, /scripts\/provision-secrets\.sh/);
+  assert.match(runbook, /Redeploy/);
+  assert.match(runbook, /replace the bookmark/);
+  const wizard = readFileSync(join(REPO_ROOT, 'scripts', 'provision-secrets.sh'), 'utf8');
+  assert.ok(wizard.includes('LINK="$SITE/upload/#owner=$OWNER_SECRET"'), 'the wizard prints the same link');
 });

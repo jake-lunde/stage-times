@@ -14,7 +14,9 @@
  * Contents API calls, one file each.
  *
  * Secrets come from the environment, named in `src/secrets.ts`:
- * `ANTHROPIC_API_KEY` pays for vision, `GITHUB_TOKEN` writes the repository.
+ * `ANTHROPIC_API_KEY` pays for vision, `GITHUB_TOKEN` writes the repository
+ * and opens listing pull requests, `OWNER_SECRET` is what the owner port
+ * checks a presented secret against.
  *
  * Deployment note: `config/vision-models.json` must be bundled with the
  * serverless functions (`includeFiles` in vercel.json) — the model choice is
@@ -31,7 +33,9 @@ import {
   type Commit,
   type Notification,
   type NotifyPort,
+  type OwnerPort,
   type PublisherPorts,
+  type PullRequest,
   type RandomPort,
   type RepositoryPort,
   type SavedTranscription,
@@ -40,7 +44,7 @@ import {
   type UploadLedger,
   type VisionPort,
 } from './publisher.js';
-import { PUBLISHER_REPO, type Env } from './secrets.js';
+import { ownerMatches, PUBLISHER_REPO, type Env } from './secrets.js';
 import { requireSdkBackend, screenForSchedule, transcribeBytes } from './vision.js';
 import type { PublishedFile } from './build.js';
 
@@ -60,6 +64,18 @@ export function systemClock(): ClockPort {
 
 export function cryptoRandom(): RandomPort {
   return { bytes: (n) => randomBytes(n) };
+}
+
+// ---------------------------------------------------------------------------
+// The owner
+// ---------------------------------------------------------------------------
+
+/**
+ * Checks a presented secret against OWNER_SECRET, in constant time. Unset,
+ * empty, wrong and missing all answer no, indistinguishably.
+ */
+export function envOwner(env: Env = process.env): OwnerPort {
+  return { recognizes: (presented) => ownerMatches(env, presented) };
 }
 
 // ---------------------------------------------------------------------------
@@ -112,7 +128,9 @@ export class GitHubError extends Error {
  *
  * Fan editions commit straight to main by design (spec: no pull request per
  * upload) — the uploader's confirm is the human check, and a pull request
- * nobody merges is a draft tier, which this product does not have.
+ * nobody merges is a draft tier, which this product does not have. The one
+ * pull request is the listing: a branch off the publish commit, opened against
+ * main, for the owner to merge from the GitHub app.
  */
 export function githubRepository(
   env: Env = process.env,
@@ -145,6 +163,53 @@ export function githubRepository(
     return JSON.parse(Buffer.from(body.content, 'base64').toString('utf8')) as T;
   }
 
+  /** One commit on `branch`, whose head must still be `parent`. Returns the new commit's sha. */
+  async function commitOnto(branch: string, parent: string, commit: Commit): Promise<string> {
+    const base = await call<{ tree: { sha: string } }>('commit read', `/repos/${repo}/git/commits/${parent}`);
+
+    const blobs = await Promise.all([
+      ...commit.files.map(async (f) => ({
+        path: f.path,
+        sha: (
+          await call<{ sha: string }>('blob write', `/repos/${repo}/git/blobs`, {
+            method: 'POST',
+            body: JSON.stringify({ content: f.contents, encoding: 'utf-8' }),
+          })
+        ).sha,
+      })),
+      ...commit.images.map(async (i) => ({
+        path: i.path,
+        sha: (
+          await call<{ sha: string }>('blob write', `/repos/${repo}/git/blobs`, {
+            method: 'POST',
+            body: JSON.stringify({ content: Buffer.from(i.bytes).toString('base64'), encoding: 'base64' }),
+          })
+        ).sha,
+      })),
+    ]);
+
+    const tree = await call<{ sha: string }>('tree write', `/repos/${repo}/git/trees`, {
+      method: 'POST',
+      body: JSON.stringify({
+        base_tree: base.tree.sha,
+        tree: blobs.map((b) => ({ path: b.path, mode: '100644', type: 'blob', sha: b.sha })),
+      }),
+    });
+
+    const created = await call<{ sha: string }>('commit write', `/repos/${repo}/git/commits`, {
+      method: 'POST',
+      body: JSON.stringify({ message: commit.message, tree: tree.sha, parents: [parent] }),
+    });
+
+    // No force: a concurrent publish makes this fail loudly rather than
+    // dropping somebody else's edition on the floor.
+    await call('ref update', `/repos/${repo}/git/refs/heads/${branch}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ sha: created.sha, force: false }),
+    });
+    return created.sha;
+  }
+
   return {
     async readPublished() {
       return readJson<PublishedFile>(PUBLISHED_PATH, { publishedAt: '', editions: {} });
@@ -156,54 +221,22 @@ export function githubRepository(
       return readJson<SavedTranscription | null>(`${TRANSCRIPTION_STORE_DIR}/${hash}.json`, null);
     },
     async commit(commit: Commit) {
-      if (commit.files.length === 0 && commit.images.length === 0) return;
-
       const ref = await call<{ object: { sha: string } }>(
         'ref read',
         `/repos/${repo}/git/ref/heads/${BRANCH}`,
       );
-      const parent = ref.object.sha;
-      const base = await call<{ tree: { sha: string } }>('commit read', `/repos/${repo}/git/commits/${parent}`);
-
-      const blobs = await Promise.all([
-        ...commit.files.map(async (f) => ({
-          path: f.path,
-          sha: (
-            await call<{ sha: string }>('blob write', `/repos/${repo}/git/blobs`, {
-              method: 'POST',
-              body: JSON.stringify({ content: f.contents, encoding: 'utf-8' }),
-            })
-          ).sha,
-        })),
-        ...commit.images.map(async (i) => ({
-          path: i.path,
-          sha: (
-            await call<{ sha: string }>('blob write', `/repos/${repo}/git/blobs`, {
-              method: 'POST',
-              body: JSON.stringify({ content: Buffer.from(i.bytes).toString('base64'), encoding: 'base64' }),
-            })
-          ).sha,
-        })),
-      ]);
-
-      const tree = await call<{ sha: string }>('tree write', `/repos/${repo}/git/trees`, {
+      if (commit.files.length === 0 && commit.images.length === 0) return ref.object.sha;
+      return commitOnto(BRANCH, ref.object.sha, commit);
+    },
+    async openPullRequest(pr: PullRequest) {
+      await call('branch write', `/repos/${repo}/git/refs`, {
         method: 'POST',
-        body: JSON.stringify({
-          base_tree: base.tree.sha,
-          tree: blobs.map((b) => ({ path: b.path, mode: '100644', type: 'blob', sha: b.sha })),
-        }),
+        body: JSON.stringify({ ref: `refs/heads/${pr.branch}`, sha: pr.from }),
       });
-
-      const created = await call<{ sha: string }>('commit write', `/repos/${repo}/git/commits`, {
+      await commitOnto(pr.branch, pr.from, pr.commit);
+      await call('pull request write', `/repos/${repo}/pulls`, {
         method: 'POST',
-        body: JSON.stringify({ message: commit.message, tree: tree.sha, parents: [parent] }),
-      });
-
-      // No force: a concurrent publish makes this fail loudly rather than
-      // dropping somebody else's edition on the floor.
-      await call('ref update', `/repos/${repo}/git/refs/heads/${BRANCH}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ sha: created.sha, force: false }),
+        body: JSON.stringify({ title: pr.title, body: pr.body, head: pr.branch, base: BRANCH }),
       });
     },
   };
@@ -258,5 +291,6 @@ export function livePorts(env: Env = process.env): PublisherPorts {
     notify: githubNotifier(env),
     clock: systemClock(),
     random: cryptoRandom(),
+    owner: envOwner(env),
   };
 }

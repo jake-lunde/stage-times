@@ -20,7 +20,9 @@ import {
   type Commit,
   type Notification,
   type NotifyPort,
+  type OwnerPort,
   type PublisherPorts,
+  type PullRequest,
   type RandomPort,
   type RepositoryPort,
   type SavedTranscription,
@@ -142,6 +144,10 @@ export interface FakeRepository extends RepositoryPort {
   transcriptions: Map<string, SavedTranscription>;
   /** Every commit applied, in order. */
   commits: Commit[];
+  /** Every pull request opened, in order. Nothing in one is applied until `merge()`. */
+  pullRequests: PullRequest[];
+  /** Apply an opened pull request's commit, as merging it from the GitHub app would. */
+  merge(pr: PullRequest): Promise<void>;
   /** The contents of a committed text file, latest write wins. */
   file(path: string): string | undefined;
   /** Every path any commit wrote, text and images. */
@@ -150,13 +156,19 @@ export interface FakeRepository extends RepositoryPort {
 
 export const FIXED_PUBLISHED_AT = '20260101T000000Z';
 
-export function fakeRepository(initial: Partial<Pick<FakeRepository, 'published' | 'uploads'>> = {}): FakeRepository {
+export interface FakeRepositoryOptions extends Partial<Pick<FakeRepository, 'published' | 'uploads'>> {
+  /** Make opening a pull request fail, as GitHub would with a token missing that permission. */
+  pullRequestsFail?: boolean;
+}
+
+export function fakeRepository(initial: FakeRepositoryOptions = {}): FakeRepository {
   const files = new Map<string, string>();
   const repo: FakeRepository = {
     published: initial.published ?? { publishedAt: FIXED_PUBLISHED_AT, editions: {} },
     uploads: initial.uploads ?? { uploads: [] },
     transcriptions: new Map(),
     commits: [],
+    pullRequests: [],
     async readPublished() {
       return repo.published;
     },
@@ -179,6 +191,14 @@ export function fakeRepository(initial: Partial<Pick<FakeRepository, 'published'
         const stored = /^state\/transcriptions\/([0-9a-f]{64})\.json$/.exec(f.path);
         if (stored) repo.transcriptions.set(stored[1]!, JSON.parse(f.contents) as SavedTranscription);
       }
+      return `commit-${repo.commits.length}`;
+    },
+    async openPullRequest(pr) {
+      if (initial.pullRequestsFail) throw new Error('GitHub pull request write answered HTTP 403: Resource not accessible');
+      repo.pullRequests.push(pr);
+    },
+    async merge(pr) {
+      await repo.commit(pr.commit);
     },
     file(path) {
       return files.get(path);
@@ -243,6 +263,21 @@ export function fakeNotifier(): FakeNotifier {
 }
 
 // ---------------------------------------------------------------------------
+// The owner
+// ---------------------------------------------------------------------------
+
+/** What the fake owner port recognizes. The live one reads OWNER_SECRET. */
+export const OWNER_SECRET = 'the-owner-bookmark-secret';
+
+/**
+ * Recognizes exactly one secret — or none at all, when the deployment has none
+ * set (`null`) or an empty one, as `ownerMatches` in src/secrets.ts does.
+ */
+export function fakeOwner(secret: string | null = OWNER_SECRET): OwnerPort {
+  return { recognizes: (presented) => Boolean(secret) && presented === secret };
+}
+
+// ---------------------------------------------------------------------------
 // The set
 // ---------------------------------------------------------------------------
 
@@ -260,5 +295,6 @@ export function fakePorts(overrides: Partial<Fakes> = {}): Fakes {
     notify: overrides.notify ?? fakeNotifier(),
     clock: overrides.clock ?? fakeClock(),
     random: overrides.random ?? fakeRandom(),
+    owner: overrides.owner ?? fakeOwner(),
   };
 }
