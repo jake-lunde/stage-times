@@ -1,0 +1,34 @@
+# The monthly look-ahead (src/look-ahead.ts). On the 1st of each month, one
+# issue in the owner's inbox: every edition in config/festivals.yaml starting
+# in the next ninety days, with its dates, when its drop is expected, the form
+# its source takes, and whether config/watch.yaml has it — and, for one it
+# does not, the entry to add.
+#
+# 15:00 UTC is morning in the US. Nothing is committed; GITHUB_TOKEN is the
+# workflow's own, with issues write permission and nothing more.
+
+name: Look-ahead
+
+on:
+  schedule:
+    - cron: '0 15 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  look-ahead:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run look-ahead
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
