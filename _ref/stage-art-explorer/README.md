@@ -28,9 +28,10 @@ Archivo and Fragment Mono from Google Fonts, which the site's own pages never do
 - "Compare cores" renders every core as a row; "Compare families" every countable family. The whole configuration lives in the URL hash,
   so a dialed-in look is a shareable link.
 - Names: plain, 32px pills in deep / cream / ink, a ticker that runs the headliners along
-  the bottom edge, or Ambient, which pops each name beside its star for about four seconds in
-  turn and counter-rotates so it rides the drifting ring upright (families without stars show
-  the names at the bottom instead). Nothing is dimmed for a guessed end any more. Scrim is a separate
+  the bottom edge, or Ambient, which shows each name at the center of the art for about four seconds in turn
+  with a line out to its star; on Beads the line lives in the rotating ring, so it always
+  points at the star, and the sparkles counter-rotate to stay upright (families without stars
+  cycle the names at the bottom instead). Nothing is dimmed for a guessed end any more. Scrim is a separate
   toggle: a flat 15% ink overlay on the art area only, under the names.
 
 Regenerate `index.html` after editing the template:

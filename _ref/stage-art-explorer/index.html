@@ -71,7 +71,7 @@ footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--line);font-fa
 @keyframes spin{to{transform:rotate(360deg)}}
 .anim .rot{transform-origin:var(--ox) var(--oy);animation:spin var(--spin,240s) linear infinite}
 .anim .unrot{animation:spin var(--spin,240s) linear infinite reverse}
-.lbl{font-family:var(--sans);font-weight:600;font-size:14px}
+.lbl{font-family:var(--sans);font-weight:600;font-size:17px}
 .lbl .pop{opacity:0}
 .ambient{position:absolute;left:16px;right:16px;bottom:14px;margin:0;height:26px;pointer-events:none}
 .ambient span{position:absolute;left:0;bottom:0;display:inline-block;height:26px;line-height:26px;padding:0 12px;border-radius:13px;font-size:14px;font-weight:600;white-space:nowrap;opacity:0}
@@ -359,20 +359,25 @@ function capsules(seed,base,sets,st,o){
   return{defs:'',body:out.join(''),bg:ink.bg};
 }
 // ---- countable families: one mark per set, marks never merge, so the number reads first
-// a name that pops beside a mark for ~4s, then yields to the next; inside a rotating ring it counter-rotates so it stays upright and follows its star
-function label(x,y,name,i,n,o,base,below,spin){
-  const w=Math.round(18+name.length*8.2),h=26;const ly=below?y+18:y-18-h;
+// ambient name: the pill sits still at the center of the art; a line from the center to the star pops with it.
+// inside a drifting ring the line is a radius, so it turns with the ring and always points at its star.
+const popStyle=(i,n)=>`animation:pop${n} ${n*4.5}s linear infinite;animation-delay:${(i*4.5).toFixed(1)}s`;
+function centerPill(name,i,n,o,base,cx,cy){
+  const est=Math.round(22+name.length*9.6);const w=Math.min(352,est),h=32;
   const bg=o.pillInk==='deep'?shade(base,o.ground==='paper'?0:.5):o.pillInk==='cream'?'#FCF9F4':'#12181F';const fg=o.pillInk==='cream'?'#12181F':'#FCF9F4';
-  const pop=`<g class="pop${i===0?' first':''}" style="animation:pop${n} ${n*4.5}s linear infinite;animation-delay:${(i*4.5).toFixed(1)}s"><rect x="${x-Math.round(w/2)}" y="${ly}" width="${w}" height="${h}" rx="13" fill="${bg}"/><text x="${x}" y="${ly+18}" text-anchor="middle" fill="${fg}">${esc(name)}</text></g>`;
-  return spin?`<g class="unrot" style="transform-origin:${x}px ${y}px;--spin:${spin}s">${pop}</g>`:pop;
+  const squeeze=est>352?` textLength="${w-22}" lengthAdjust="spacingAndGlyphs"`:'';
+  return`<g class="pop${i===0?' first':''}" style="${popStyle(i,n)}"><rect x="${cx-Math.round(w/2)}" y="${cy-h/2}" width="${w}" height="${h}" rx="16" fill="${bg}"/><text x="${cx}" y="${cy+6}" text-anchor="middle" fill="${fg}"${squeeze}>${esc(name)}</text></g>`;
 }
-function frame(seed,base,sets,st,o,marks,rot){
+function leader(x,y,i,n,ink,cx,cy){
+  return`<g class="pop${i===0?' first':''}" style="${popStyle(i,n)}"><line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="${ink.a}" stroke-width="1.5" stroke-opacity=".75"/></g>`;
+}
+function frame(seed,base,sets,st,o,marks,rot,top=''){
   const rand=mulberry32(fnv1a(seed+'/core'));const ink=inks(base,o.ground);
   const cx=200,cy=o.text&&o.names==="pills"?100:120,hh=60;
   const coreSvg=core(o.shape==='point'?'circle':o.shape,cx,cy,hh,sets,st,rand,ink,o);
   const scrim=o.scrim?`<rect x="0" y="0" width="400" height="240" fill="#12181F" fill-opacity=".15"/>`:'';
   const wrapped=`<g class="${rot?'rot':''}" style="--ox:${cx}px;--oy:${cy}px">${marks}</g>`;
-  return{defs:'',body:`${wrapped}${scrim}${coreSvg}`,marks:wrapped,bg:ink.bg,noBloomShape:true,scrimInside:true,ambientInside:o.names==='ambient'&&(o.fam==='beads'||o.fam==='stars')};
+  return{defs:'',body:`${wrapped}${scrim}${coreSvg}${top?`<g class="lbl">${top}</g>`:''}`,marks:wrapped,bg:ink.bg,noBloomShape:true,scrimInside:true,ambientInside:o.names==='ambient'&&(o.fam==='beads'||o.fam==='stars')};
 }
 const dayOp=d=>[.92,.7,.5][d%3];
 function geo(o){return{cx:200,cy:o.text&&o.names==="pills"?100:120,hh:60};}
@@ -389,7 +394,7 @@ function beads(seed,base,sets,st,o){ // a ring per day, evenly spaced from the c
   const angOf=x=>-Math.PI/2+x*2*Math.PI;
   const closers=new Map();for(const s of sets)closers.set(s.day,s);
   const isStar=s=>o.beadStar==='closers'?closers.get(s.day)===s:o.beadStar==='long'?s.len>=60:false;
-  const starred=sets.filter(isStar);const labelSets=starred.length?starred:[...closers.values()];
+  const starred=sets.filter(isStar);const labelSets=starred.length?starred:[...closers.values()];const tops=[];
   const groups=Array.from({length:nd},(_,d)=>{const r=rOf(d);const ds=sets.filter(s=>s.day===d);if(!ds.length)return'';
     const spin=[300,220,380][d%3]*(d>=3?1.3:1);
     // the ring is solid across the hours the stage runs that day (first set start to last set end), faint elsewhere
@@ -397,12 +402,13 @@ function beads(seed,base,sets,st,o){ // a ring per day, evenly spaced from the c
     const ring=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${ink.a}" stroke-opacity=".12" stroke-width="1"/><path d="M${Math.round(cx+Math.cos(a0)*r)} ${Math.round(cy+Math.sin(a0)*r)}A${r} ${r} 0 ${large} 1 ${Math.round(cx+Math.cos(a1)*r)} ${Math.round(cy+Math.sin(a1)*r)}" fill="none" stroke="${ink.a}" stroke-opacity=".45" stroke-width="2" stroke-linecap="round"/>`;
     const dots=ds.map(s=>{const a=angOf(s.x);const x=Math.round(cx+Math.cos(a)*r),y=Math.round(cy+Math.sin(a)*r);
       const rad=Math.round((4+s.len/60*5)*(0.6+o.density*0.6));
-      const mark=isStar(s)?sparkle(x,y,Math.round(rad*2.4),ink.a,.95):`<circle cx="${x}" cy="${y}" r="${rad}" fill="${ink.a}" fill-opacity=".95"/>`;
+      // a sparkle counter-rotates around its own point, so it stays upright while the ring turns
+      const mark=isStar(s)?`<g class="unrot" style="transform-origin:${x}px ${y}px;--spin:${spin}s">${sparkle(x,y,Math.round(rad*2.4),ink.a,.95)}</g>`:`<circle cx="${x}" cy="${y}" r="${rad}" fill="${ink.a}" fill-opacity=".95"/>`;
       const li=labelSets.indexOf(s);
-      const lbl=o.names==='ambient'&&o.text&&li>=0?`<g class="lbl">${label(x,y,s.artist,li,labelSets.length,o,base,y<cy,spin)}</g>`:'';
-      return mark+lbl;}).join('');
+      if(o.names==='ambient'&&o.text&&li>=0){tops.push(centerPill(s.artist,li,labelSets.length,o,base,cx,cy));return leader(x,y,li,labelSets.length,ink,cx,cy)+mark;}
+      return mark;}).join('');
     return`<g class="rot" style="--ox:${cx}px;--oy:${cy}px;--spin:${spin}s">${ring}${dots}</g>`;}).join('');
-  return frame(seed,base,sets,st,o,groups,false);
+  return frame(seed,base,sets,st,o,groups,false,tops.join(''));
 }
 function ticks(seed,base,sets,st,o){ // a bezel: one tick per set at its clock position, fanned by day; length = set length
   const {cx,cy,hh}=geo(o);const ink=inks(base,o.ground);const nd=days.length;const R=hh+26;
@@ -418,11 +424,11 @@ function stars(seed,base,sets,st,o){ // one star per set: x is time of day, y is
   const path=`<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(' ')}" fill="none" stroke="${ink.a}" stroke-opacity=".3" stroke-width="1.5" stroke-linejoin="round"/>`;
   const closers=new Set();for(const p of pts)closers.add(p.s.day);
   const last={};for(const p of pts)last[p.s.day]=p;
-  const lab=Object.values(last);
+  const lab=Object.values(last);const tops=[];const {cx,cy}=geo(o);
   const marks=pts.map(p=>{const r=Math.round((2.5+p.s.len/60*3)*(0.6+o.density*0.6));
-    if(last[p.s.day]===p){const li=lab.indexOf(p);return sparkle(p.x,p.y,Math.round(r*2.6),ink.a,1)+(o.names==='ambient'&&o.text?`<g class="lbl">${label(p.x,p.y,p.s.artist,li,lab.length,o,base,p.y<120,0)}</g>`:'');}
+    if(last[p.s.day]===p){const li=lab.indexOf(p);if(o.names==='ambient'&&o.text){tops.push(centerPill(p.s.artist,li,lab.length,o,base,cx,cy));return leader(p.x,p.y,li,lab.length,ink,cx,cy)+sparkle(p.x,p.y,Math.round(r*2.6),ink.a,1);}return sparkle(p.x,p.y,Math.round(r*2.6),ink.a,1);}
     return`<circle cx="${p.x}" cy="${p.y}" r="${r}" fill="${ink.a}" fill-opacity=".95"/>`;}).join('');
-  return frame(seed,base,sets,st,o,path+marks,false);
+  return frame(seed,base,sets,st,o,path+marks,false,tops.join(''));
 }
 function crowd(seed,base,sets,st,o){ // one pill per set, scattered around the core, never overlapping; height = set length
   const rand=mulberry32(fnv1a(seed+'/crowd'));const ink=inks(base,o.ground);const {cx,cy,hh}=geo(o);
@@ -498,7 +504,7 @@ function render(){
 }
 document.querySelectorAll('.seg').forEach(seg=>seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;seg.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');state[seg.id]=b.dataset.v;render();}));
 // names protection note
-const NOTE=document.createElement('p');NOTE.className='hint';NOTE.textContent='Names: Plain is what ships. Pills are 32px capsules; Deep pill keeps the stage hue, Cream pill matches the button so it can read as tappable, Ink pill is the neutral. Ticker runs the names along the bottom edge continuously. Ambient pops each name beside its star for about four seconds, one after another, and on Beads it rides the ring as it drifts; families without stars show the names at the bottom instead. Scrim is a flat 15% ink overlay on the art only, under the names.';document.getElementById('hint').after(NOTE);
+const NOTE=document.createElement('p');NOTE.className='hint';NOTE.textContent='Names: Plain is what ships. Pills are 32px capsules; Deep pill keeps the stage hue, Cream pill matches the button so it can read as tappable, Ink pill is the neutral. Ticker runs the names along the bottom edge continuously. Ambient shows each name in the center of the art for about four seconds with a line out to its star, one after another; on Beads the line turns with the ring so it always points at the star. Families without stars cycle the names at the bottom instead. Scrim is a flat 15% ink overlay on the art only, under the names.';document.getElementById('hint').after(NOTE);
 for(const id of['halftone','glow','text','anim','sheet','sheetFam','scrim'])document.getElementById(id).addEventListener('change',e=>{state[id]=e.target.checked;render();});
 document.getElementById('density').addEventListener('input',e=>{state.density=e.target.value/100;render();});
 document.getElementById('variant').addEventListener('input',e=>{state.variant=+e.target.value;render();});
