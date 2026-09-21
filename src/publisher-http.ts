@@ -4,8 +4,8 @@
  *
  * There is no rule in this file. It reads fields, decodes an image, picks a
  * status code, and serializes — everything that is true of *HTTP* rather than
- * of publishing. `api/upload.ts` and `api/confirm.ts` each read their own
- * intent's fields and call the publisher; this is what they share.
+ * of publishing. `api/upload.ts`, `api/link.ts` and `api/confirm.ts` each read
+ * their own intent's fields and call the publisher; this is what they share.
  *
  * The reason text in a rejection comes from `src/publisher.ts` and is passed
  * through untouched: it is written to be read by the person who uploaded, and
@@ -157,6 +157,21 @@ export function optHashList(body: Body, field: string): string[] | undefined {
     throw new BadRequestError(`\`${field}\` must be a list of image hashes`);
   }
   return value as string[];
+}
+
+/**
+ * An image as the adapters send one — the same `{filename, contentType, width,
+ * height, data}` that `parseImages()` reads — so an image a link fetched goes
+ * back to confirm exactly as an uploaded one would.
+ */
+export function imageJson(image: SourceImage): Body {
+  return {
+    filename: image.filename,
+    contentType: image.contentType,
+    width: image.width,
+    height: image.height,
+    data: Buffer.from(image.bytes).toString('base64'),
+  };
 }
 
 function imageFrom(raw: Body, label: string): SourceImage {

@@ -177,7 +177,7 @@ and randomness go in, and the writes and notifications it would make come out. N
 reads a file, calls a model, opens a socket or looks at a clock, so every rule below is tested
 with fakes and no API key (`tests/publisher.test.ts`).
 
-Three intents exist today — `upload`, `confirm` and `remove` — each of the first two with an
+Four intents exist today — `upload`, `link`, `confirm` and `remove` — the first three with an
 owner variant, and upload and confirm carrying an update link are a correction. The **watcher**
 (`src/watcher.ts`) is the same shape from the other side: the same ports plus one for pages, and
 its reviews carry the edition exactly as the owner's confirm would commit it. The **signal**
@@ -206,6 +206,24 @@ sentences, written under the copy rules and passed to the screen untouched. What
 **review payload** — one set list across every day, every set with its inferred-end flag, a
 low-confidence flag where the model singled the read out, the printed time, and the image it was
 read from, and the time zone marked as assumed.
+
+**`link`** (ticket 19) — the festival's schedule page and a contact address, and nothing else
+typed. The caps count it as one upload and run before any request. The link has to be a public
+http(s) web address, and every address its host resolves to has to be public too — a private,
+loopback or link-local address is refused before anything is asked of it (`publicLink()` and
+`isPublicAddress()` in `src/web.ts`), and the live port refuses one again at connect time on
+every redirect. The page is read the way the watcher reads one (`imageUrlsIn()`); every image on
+it is fetched and dropped by the size in its header when it cannot be a schedule; at most the
+upload image limit are kept, the largest first, and the review's notes say when more were left
+out. Each survivor then takes an uploaded image's own path: the transcription store (a hit is a
+schedule and costs nothing), the schedule check — a no drops that image, not the link, and is
+remembered in `state/screened.json` so the same page never pays to ask again — and the
+transcription. What comes back is exactly the review an upload of the same images gives, read
+with the name and year printed on them and the link as the official schedule, plus the days read
+and the fetched images; confirm is the upload's confirm and takes those images back, so the
+stored source images are the bytes the page served and a later screenshot of the same poster is
+free. A link that is not a public page, a page that does not answer, a login wall, and a page
+with no schedule on it each come back as one sentence pointing at screenshots.
 
 **`confirm`** — the review with the uploader's corrections, and the same images echoed back with
 the review's list of image hashes; a list that differs in any image or in order is refused. A set
@@ -373,21 +391,26 @@ edition missed. It guesses no date, writes no state, and calls no model.
 | `state/transcriptions/<hash>.json` | the model's reply for one image, verbatim, under that image's content hash. This is what makes a retry free. |
 | `source/images/<hash>.<ext>` | the stored source image. Never served. |
 | `source/fan/<key>/TRANSCRIPTION.md` | the edition's log, with every correction made on review. |
+| `state/screened.json` | every image a link's schedule check said no to, by content hash, so the same page is never asked about twice. Written only when the check said no. Nothing in the build reads it. |
 | `state/signal.json` | every subreddit post the signal has sent the owner, per edition, by post id. Written only when a post was sent. Nothing in the build reads it. |
 | `state/watch.json` | what the watcher has seen on each watched page: every image by content hash with its one-time schedule verdict, and the schedule images as of the last drop or change. Written only when an image is new. Nothing in the build reads it. |
 
 ### Over HTTP
 
-`api/upload.ts`, `api/confirm.ts` and `api/remove.ts` are three thin adapters: read the fields, call the publisher,
+`api/upload.ts`, `api/link.ts`, `api/confirm.ts` and `api/remove.ts` are four thin adapters: read the fields, call the publisher,
 return what it said. `src/publisher-http.ts` holds what they share (field readers, the base64
 image, the gate-to-status-code map) and `src/ports.ts` holds the live ports — GitHub's Git Data
 API for the commit (one tree per intent, because a half-applied publish is an edition whose feeds
-exist and whose state does not) and for the listing pull request, a GitHub issue for the
+exist and whose state does not) and for the listing pull request, the web a link points at
+(`liveWeb()`: redirects followed by hand, every connection through a resolver that refuses a
+non-public address), a GitHub issue for the
 notification, `OWNER_SECRET` for the owner port, and `src/vision.ts` for both model calls. A test
 asserts the adapters import nothing but those three modules. Upload and confirm take an optional
 `owner` secret and an optional `update` link; remove requires the link. Both adapters
 take an `images` list or a single `image`; confirm takes the review's hashes back as `reviewed`,
-and a rejection about one image carries its position as `image`.
+and a rejection about one image carries its position as `image`. Link takes `url`, `email` and
+the optional `owner`, and answers with the review, `officialUrl`, `days`, and `images` in the
+same shape confirm reads them.
 
 ### The screens
 
