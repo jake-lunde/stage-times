@@ -69,8 +69,10 @@ checkbox and the exact `config/watch.yaml` entry. `.github/workflows/look-ahead.
 **The almanac holds only what was on record** (the spec's 2026-09-06 dates and the watch list): no
 2025 edition or drop date is in it, so every first-run row says *No earlier drop on record*, and
 this session had no web access to check more. **Owner calls:** review the first run and add
-watchers from it (EDC Orlando and Corona Capital are unwatched; their source URLs and derived slugs
-`edc-orlando`, `corona-capital` need checking); fill in 2025 drop dates and more festivals; the
+watchers from it (EDC Orlando and Corona Capital are unwatched; on 2026-09-21 EDC Orlando's source
+moved to `https://orlando.edc.com/`, whose page gives 6–8 Nov 2026; Corona Capital's page answers
+but its text does not give the dates; the derived slugs `edc-orlando`, `corona-capital` are the
+owner's to confirm, as they are permanent once published); fill in 2025 drop dates and more festivals; the
 source form for III Points, Camp Flog Gnaw and Corona Capital (`unknown`); whether the almanac
 should be refreshed by a model or a scheduled agent rather than by hand.
 

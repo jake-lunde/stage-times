@@ -48,7 +48,9 @@
       dates: { first: 2026-10-16, last: 2026-10-17 }
 
 - festival: EDC Orlando
-  source: https://orlando.electricdaisycarnival.com/
+  # Checked 2026-09-21: the page gives November 6-8, 2026, and promises set
+  # times to sign-ups; the old orlando.electricdaisycarnival.com redirects here.
+  source: https://orlando.edc.com/
   timezone: America/New_York
   form: app
   editions:
@@ -64,6 +66,8 @@
       dates: { first: 2026-11-14, last: 2026-11-15 }
 
 - festival: Corona Capital
+  # Checked 2026-09-21: the page answers, but its text does not give the 2026
+  # dates (they may be in an image); the dates below are the spec's.
   source: https://www.coronacapital.com.mx/
   timezone: America/Mexico_City
   form: unknown
