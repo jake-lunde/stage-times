@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { transcribe, TranscribeError, type ModelOutput } from '../src/transcription.js';
+import { readImage, transcribe, TranscribeError, type ModelOutput } from '../src/transcription.js';
 import {
   assertRawTranscription,
   normalizeOfficialUrl,
@@ -543,4 +543,45 @@ test('assertRawTranscription: rejects malformed model output with named problems
       ),
     /date must be YYYY-MM-DD/,
   );
+});
+
+// ---------------------------------------------------------------------------
+// readImage — one image's reply, read for the wait's progress
+// ---------------------------------------------------------------------------
+
+test('readImage: counts the sets on one image and names each stage\'s headliner per night, skipping afters', () => {
+  const output = readFileSync(join(REPO_ROOT, 'tests', 'fixtures', 'model-output', 'low-tide.json'), 'utf8');
+  const read = readImage({ source: 'friday.webp', output });
+  assert.equal(read.sets, 5, 'Friday prints five sets');
+  assert.deepEqual(
+    read.headliners,
+    [
+      { artist: 'MUNA', stage: 'Main Stage', night: '2026-10-09', start: '2026-10-09T22:40:00' },
+      { artist: 'DARK CHISME', stage: 'Cellar Stage', night: '2026-10-09', start: '2026-10-09T22:45:00' },
+    ],
+    'the last set on each stage closes the night, and an AFTERS billing never does',
+  );
+});
+
+test('readImage: a set past midnight still closes the night it was printed under', () => {
+  const raw = {
+    festival_name: 'F',
+    days: [{ date: '2026-08-07', header: 'FRI', stages: [{ name: 'MAIN', sets: [
+      { artist: 'EARLY', time: '11:00-11:45PM' },
+      { artist: 'LATE', time: '12:30-1:30AM' },
+    ] }] }],
+  };
+  const read = readImage({ source: 'x', output: raw });
+  assert.deepEqual(read.headliners, [{ artist: 'LATE', stage: 'Main', night: '2026-08-07', start: '2026-08-08T00:30:00' }], 'the night runs to 6 AM');
+});
+
+test('readImage: a stage billed only as afters still names its last set, and an unreadable reply reads as nothing, never a throw', () => {
+  const raw = {
+    festival_name: 'F',
+    days: [{ date: '2026-08-07', header: 'FRI', stages: [{ name: 'DISCO', sets: [{ artist: 'DJ ONE', time: '10:00-11:00PM', afters: true }] }] }],
+  };
+  assert.deepEqual(readImage({ source: 'x', output: raw }).headliners.map((h) => h.artist), ['DJ ONE'], 'afters only: the last one');
+  assert.deepEqual(readImage({ source: 'x', output: 'no json here' }), { sets: 0, headliners: [] }, 'nothing read, nothing shown');
+  const badTime = { festival_name: 'F', days: [{ date: '2026-08-07', header: 'FRI', stages: [{ name: 'S', sets: [{ artist: 'A', time: 'soon' }] }] }] };
+  assert.deepEqual(readImage({ source: 'x', output: badTime }), { sets: 0, headliners: [] }, 'a day that will not read counts for nothing');
 });

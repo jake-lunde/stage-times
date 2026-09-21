@@ -54,6 +54,11 @@
  *      The build still never reads a clock; this is the one place a real time
  *      enters the system, and it enters as committed state.
  *
+ * While it works, upload and confirm report what has happened through an
+ * optional progress port — each image checked and read, each confirm step —
+ * which the upload adapter streams to the page (ticket 21). A report is never
+ * an estimate, and without the port nothing changes.
+ *
  * Secrets and addresses: the update-link secret is minted from the injected
  * randomness, returned once, and stored only as a SHA-256 hash. The uploader's
  * address is stored only as a hash too — it reaches the owner through the
@@ -77,7 +82,7 @@ import {
   type SetEntry,
 } from './schema.js';
 import { NO_OFFICIAL_URL, slugify, TranscribeError, type SetEdit } from './transcribe.js';
-import { transcribe, type ModelOutput, type Transcription } from './transcription.js';
+import { readImage, transcribe, type Headliner, type ModelOutput, type Transcription } from './transcription.js';
 import {
   filenameOf,
   hostOf,
@@ -278,6 +283,38 @@ export interface OwnerPort {
   recognizes(presented: string | undefined): boolean;
 }
 
+/**
+ * What the publisher says while it works, so the page can say it too. Each
+ * report is something that has already happened — never an estimate.
+ *
+ * `read` is an upload's: an image cleared the schedule check (`checked`), or
+ * its reading is in hand, freshly transcribed (`read`) or already paid for
+ * (`reused`). `image` is its position in the intent's list, from 0; `done`
+ * counts the images whose reading is in hand; `sets` is every set read off
+ * them so far; `headliners` are the ones on this image, when it was read.
+ *
+ * `confirm` is a confirm's: the checks began, the commit is being made, the
+ * commit landed.
+ */
+export type Progress =
+  | {
+      kind: 'read';
+      step: 'checked' | 'read' | 'reused';
+      image: number;
+      total: number;
+      done: number;
+      sets: number;
+      headliners: Headliner[];
+    }
+  | { kind: 'confirm'; step: 'checking' | 'saving' | 'done' };
+
+export type { Headliner };
+
+/** Where the reports go. The upload adapter streams them to the browser; nothing else listens. */
+export interface ProgressPort {
+  report(progress: Progress): void;
+}
+
 export interface PublisherPorts {
   vision: VisionPort;
   repo: RepositoryPort;
@@ -285,6 +322,8 @@ export interface PublisherPorts {
   clock: ClockPort;
   random: RandomPort;
   owner: OwnerPort;
+  /** Optional: without it the publisher works exactly as it always has, and says nothing. */
+  progress?: ProgressPort;
 }
 
 /**
@@ -985,6 +1024,8 @@ export async function upload(intent: UploadIntent, ports: PublisherPorts): Promi
   // day alone.
   const saved = await Promise.all(hashes.map((hash) => ports.repo.readTranscription(hash)));
   const unread = images.flatMap((image, i) => (saved[i] ? [] : [i]));
+  const tally = progressOf(ports, images.length);
+  for (const [i, reading] of saved.entries()) if (reading) tally.read('reused', i, reading);
   if (unread.length === 0) {
     return finishUpload(intent, ports, saved as SavedTranscription[], { reused: true, commit: null, target });
   }
@@ -1010,6 +1051,7 @@ export async function upload(intent: UploadIntent, ports: PublisherPorts): Promi
         ),
       );
     }
+    tally.checked(i);
   }
 
   const fresh: SavedTranscription[] = [];
@@ -1025,6 +1067,7 @@ export async function upload(intent: UploadIntent, ports: PublisherPorts): Promi
     };
     fresh.push(reading);
     saved[i] = reading;
+    tally.read('read', i, reading);
   }
 
   const paidFor = fresh.map((f) => f.image);
@@ -1047,6 +1090,33 @@ export async function upload(intent: UploadIntent, ports: PublisherPorts): Promi
   };
 
   return finishUpload(intent, ports, saved as SavedTranscription[], { reused: false, commit, target });
+}
+
+/**
+ * An upload's running count, reported as it moves: images whose reading is in
+ * hand and the sets on them. A checked image adds nothing — it has not been
+ * read yet.
+ */
+function progressOf(ports: PublisherPorts, total: number) {
+  let done = 0;
+  let sets = 0;
+  const report = (p: Progress) => ports.progress?.report(p);
+  return {
+    checked(image: number) {
+      report({ kind: 'read', step: 'checked', image, total, done, sets, headliners: [] });
+    },
+    read(step: 'read' | 'reused', image: number, reading: SavedTranscription) {
+      const got = readImage({ source: storedImageName(reading), output: reading.output });
+      done += 1;
+      sets += got.sets;
+      report({ kind: 'read', step, image, total, done, sets, headliners: got.headliners });
+    },
+  };
+}
+
+/** A confirm's step, reported. */
+function confirmStep(ports: PublisherPorts, step: 'checking' | 'saving' | 'done'): void {
+  ports.progress?.report({ kind: 'confirm', step });
 }
 
 /** Read the saved replies into one review payload. Shared by the cached path. */
@@ -1427,6 +1497,7 @@ async function readScreened(ports: PublisherPorts): Promise<ScreenedLedger> {
  * not build, it is not committed.
  */
 export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Promise<ConfirmResult> {
+  confirmStep(ports, 'checking');
   const named = checkWhoAndWhat(intent.festival, intent.email);
   if (named) return rejectedConfirm(named);
 
@@ -1571,7 +1642,9 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
     })),
   };
 
+  confirmStep(ports, 'saving');
   const publishCommit = await ports.repo.commit(commit);
+  confirmStep(ports, 'done');
 
   // The owner's confirm was a person tapping: nothing machine-initiated
   // happened, so nothing lands in the inbox.
@@ -1753,7 +1826,9 @@ async function correct(
       ]
     : [];
 
+  confirmStep(ports, 'saving');
   await ports.repo.commit(commit);
+  confirmStep(ports, 'done');
   for (const n of notifications) await ports.notify.send(n);
 
   return {

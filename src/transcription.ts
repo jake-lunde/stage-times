@@ -22,6 +22,8 @@ import type { FestivalDoc } from './schema.js';
 import {
   assertRawTranscription,
   buildTranscription,
+  readDay,
+  titleCase,
   TranscribeError,
   type AppliedEdit,
   type BuiltSet,
@@ -115,4 +117,58 @@ export function transcribe(outputs: ModelOutput[], options: TranscriptionOptions
     timezoneAssumed: options.timezoneAssumed === true,
     observations: raws.flatMap((r) => r.observations ?? []),
   };
+}
+
+/** One stage's closer on one night, as the wait shows it while the rest is read. */
+export interface Headliner {
+  /** As printed. */
+  artist: string;
+  /** The stage's display name. */
+  stage: string;
+  /** The poster day, ISO — the night the set belongs to, whatever the clock says. */
+  night: string;
+  /** Local wall time, `YYYY-MM-DDTHH:MM:SS`. */
+  start: string;
+}
+
+/** What one image's reply holds, read on its own: how many sets, and who closes each night. */
+export interface ImageReading {
+  sets: number;
+  headliners: Headliner[];
+}
+
+/**
+ * One image's reply, read on its own for the wait: the sets on it and each
+ * stage's headliner per night — the last set printed under that night, an
+ * AFTERS billing skipped unless it is all the stage has (CONTEXT: headliner).
+ * Never throws: a reply or a day that will not read counts for nothing, and
+ * the full reading, which does throw, says why.
+ */
+export function readImage(output: ModelOutput): ImageReading {
+  let raw: RawTranscription;
+  try {
+    raw = parseModelOutput(output.output, output.source);
+  } catch {
+    return { sets: 0, headliners: [] };
+  }
+  let sets = 0;
+  const headliners: Headliner[] = [];
+  for (const day of raw.days) {
+    let built: ReturnType<typeof readDay>;
+    try {
+      built = readDay(day, output.source);
+    } catch {
+      continue;
+    }
+    sets += built.length;
+    let at = 0;
+    for (const stage of day.stages) {
+      const mine = stage.sets.map((printed, i) => ({ printed, set: built[at + i]! }));
+      at += stage.sets.length;
+      const closer = mine.filter((m) => !m.printed.afters).at(-1) ?? mine.at(-1);
+      if (!closer) continue;
+      headliners.push({ artist: closer.set.artist, stage: titleCase(stage.name), night: day.date, start: closer.set.start });
+    }
+  }
+  return { sets, headliners };
 }
