@@ -97,6 +97,8 @@ export interface WatchEntry {
   window: { from: string; to: string };
   /** A regular expression on the image URL; only matching images are read. */
   match?: string;
+  /** The festival's subreddit, without `r/`. Only the signal reads it (`src/signal.ts`). */
+  subreddit?: string;
 }
 
 export type WatchList = WatchEntry[];
@@ -204,8 +206,16 @@ function watchEntry(item: unknown, n: number): WatchEntry {
     }
     entry.match = match;
   }
+  if (obj['subreddit'] !== undefined) {
+    const subreddit = String(obj['subreddit']).trim().replace(/^\/?r\//i, '');
+    if (!SUBREDDIT_RE.test(subreddit)) fail(`subreddit must be a subreddit's name, as in r/<name>, not ${JSON.stringify(obj['subreddit'])}`);
+    entry.subreddit = subreddit;
+  }
   return entry;
 }
+
+/** What Reddit allows in a subreddit's name: 2 to 21 letters, digits and underscores, not starting with an underscore. */
+const SUBREDDIT_RE = /^[A-Za-z0-9][A-Za-z0-9_]{1,20}$/;
 
 function isoDate(value: unknown): string | null {
   const s = value instanceof Date ? value.toISOString().slice(0, 10) : String(value ?? '');

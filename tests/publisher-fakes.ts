@@ -35,6 +35,7 @@ import {
 } from '../src/publisher.js';
 import type { PublishedFile } from '../src/build.js';
 import type { FetchedImage, PagePort } from '../src/watcher.js';
+import type { RedditPort } from '../src/signal.js';
 import { REPO_ROOT } from './helpers.js';
 
 // ---------------------------------------------------------------------------
@@ -408,4 +409,41 @@ export interface WatcherFakes extends Fakes {
 
 export function fakeWatcherPorts(overrides: Partial<WatcherFakes> = {}): WatcherFakes {
   return { ...fakePorts(overrides), pages: overrides.pages ?? fakePages() };
+}
+
+// ---------------------------------------------------------------------------
+// Subreddit listings, for the signal
+// ---------------------------------------------------------------------------
+
+/** A recorded subreddit listing, Reddit's `new.json` shape, from tests/fixtures/signal/. */
+export function recordedListing(name = 'lowtidefest-new.json'): string {
+  return readFileSync(join(REPO_ROOT, 'tests', 'fixtures', 'signal', name), 'utf8');
+}
+
+export interface FakeReddit extends RedditPort {
+  /** Every subreddit whose listing was asked for, in order. This is the request count. */
+  fetches: string[];
+  /** Change what a subreddit answers with between runs, by name as the entry spells it. */
+  listings: Record<string, string | null>;
+}
+
+/** Recorded listings: a subreddit answers with its JSON, anything else with nothing — as a blocked request would. */
+export function fakeReddit(listings: Record<string, string | null> = {}): FakeReddit {
+  const reddit: FakeReddit = {
+    fetches: [],
+    listings: { ...listings },
+    async listing(subreddit) {
+      reddit.fetches.push(subreddit);
+      return reddit.listings[subreddit] ?? null;
+    },
+  };
+  return reddit;
+}
+
+export interface SignalFakes extends Fakes {
+  reddit: FakeReddit;
+}
+
+export function fakeSignalPorts(overrides: Partial<SignalFakes> = {}): SignalFakes {
+  return { ...fakePorts(overrides), reddit: overrides.reddit ?? fakeReddit() };
 }
