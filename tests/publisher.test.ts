@@ -18,6 +18,7 @@ import assert from 'node:assert/strict';
 
 import {
   claimFanSlug,
+  GATE_COPY,
   confirm,
   icalStamp,
   publish,
@@ -257,8 +258,9 @@ test('cache: a reading the library refuses is still saved, so fixing it and retr
 
   const refused = await upload(uploadIntent(), ports);
   assert.equal(refused.ok, false);
-  assert.equal(refused.rejection!.gate, 'schema');
-  assert.match(refused.rejection!.reason, /no official URL found/);
+  assert.equal(refused.rejection!.gate, 'link', 'lands on the form, where the link can be typed');
+  assert.equal(refused.rejection!.reason, GATE_COPY.noLink, "the page's sentence, not the CLI's flag");
+  assert.doesNotMatch(refused.rejection!.reason, /--official-url|schema|URL/);
   assert.equal(ports.vision.transcriptions, 1);
   assert.ok(refused.commit, 'the reply that was paid for is on the record either way');
 

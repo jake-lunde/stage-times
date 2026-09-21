@@ -73,7 +73,7 @@ import {
   type Namespace,
   type SetEntry,
 } from './schema.js';
-import { slugify, TranscribeError, type SetEdit } from './transcribe.js';
+import { NO_OFFICIAL_URL, slugify, TranscribeError, type SetEdit } from './transcribe.js';
 import { transcribe, type ModelOutput, type Transcription } from './transcription.js';
 
 export type { SetEdit };
@@ -402,6 +402,8 @@ export type Gate =
   | 'expired'
   | 'review'
   | 'schema'
+  /** The source carries no web address and none was typed; the schema needs one. */
+  | 'link'
   /** A correction whose source reads as a different year than the edition. */
   | 'year'
   /** A correction that would drop a stage people have already added. */
@@ -621,6 +623,7 @@ export const GATE_COPY = {
   tooSmall: 'That image is {short} pixels on its short side. Under {min} there is nothing legible to read the times off.',
   unreadableOne: "One set is still marked as one you can't read. Check it against your image, then confirm.",
   unreadableMany: "{n} sets are still marked as ones you can't read. Check them against your image, then confirm.",
+  noLink: "The image doesn't say where the times are posted. Add the link to the festival's schedule and try again.",
   removed: "This page was taken down, so it can't be changed from here.",
   wrongLink: "That update link doesn't match this page. Check you copied all of it.",
 } as const;
@@ -1548,6 +1551,10 @@ export function readingProblem(err: unknown): Rejection {
       `Those times don't hold together: ${err.problems[0] ?? 'the schedule is not publishable'}`,
       err.problems,
     );
+  }
+  if (err instanceof TranscribeError && err.message === NO_OFFICIAL_URL) {
+    // The CLI's sentence names a flag; the page has a field for it instead.
+    return reject('link', GATE_COPY.noLink);
   }
   if (err instanceof TranscribeError) {
     return reject('schema', `I couldn't read that into a schedule: ${err.message}`);

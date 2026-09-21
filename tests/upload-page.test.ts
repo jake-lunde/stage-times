@@ -17,7 +17,8 @@ import { join } from 'node:path';
 
 import { ACCEPTED_IMAGE_TYPES, EMAIL_RE, GATE_COPY, MAX_IMAGE_EDGE, MAX_UPLOAD_IMAGES, MIN_IMAGE_EDGE, type Gate } from '../src/publisher.js';
 import { renderSitePages } from '../src/pages.js';
-import { addDay, dayLabel, daysLabel, editedEnd, editedStart, festivalDays, GATE_SCREENS, nightOf, ownerFromFragment, ownerLink, renderUploadPage, REVIEW_ZONES, updateLink, updatePagePath, type Screen } from '../src/upload-pages.js';
+import { addDay, dayLabel, daysLabel, editedEnd, editedStart, festivalDays, GATE_SCREENS, loadingArt, nightOf, ownerFromFragment, ownerLink, renderUploadPage, REVIEW_ZONES, updateLink, updatePagePath, type Screen } from '../src/upload-pages.js';
+import { artGround } from '../src/pages.js';
 import { buildFixtureSite, harborDoc, pierDoc, REPO_ROOT, visibleText } from './helpers.js';
 
 const html = renderUploadPage();
@@ -32,7 +33,7 @@ function screen(name: Screen): string {
 }
 
 const SCREENS: Screen[] = ['details', 'upload', 'review', 'publishing', 'success'];
-const ALL_GATES: Gate[] = ['details', 'type', 'size', 'dimensions', 'address-cap', 'daily-cap', 'schedule', 'expired', 'review', 'schema', 'year', 'stages', 'removed', 'update-link'];
+const ALL_GATES: Gate[] = ['details', 'images', 'type', 'size', 'dimensions', 'address-cap', 'daily-cap', 'schedule', 'expired', 'review', 'schema', 'link', 'year', 'stages', 'removed', 'update-link'];
 
 // ===========================================================================
 // The screens
@@ -69,10 +70,11 @@ test('upload page: each deciding screen has exactly one primary pill; the wait h
 test('upload page: the details screen asks for the festival, its days, and an email, and nothing else', () => {
   const details = screen('details');
   const inputs = details.match(/<input[^>]*>/g) ?? [];
-  assert.equal(inputs.length, 4);
-  for (const name of ['festival', 'first', 'last', 'email']) {
+  assert.equal(inputs.length, 5, 'four to fill in, and the schedule link waiting hidden');
+  for (const name of ['festival', 'first', 'last', 'email', 'link']) {
     assert.ok(inputs.some((i) => i.includes(`name="${name}"`)), `field ${name}`);
   }
+  assert.match(details, /<label class="field" data-link hidden><span>Schedule link<\/span><input name="link" type="url"/, 'the link field is there but not asked for');
   assert.match(details, /name="first" type="date"/);
   assert.match(details, /name="email" type="email"/);
   assert.ok(details.includes('>Next</button>'), 'the one label');
@@ -112,10 +114,10 @@ test('upload page: more days is a row per day — a tappable file row with the d
   assert.equal(many.includes('<hr'), false, 'no dividers in a row list');
 });
 
-test('upload page: the rows are offered one at a time, each swappable until the read starts', () => {
+test('upload page: every day has its row from the start, each swappable until the read starts', () => {
   assert.ok(html.includes('var days = festivalDays(d.first, d.last, LIMITS.maxImages);'), 'the days come from the dates typed');
   assert.ok(html.includes(`"maxImages":${MAX_UPLOAD_IMAGES}`), "no more rows than the publisher's own limit");
-  assert.ok(html.includes('var offered = Math.min(chosen().length + 1, state.days.length);'), 'the next day appears when the one before it has an image');
+  assert.ok(html.includes('var offered = state.days.length;'), 'all the days at once, so the shape of the upload is clear before the first image');
   assert.ok(html.includes("$('[data-action]', li).textContent = 'Swap image';"), 'a chosen day can be swapped');
   assert.ok(html.includes('readBtn.disabled = chosen().length === 0;'), 'the read pill waits for the first image and no more');
   assert.ok(html.includes("readBtn.addEventListener('click', function () { if (chosen().length) sendUpload(); });"), 'reading starts on one tap');
@@ -123,10 +125,46 @@ test('upload page: the rows are offered one at a time, each swappable until the 
   for (const fn of [festivalDays, nightOf, dayLabel, daysLabel]) assert.ok(html.includes(fn.toString()), `${fn.name} rides along by source`);
 });
 
-test('upload page: the reading state says how many images are being read', () => {
-  assert.ok(html.includes("'Reading the times off your image. Usually under a minute.'"));
-  assert.ok(html.includes("'Reading the times off your ' + n + ' images. Usually a minute or two.'"));
+test('upload page: the reading state says what is being read, how many, and then how long it has been', () => {
+  assert.ok(html.includes("'Reading the artist names and times off your image. Usually about a minute.'"));
+  assert.ok(html.includes("'Reading the artist names and times off your ' + n + ' images, one after the other. Usually about a minute each.'"));
+  assert.ok(html.includes("'Still reading.'") && html.includes("' seconds so far.'"), 'past the first stretch, the elapsed time — the one thing the browser knows');
+  assert.ok(html.includes('if (s >= 15) status.textContent = still'), 'not before fifteen seconds');
+  assert.ok(html.includes("'Checking the times hold together and saving them. Usually under a minute.'"), 'saving says what it is doing too');
+  assert.ok(html.includes("'Still saving.'"));
   assert.ok(html.includes("label.textContent = multi ? 'Read the times' : 'Choose image';"), 'the pill comes back as what it was');
+});
+
+test('upload page: the wait is drawn as the beads with no sets yet — a ring per day, on the light red ground', () => {
+  const art = loadingArt(3, artGround('#EC300C'));
+  assert.equal(art, loadingArt(3, artGround('#EC300C')), 'nothing random');
+  assert.equal((art.match(/class="rot"/g) ?? []).length, 3, 'a ring per festival day');
+  assert.equal((art.match(/class="bead"/g) ?? []).length, 42, 'fourteen beads a ring');
+  assert.equal((loadingArt(1, '#F38A74').match(/class="rot"/g) ?? []).length, 1);
+  assert.equal((loadingArt(9, '#F38A74').match(/class="rot"/g) ?? []).length, 7, 'never more rings than the publisher takes images');
+  assert.match(art, /^<svg class="art-svg" viewBox="0 0 400 240" preserveAspectRatio="xMidYMid slice" aria-hidden="true"/, 'the stage card\'s art slot, decorative');
+  assert.doesNotMatch(art, /linear-gradient|<text/, 'no gradient outside the beads idiom, no words in it');
+  assert.ok(html.includes(loadingArt.toString()), 'embedded by source');
+  assert.ok(html.includes(`var ART_GROUND = '${artGround('#EC300C')}';`), 'the ground is the action color mixed toward cream, like a stage card');
+  assert.match(screen('upload'), /<figure class="loading" data-loading hidden><\/figure>\s*<p class="status" aria-live="polite" hidden><\/p>/, 'above the status line while reading');
+  assert.match(screen('review'), /<figure class="loading" data-loading hidden><\/figure>\s*<p class="status" aria-live="polite" data-save-status hidden><\/p>/, 'and while saving');
+  assert.match(html, /@media \(prefers-reduced-motion: reduce\)\{[^}]*\}[\s\S]*?\.loading \.bead\{opacity:1\}/, 'under reduced motion the finished ring stays');
+});
+
+test('upload page: a source with no web address on it grows the one field for it, and the link goes out with both posts', () => {
+  assert.equal(GATE_SCREENS.link, 'details', 'lands on the form');
+  assert.ok(html.includes("if (body.gate === 'link') $('[data-link]').hidden = false;"), 'the field appears only then');
+  assert.ok(html.includes('if (d.link) body.officialUrl = d.link;'), 'and only goes out when typed');
+  assert.ok(html.includes("withImages(typed({ dates: { first: d.first, last: d.last }, update: updateClaim() }))"), 'upload');
+  assert.ok(html.includes("withImages(typed({ timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: unverifiable, update: updateClaim() }))"), 'confirm');
+  assert.ok(html.includes('if (!multiDay() && state.images[0]) sendUpload();'), 'back from the form with the image still chosen, it is read again without another tap');
+  assert.ok(visibleText(screen('details')).includes("Where the festival posted the times, since the image doesn't say."));
+});
+
+test('upload page: a rejection with nothing reviewed cannot strand the reader on the review screen', () => {
+  assert.ok(html.includes("if (to === 'review' && !state.review) to = 'upload';"));
+  assert.ok(html.includes("if (!rv) return show('upload');"), 'confirm with nothing to confirm goes back');
+  assert.ok(html.includes(".catch(function () {") && html.includes("'Something went wrong on my end. Try again in a minute.' } }, before: null }"), 'a save that throws still restores the button with a line');
 });
 
 test('upload page: a rejection about one image lands under that day\'s row, in the publisher\'s own sentence', () => {
@@ -301,14 +339,15 @@ test('upload page: the page embeds those helpers by source and reads a moved sta
 test('upload page: the script posts exactly the fields the two adapters read', () => {
   assert.ok(
     html.includes(
-      "post('/api/upload', withOwner(withImages({ festival: d.festival, dates: { first: d.first, last: d.last }, email: d.email, update: updateClaim() })))",
+      "post('/api/upload', withOwner(withImages(typed({ dates: { first: d.first, last: d.last }, update: updateClaim() }))))",
     ),
   );
   assert.ok(
     html.includes(
-      "var body = withOwner(withImages({ festival: d.festival, email: d.email, timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: unverifiable, update: updateClaim() }));",
+      "var body = withOwner(withImages(typed({ timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: unverifiable, update: updateClaim() })));",
     ),
   );
+  assert.ok(html.includes('body.festival = d.festival;') && html.includes('body.email = d.email;'), 'the form fields ride on both');
   assert.ok(html.includes("post('/api/confirm', body)"));
   assert.ok(html.includes('var UPDATE = null;'), 'on /upload/ there is no update link, so nothing extra goes out');
   assert.ok(html.includes('filename: im.filename, contentType: im.contentType, width: im.width, height: im.height, data: im.data'));

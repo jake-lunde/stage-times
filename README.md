@@ -393,9 +393,13 @@ and a rejection about one image carries its position as `image`.
 
 `/upload/` is one static page rendered by `src/upload-pages.ts` (ticket 08): details, the
 images, review, the wait, success. A one-day festival is one file action that posts the moment an
-image is chosen; more days is a row per day (ticket 18), offered one at a time, each swappable
-until the read starts, and one pill that reads whatever was chosen — a day with no times yet can
-be left out. The script reads fields, checks type and dimensions with the publisher's own limits
+image is chosen; more days is a row per day (ticket 18), every day shown from the start, each
+swappable until the read starts, and one pill that reads whatever was chosen — a day with no times
+yet can be left out. While the model reads, and again while confirm saves, the page draws the wait
+as the beads of a stage card with no sets yet (`loadingArt()`, a ring per day) over a status line
+that says what is happening and, past fifteen seconds, how long it has been. A source with no web
+address printed on it comes back as the `link` gate, which reveals the one field for it on the
+form. The script reads fields, checks type and dimensions with the publisher's own limits
 before posting, shrinks each image to its share of the platform's body cap, posts to the two
 adapters (`image` for one, `images` in day order for more, and confirm echoes the review's
 `reviewed` list), and shows one screen at a time; every rejection is the publisher's sentence,
