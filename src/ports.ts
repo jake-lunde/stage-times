@@ -3,10 +3,10 @@
  *
  * `src/publisher.ts` holds the rules and never touches the outside world; this
  * module is the outside world, and holds no rules. Everything here is one of
- * six things: the vision model (through `src/vision.ts`, still the only module
- * that calls a model), the repository, notifications, the clock, randomness,
- * and — for the watcher — the schedule pages it reads. Nothing here decides
- * anything.
+ * seven things: the vision model (through `src/vision.ts`, still the only
+ * module that calls a model), the repository, notifications, the clock,
+ * randomness, the schedule pages the watcher reads, and the subreddit
+ * listings the signal reads. Nothing here decides anything.
  *
  * The repository port commits through GitHub's Git Data API rather than the
  * Contents API, one blob per file and one tree per intent, because an edition
@@ -49,6 +49,7 @@ import { ownerMatches, PUBLISHER_REPO, type Env } from './secrets.js';
 import { requireSdkBackend, screenForSchedule, transcribeBytes } from './vision.js';
 import type { PublishedFile } from './build.js';
 import type { FetchedImage, PagePort, WatcherPorts } from './watcher.js';
+import type { RedditPort, SignalPorts } from './signal.js';
 
 const API = 'https://api.github.com';
 const BRANCH = 'main';
@@ -342,6 +343,60 @@ export function livePages(fetchFn: FetchLike = fetch): PagePort {
 }
 
 // ---------------------------------------------------------------------------
+// Subreddit listings
+// ---------------------------------------------------------------------------
+
+/**
+ * Who the signal says it is, in the form Reddit's API rules ask for —
+ * `<platform>:<app id>:<version>` — with the site behind it.
+ */
+export const REDDIT_USER_AGENT = 'web:app.stagetimes.signal:v1.0 (+https://stagetimes.app)';
+
+/**
+ * The gap between two listing requests in one run. Reddit allows a client
+ * without credentials far less than an OAuth one; ten a minute is the
+ * commonly stated ceiling, and this stays at it. A run asks once per
+ * subreddit and runs hourly, so the spacing is the only limit that ever binds.
+ */
+export const REDDIT_REQUEST_SPACING_MS = 6_000;
+
+/**
+ * The signal's read of Reddit: a subreddit's newest posts over the public
+ * JSON listing, with no credentials, identifying itself honestly and pacing
+ * itself. After a 429, or once Reddit's `x-ratelimit-remaining` says the
+ * budget is spent, it asks nothing more this run. Anything that is not a
+ * JSON answer — a block page, a login wall, an error — is null, and the
+ * signal treats null as "not there".
+ */
+export function liveReddit(
+  fetchFn: FetchLike = fetch,
+  sleep: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+): RedditPort {
+  let asked = 0;
+  let stopped = false;
+  return {
+    async listing(subreddit): Promise<string | null> {
+      if (stopped) return null;
+      if (asked > 0) await sleep(REDDIT_REQUEST_SPACING_MS);
+      asked += 1;
+      try {
+        const res = await fetchFn(`https://www.reddit.com/r/${encodeURIComponent(subreddit)}/new.json?limit=100&raw_json=1`, {
+          headers: { 'User-Agent': REDDIT_USER_AGENT, Accept: 'application/json' },
+          signal: AbortSignal.timeout(PAGE_TIMEOUT_MS),
+        });
+        const remaining = res.headers.get('x-ratelimit-remaining');
+        if (res.status === 429 || (remaining !== null && Number(remaining) < 1)) stopped = true;
+        if (!res.ok) return null;
+        if (!/json/i.test(res.headers.get('content-type') ?? '')) return null;
+        return await res.text();
+      } catch {
+        return null;
+      }
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // The set
 // ---------------------------------------------------------------------------
 
@@ -360,4 +415,9 @@ export function livePorts(env: Env = process.env): PublisherPorts {
 /** The publisher's ports plus the pages. What the scheduled entrypoint hands the watcher. */
 export function watcherPorts(env: Env = process.env): WatcherPorts {
   return { ...livePorts(env), pages: livePages() };
+}
+
+/** The publisher's ports plus Reddit. What the scheduled entrypoint hands the signal. */
+export function signalPorts(env: Env = process.env): SignalPorts {
+  return { ...livePorts(env), reddit: liveReddit() };
 }
