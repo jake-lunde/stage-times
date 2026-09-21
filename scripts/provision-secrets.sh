@@ -267,6 +267,13 @@ say "Transcription must bill the API, not your Claude subscription. Make a key j
 say "for this site so it can be revoked on its own."
 if vercel_has ANTHROPIC_API_KEY production && ! confirm "ANTHROPIC_API_KEY already exists on Vercel. Replace it (rotate)?"; then
   note "keeping the existing key"
+  # The hourly watcher runs on GitHub Actions and needs the same key there.
+  if local_key=$(grep -s '^ANTHROPIC_API_KEY=' "$ENV_FILE" | head -n1 | cut -d= -f2-) && [[ -n "$local_key" ]]; then
+    set_secret ANTHROPIC_API_KEY "$local_key"
+  else
+    SKIPPED+=("GitHub secret ANTHROPIC_API_KEY (no local copy in $ENV_FILE; run: gh secret set ANTHROPIC_API_KEY)")
+    warn "no local copy of the key in $ENV_FILE to set the GitHub secret from"
+  fi
 else
   open_url "https://console.anthropic.com/settings/keys"
   step "Click 'Create Key'. Name it 'stagetimes-vercel'. Pick the workspace you bill from."
