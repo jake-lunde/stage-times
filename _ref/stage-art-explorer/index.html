@@ -42,7 +42,7 @@ label.ctl input[type=checkbox]{accent-color:var(--red);width:16px;height:16px}
 .lineup{position:absolute;left:16px;right:16px;bottom:12px;margin:0;font-size:18px;font-weight:600;line-height:1.3}
 .lineup span{display:block}
 .lineup.pills{display:flex;flex-wrap:wrap;gap:6px;bottom:14px}
-.lineup.pills span{display:inline-block;height:32px;line-height:32px;padding:0 14px;border-radius:16px;font-size:15px;font-weight:600;white-space:nowrap;max-width:100%;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.lineup.pills span{display:inline-block;height:32px;line-height:32px;padding:0 20px;border-radius:16px;font-size:15px;font-weight:600;white-space:nowrap;max-width:100%;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .scrim{position:absolute;inset:0;background:rgba(18,24,31,.15);pointer-events:none}
 .ticker{position:absolute;left:0;right:0;bottom:12px;margin:0;overflow:hidden;white-space:nowrap;font-size:16px;font-weight:600;line-height:32px;-webkit-mask-image:linear-gradient(to right,transparent,#000 24px,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(to right,transparent,#000 24px,#000 calc(100% - 24px),transparent)}
 .ticker .track{display:inline-block;animation:ticker var(--dur,24s) linear infinite;will-change:transform}
@@ -74,7 +74,7 @@ footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--line);font-fa
 .lbl{font-family:var(--sans);font-weight:600;font-size:17px}
 .lbl .pop{opacity:0}
 .ambient{position:absolute;left:16px;right:16px;bottom:14px;margin:0;height:26px;pointer-events:none}
-.ambient span{position:absolute;left:0;bottom:0;display:inline-block;height:26px;line-height:26px;padding:0 12px;border-radius:13px;font-size:14px;font-weight:600;white-space:nowrap;opacity:0}
+.ambient span{position:absolute;left:0;bottom:0;display:inline-block;height:26px;line-height:26px;padding:0 20px;border-radius:13px;font-size:14px;font-weight:600;white-space:nowrap;opacity:0}
 @media (prefers-reduced-motion: reduce){.anim .rot,.anim .unrot{animation:none}.lbl .pop,.ambient span{animation:none!important;opacity:0}.lbl .pop.first,.ambient span.first{opacity:1}}
 </style>
 
@@ -364,9 +364,9 @@ function capsules(seed,base,sets,st,o){
 const popStyle=(i,n)=>`animation:pop${n} ${n*4.5}s linear infinite;animation-delay:${(i*4.5).toFixed(1)}s`;
 function pillColors(o,base){return{bg:o.pillInk==='deep'?shade(base,o.ground==='paper'?0:.5):o.pillInk==='cream'?'#FCF9F4':'#12181F',fg:o.pillInk==='cream'?'#12181F':'#FCF9F4'};}
 function centerPill(name,i,n,o,base,cx,cy){
-  const est=Math.round(22+name.length*9.6);const w=Math.min(352,est),h=32;
+  const est=Math.round(44+name.length*9.6);const w=Math.min(360,est),h=32;
   const {bg,fg}=pillColors(o,base);
-  const squeeze=est>352?` textLength="${w-22}" lengthAdjust="spacingAndGlyphs"`:'';
+  const squeeze=est>360?` textLength="${w-44}" lengthAdjust="spacingAndGlyphs"`:'';
   return`<g class="pop${i===0?' first':''}" style="${popStyle(i,n)}"><rect x="${cx-Math.round(w/2)}" y="${cy-h/2}" width="${w}" height="${h}" rx="16" fill="${bg}"/><text x="${cx}" y="${cy+6}" text-anchor="middle" fill="${fg}"${squeeze}>${esc(name)}</text></g>`;
 }
 function lit(x,y,k,i,n,o,base){ // a copy of the sparkle in the pill's ink, popping on the same cycle as its name
@@ -391,7 +391,7 @@ function petals(seed,base,sets,st,o){ // one capsule per set, evenly spaced in r
 const sparkle=(x,y,k,fill,op)=>`<path d="M${x} ${y-k}Q${x} ${y} ${x+k} ${y}Q${x} ${y} ${x} ${y+k}Q${x} ${y} ${x-k} ${y}Q${x} ${y} ${x} ${y-k}Z" fill="${fill}" fill-opacity="${op}"/>`;
 function beads(seed,base,sets,st,o){ // a ring per day, evenly spaced from the core to the card's edge; a bead per set at its clock position; each ring drifts at its own speed
   const {cx,cy,hh}=geo(o);const ink=inks(base,o.ground);const nd=days.length;
-  const inner=hh+26,outer=188;const rOf=d=>Math.round(nd===1?outer:inner+d*(outer-inner)/(nd-1));
+  const inner=hh+26,outer=176;const rOf=d=>Math.round(nd===1?outer:inner+d*(outer-inner)/(nd-1));
   const angOf=x=>-Math.PI/2+x*2*Math.PI;
   const closers=new Map();for(const s of sets)closers.set(s.day,s);
   const isStar=s=>o.beadStar==='closers'?closers.get(s.day)===s:o.beadStar==='long'?s.len>=60:false;
