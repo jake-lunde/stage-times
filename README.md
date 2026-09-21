@@ -453,7 +453,7 @@ Vercel, static output, apex `stagetimes.app`. Feeds are **not** generated from a
 function: the data only changes when the YAML changes, so on-request generation buys nothing and
 costs the determinism the whole test strategy rests on.
 
-`vercel.json` differs from the original brief in four ways, all required to actually deploy:
+`vercel.json` differs from the original brief in five ways, all required to actually deploy:
 
 1. **`outputDirectory: "dist"`** — the project has no framework, so Vercel's default output
    directory is `public/`. Without this, deploys serve nothing and every feed 404s.
@@ -465,6 +465,10 @@ costs the determinism the whole test strategy rests on.
 4. **`functions."api/*.ts".includeFiles: "config/**"`** — the publisher reads
    `config/vision-models.json` at call time (which model reads a source is configuration, not a
    literal). Without this the functions deploy without it and every upload fails on a missing file.
+5. **`functions."api/*.ts".maxDuration: 300`** — one upload is a schedule check and then a
+   transcription of every image, and one confirm is a chain of Git Data API calls; either can run
+   past the platform's default budget for a function. Without this a slow poster is a timeout
+   that the page reports as "didn't go through", after the model call was billed.
 
 `$comment` keys are rejected by Vercel's schema validator, which is why this rationale is here.
 

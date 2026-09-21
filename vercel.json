@@ -4,7 +4,8 @@
   "outputDirectory": "dist",
   "functions": {
     "api/*.ts": {
-      "includeFiles": "config/**"
+      "includeFiles": "config/**",
+      "maxDuration": 300
     }
   },
   "headers": [

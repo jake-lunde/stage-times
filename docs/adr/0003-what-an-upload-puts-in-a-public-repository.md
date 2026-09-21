@@ -18,11 +18,15 @@ The cost is that the owner cannot look an uploader up from the repository; he ha
 notification. That is the right trade: a published address is unfixable, and the notification is
 searchable.
 
-**Still open: where the stored source image goes.** The image is named by its content hash and the
-publisher emits it as a separate `images` entry in the commit rather than as a file, so an adapter
-can route it somewhere else without touching the seam. It has to be routed somewhere else: the
-takedown runbook says a rights-holder block deletes the stored image, and committing it to a public
-repository makes that impossible — history keeps it. A private store is needed before the first
-real upload.
+**The stored source image goes in the repository, for now.** The image is named by its content
+hash and the publisher emits it as a separate `images` entry in the commit rather than as a file,
+so an adapter can route it somewhere else without touching the seam. Today it is not routed
+anywhere else: `source/images/<hash>.<ext>` is committed to `main` alongside the edition. The cost
+is that a rights-holder block can delete the file from the tree but not from history — this
+repository is public, and git keeps every commit. The owner accepted that cost on 2026-09-21
+(vault ruling: "Source images commit to the public repo for now") so the first real upload could
+happen; the takedown runbook says what a block can and cannot do to an image. A private store is
+still the intended end state, and the seam is already shaped for it. Revisit before the first
+rights-holder request, or when a festival objects to the image rather than the times.
 
-Status: accepted, 2026-09-13, except the image-store question, which is the owner's.
+Status: accepted, 2026-09-13; image store settled for now by the owner, 2026-09-21.

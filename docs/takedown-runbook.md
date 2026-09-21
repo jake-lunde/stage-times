@@ -12,7 +12,7 @@ URL it ever served keeps answering — empty — so no subscriber ever sees a 40
 
 | Requester | Channel | What happens to the stored source image |
 |---|---|---|
-| **Rights holder** — the festival or its representative | Email to the owner, at the address on every page | **Deleted** in the same commit as the block |
+| **Rights holder** — the festival or its representative | Email to the owner, at the address on every page | **Deleted from the tree** in the same commit as the block. Git history keeps a copy: the repository is public, and the image is committed (ADR-0003, owner's ruling 2026-09-21) |
 | **Uploader** — the person holding the edition's update link | "Take it down" on the update link's page: the publisher commits the block itself (`remove` in `src/publisher.ts`) | **Kept** — a self-removal is not a rights claim, and the image is the evidence behind the times |
 | Anyone reporting a wrong time | The public issue link on the page | Not a takedown. Fix the YAML instead. |
 
@@ -45,9 +45,10 @@ resumes exactly where it left off.
 
 Then, in the same commit:
 
-- **Rights-holder block:** delete the stored source image for the edition (the file named by
-  content hash that the transcription log references; see ticket 07 for where it lives).
-  Note the requester and date in the commit message.
+- **Rights-holder block:** delete the stored source image for the edition
+  (`source/images/<hash>.<ext>`, the file the transcription log names). This removes it from
+  the tree and from every future deploy; it stays in git history until there is a private store
+  (ADR-0003). Note the requester and date in the commit message.
 - **Self-removal:** keep the image. Note "self-removal" in the commit message.
 
 Commit on `main`, push, and the production deploy does the rest. `npm test && npm run build`
