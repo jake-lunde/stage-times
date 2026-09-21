@@ -32,7 +32,10 @@ find the tap target, it's wrong.
 2. **One decision per screen.** 500–700pt of a 926pt screen is empty. The emptiness is the
    product, not an oversight.
 3. **No shadows. No gradients.** Card edges are a single-step color change, verified at the pixel
-   level. Surfaces separate by color contrast alone.
+   level. Surfaces separate by color contrast alone. **One exemption (owner ruling, 2026-09-20):
+   the art area of a card.** Inside the art slot, gradients and blur are allowed — that is where
+   the generative stage art lives and where a glow is the point. Nothing outside the slot gets
+   either: grounds, pills, chips, type, and card edges stay flat.
 4. **Two type sizes carry ~80% of the UI** — 16pt for anything actionable or titular, 14pt for
    anything secondary. Seven sizes exist in total; you almost certainly need two.
 5. **Labels are one or two plain words.** "Add calendar", "Copy link", "Confirm". Never
@@ -220,15 +223,25 @@ Two sources of art, one per card, image area always edge-to-edge:
 1. **A real festival image** when one exists — `assets/festivals/<festival-key>.<ext>`, copied to
    `dist/assets/festivals/` by the build. Landing-card hero. Store the file in the repo; never
    hotlink the festival's CDN (their cache headers, their outages, their tracking).
-2. **Procedural screenprint art** everywhere else — deterministic SVG generated at build time,
-   seeded by `festival-key/stage-id` (FNV-1a → mulberry32; **never `Math.random()`** — the build
-   must stay byte-reproducible). The composition: vertical capsules of varying height and offset
-   in translucent cream and a deepened cut of the stage color, flat fills only, on the stage-color
-   flood. It's the design system drawing itself: capsule geometry, screenprint flatness, per-stage
-   identity. On stage cards the art area also carries the **headliner preview** — up to three
-   artist names from the manifest, cream, ≥17pt semibold (the large-text contrast rule applies).
+2. **The beads** on every stage card (owner pick, 2026-09-21; `beadsArt()` in `src/pages.ts`,
+   explorer and rationale in `_ref/stage-art-explorer/`). The art area is the stage color mixed
+   45% toward cream. On it: a ring per festival day, evenly spaced from the center to the card
+   edge (the outer ring clips top and bottom); a cream bead per set at its clock position, 2 PM
+   at twelve, clockwise through the night, bead size from set length; the ring drawn solid only
+   across the hours the stage runs that day. Each night's billed headliner (the stage's
+   `headliners:` list, else the last set of the night; a night runs until 6 AM) is a four-point
+   star. The headliner names cycle in the center as a poster block — the night and the start time in mono
+   caps above the name in expanded display type, ink on the light ground — about four seconds
+   each, and the closer's star lights in the stage color while its name is up. Rings drift at
+   their own speeds; stars stay upright. Nothing is random: every mark is a set. CSS animation on
+   static SVG, so the build stays byte-reproducible; under reduced motion the first name stays.
+   The old seeded capsules (`capsuleArt()`) survive only as the landing card's no-image fallback.
 
-Never a stock photo, never a gradient mesh, never AI-generated imagery.
+Never a stock photo, never AI-generated imagery. Inside the art slot the flat rule is lifted
+(non-negotiable 3): the generative art may use gradients and bloom, and it is the one place on
+the site that may. Its parameters come from the sets — count, start time, length, guessed ends,
+how late the stage runs — so the art is the schedule drawn, not a texture. Seeded exactly as
+above; still byte-reproducible.
 
 ### Navigation bar
 
@@ -284,7 +297,7 @@ The six that decide most lines:
 - [ ] Everything tappable shrinks on press (`scale(.96)`, 120ms) — zeroed under reduced motion
 - [ ] Card headings are big and light (600–650 expanded), never small and heavy
 - [ ] Carousels are CSS scroll-snap — no JS scroll hijacking, no visible scrollbar
-- [ ] Procedural art is seeded from festival/stage keys — build output stays byte-identical
+- [ ] Card art is drawn from the sets, never from a clock or `Math.random()` — build output stays byte-identical
 - [ ] No `box-shadow`, no `linear-gradient`
 - [ ] Nothing is pure `#FFF` or pure `#000`
 - [ ] No cream text under 17pt on any colored surface (see contrast table)

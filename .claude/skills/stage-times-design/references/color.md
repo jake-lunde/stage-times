@@ -71,7 +71,9 @@ borrowed skeleton, not a different design language.
    band across the top third would just look like an error state.
 4. **Flat only.** No gradients, no drop shadows, no blur. Elevation is expressed with
    `--paper-sunk` fill and, where a boundary is genuinely needed, a 1px `--paper-line` border.
-   The reference is screenprint: ink either touches the paper or it doesn't.
+   The reference is screenprint: ink either touches the paper or it doesn't. The card art area
+   is exempt (owner ruling, 2026-09-20; see `SKILL.md` non-negotiable 3): glow lives there and
+   nowhere else.
 5. **Contrast floor** (measured, not estimated):
 
    | Pair | Ratio | Verdict |

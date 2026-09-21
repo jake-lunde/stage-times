@@ -31,19 +31,26 @@ festival:
   timezone: "America/Los_Angeles"      # PDT (UTC-7) throughout; no DST transition in window
   official_url: "https://www.capitolhillblockparty.com/"
 
+# `headliners` is display only (the card art and the headliner preview) and never touches a
+# feed: the act each night's poster column ends on, skipping the AFTERS blocks, in night order.
+# A night runs until 6 AM. Names must match the `artist` of a set on that stage exactly.
 stages:
   - id: "main"          # PERMANENT url slug — never change after publish
     name: "Main Stage"
     description: "Outdoor. Headliners both nights."
+    headliners: ["MUNA", "DISCO LINES", "WET LEG"]
   - id: "daydream"
     name: "Daydream Stage"
     description: "Outdoor second stage."
+    headliners: ["FROST CHILDREN", "ROCHELLE JORDAN", "MPH"]
   - id: "neumos"
     name: "Neumos Stage"
     description: "Indoor at Neumos. Runs late — hosts the Saturday and Sunday afters."
+    headliners: ["DARK CHISME", "RUB", "CLOUDS OF THE WEST"]
   - id: "barboza"
     name: "Barboza Stage"
     description: "Indoor basement at Barboza. Short sets, quick turnarounds."
+    headliners: ["GLASS EGG", "BAZAAR", "FATAL FEMMES"]
 
 sets:
   # ═══ FRIDAY 7 AUGUST 2026 ═════════════════════════════════════════════════════

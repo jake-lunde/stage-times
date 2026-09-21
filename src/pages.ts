@@ -46,6 +46,7 @@ interface StageEntry {
   setCount: number;
   dayspan: DaySpan;
   headliners: string[];
+  sets: { artist: string; start: string; end: string }[];
   icsPath: string;
 }
 
@@ -198,6 +199,209 @@ function capsuleArt(seedKey: string, baseColor: string): string {
     }
   }
   return `<svg class="art-svg" viewBox="0 0 400 240" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${shapes.join('')}</svg>`;
+}
+
+// ---------------------------------------------------------------------------
+// Stage card art — the beads (owner pick, 2026-09-21)
+// ---------------------------------------------------------------------------
+//
+// A ring per festival day, evenly spaced from the center to the card edge; a
+// bead per set at its clock position (2 PM at twelve, clockwise through the
+// night); bead size is set length; the ring is solid across the hours the
+// stage runs that day. Each day's closer is a four-point star. The headliner
+// names cycle in the center as a poster block (the night and the start time
+// above the name), and the closer's star lights in the stage color while its
+// name is up. Rings drift at their own speeds; stars counter-rotate to stay
+// upright. All of it is CSS animation on static SVG — the build stays
+// byte-reproducible and nothing here reads a clock. Explorer and rationale:
+// _ref/stage-art-explorer/.
+//
+// Nothing random: every coordinate comes from the sets. Integer coordinates.
+
+const ART_W = 400;
+const ART_H = 240;
+const ART_CX = 200;
+const ART_CY = 120;
+/** The dial runs 2 PM to 2 AM; a night runs until 6 AM, so a set that starts before 6 AM belongs to the night before. */
+const DAY_T0 = 14 * 60;
+const DAY_T1 = 26 * 60;
+const NIGHT_ENDS = 6 * 60;
+const RING_INNER = 86;
+const RING_OUTER = 176;
+const RING_SPIN_S = [300, 220, 380];
+const NAME_HOLD_S = 4.5;
+const WEEKDAYS_FULL = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+
+/** Mix a #rrggbb toward another by `t` (0..1). Integer math — stable output. */
+function mix(a: string, b: string, t: number): string {
+  const A = parseInt(a.slice(1), 16);
+  const B = parseInt(b.slice(1), 16);
+  const ch = (shift: number) => Math.round(((A >> shift) & 0xff) * (1 - t) + ((B >> shift) & 0xff) * t);
+  const to2 = (v: number) => v.toString(16).padStart(2, '0');
+  return `#${to2(ch(16))}${to2(ch(8))}${to2(ch(0))}`;
+}
+
+/** The light ground behind a stage's art: the stage color mixed 45% toward cream. */
+export function artGround(color: string): string {
+  return mix(color, '#FCF9F4', 0.45);
+}
+
+/** Minutes since midnight → `10:40 PM`, wrapping past 24h. */
+function clockLabel(minutes: number): string {
+  const h = Math.floor(minutes / 60) % 24;
+  const m = minutes % 60;
+  const ap = h >= 12 ? 'PM' : 'AM';
+  return `${((h + 11) % 12) + 1}${m ? ':' + String(m).padStart(2, '0') : ''} ${ap}`;
+}
+
+function weekdayOf(iso: string): string {
+  const [y, mo, d] = iso.split('-').map(Number) as [number, number, number];
+  return WEEKDAYS_FULL[new Date(Date.UTC(y, mo - 1, d)).getUTCDay()]!;
+}
+
+/** Consecutive dates from first to last, inclusive. */
+export function dateRange(first: string, last: string): string[] {
+  const out: string[] = [];
+  const [y, m, d] = first.slice(0, 10).split('-').map(Number) as [number, number, number];
+  const cur = new Date(Date.UTC(y, m - 1, d));
+  for (let i = 0; i < 60; i++) {
+    const iso = cur.toISOString().slice(0, 10);
+    out.push(iso);
+    if (iso >= last.slice(0, 10)) break;
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return out;
+}
+
+function sparkle(x: number, y: number, k: number, fill: string, extra = ''): string {
+  return `<path d="M${x} ${y - k}Q${x} ${y} ${x + k} ${y}Q${x} ${y} ${x} ${y + k}Q${x} ${y} ${x - k} ${y}Q${x} ${y} ${x} ${y - k}Z" fill="${fill}"${extra}/>`;
+}
+
+interface ArtSet {
+  artist: string;
+  day: number;
+  startMin: number;
+  endMin: number;
+  len: number;
+  /** 0..1 around the dial. */
+  x: number;
+}
+
+function shapeSets(sets: StageEntry['sets'], dayDates: string[]): ArtSet[] {
+  const hhmm = (t: string) => {
+    const [h, m] = t.split(':').map(Number) as [number, number];
+    return h * 60 + m;
+  };
+  return sets
+    .map((s) => {
+      const [sd, st] = s.start.split('T') as [string, string];
+      const [ed, et] = s.end.split('T') as [string, string];
+      let day = dayDates.indexOf(sd);
+      let startMin = hhmm(st);
+      let endMin = hhmm(et) + (ed > sd ? 1440 : 0);
+      if (startMin < NIGHT_ENDS) {
+        day -= 1;
+        startMin += 1440;
+        endMin += 1440;
+      }
+      // Past 2 AM the dial is full; a later start sits at twelve rather than wrapping.
+      const x = Math.min(1, Math.max(0, (startMin - DAY_T0) / (DAY_T1 - DAY_T0)));
+      return { artist: s.artist, day, startMin, endMin, len: endMin - startMin, x };
+    })
+    .filter((s) => s.day >= 0)
+    .sort((a, b) => a.day - b.day || a.startMin - b.startMin);
+}
+
+/** Display size that fits a name across the art: expanded Archivo caps run about 0.78em per character. */
+function fitSize(name: string, max: number, min = 22, width = 340): number {
+  return Math.max(min, Math.min(max, Math.floor(width / (name.length * 0.78))));
+}
+
+const popStyle = (i: number, n: number) =>
+  `animation:pop${n} ${n * NAME_HOLD_S}s linear infinite;animation-delay:${(i * NAME_HOLD_S).toFixed(1)}s`;
+
+export function beadsArt(stage: StageEntry, color: string, dayDates: string[]): string {
+  const cream = '#FCF9F4';
+  const ink = '#12181F';
+  const nd = Math.max(1, dayDates.length);
+  const sets = shapeSets(stage.sets, dayDates);
+  const rOf = (d: number) => Math.round(nd === 1 ? RING_OUTER : RING_INNER + (d * (RING_OUTER - RING_INNER)) / (nd - 1));
+  const angOf = (x: number) => -Math.PI / 2 + x * 2 * Math.PI;
+  const px = (a: number, r: number) => `${Math.round(ART_CX + Math.cos(a) * r)} ${Math.round(ART_CY + Math.sin(a) * r)}`;
+
+  // The starred sets: the stage's billed headliners (one per night, in night order),
+  // or the last set of each night when none are billed.
+  const closers = new Map<number, ArtSet>();
+  for (const s of sets) closers.set(s.day, s);
+  const billed = stage.headliners.map((h) => sets.find((s) => s.artist === h)).filter((s): s is ArtSet => !!s);
+  const closerList = billed.length > 0 ? billed : [...closers.values()];
+  const n = closerList.length;
+
+  const rings: string[] = [];
+  for (let d = 0; d < nd; d++) {
+    const r = rOf(d);
+    const ds = sets.filter((s) => s.day === d);
+    const spin = RING_SPIN_S[d % 3]! * (d >= 3 ? 1.3 : 1);
+    const parts = [`<circle cx="${ART_CX}" cy="${ART_CY}" r="${r}" fill="none" stroke="${cream}" stroke-opacity=".12" stroke-width="1"/>`];
+    if (ds.length) {
+      const a0 = angOf(Math.min(...ds.map((s) => s.x)));
+      const a1 = angOf(Math.min(1, Math.max(...ds.map((s) => (s.endMin - DAY_T0) / (DAY_T1 - DAY_T0)))));
+      const large = a1 - a0 > Math.PI ? 1 : 0;
+      parts.push(
+        `<path d="M${px(a0, r)}A${r} ${r} 0 ${large} 1 ${px(a1, r)}" fill="none" stroke="${cream}" stroke-opacity=".45" stroke-width="2" stroke-linecap="round"/>`,
+      );
+    }
+    for (const s of ds) {
+      const a = angOf(s.x);
+      const x = Math.round(ART_CX + Math.cos(a) * r);
+      const y = Math.round(ART_CY + Math.sin(a) * r);
+      const rad = Math.round((4 + (s.len / 60) * 5) * 1.02);
+      const li = closerList.indexOf(s);
+      if (li >= 0) {
+        const k = Math.round(rad * 2.4);
+        parts.push(
+          `<g class="unrot" style="transform-origin:${x}px ${y}px;--spin:${spin}s">` +
+            sparkle(x, y, k, cream, ' fill-opacity=".95"') +
+            `<g class="pop${li === 0 ? ' first' : ''}" style="${popStyle(li, n)}">${sparkle(x, y, Math.round(k * 1.8), color)}</g>` +
+            `</g>`,
+        );
+      } else {
+        parts.push(`<circle cx="${x}" cy="${y}" r="${rad}" fill="${cream}" fill-opacity=".95"/>`);
+      }
+    }
+    rings.push(`<g class="rot" style="--spin:${spin}s">${parts.join('')}</g>`);
+  }
+
+  const names = closerList
+    .map((s, i) => {
+      const fs = fitSize(s.artist, 48);
+      const eyebrow = `${weekdayOf(dayDates[s.day]!)} · ${clockLabel(s.startMin)}`;
+      return (
+        `<g class="pop${i === 0 ? ' first' : ''}" style="${popStyle(i, n)}">` +
+        `<text class="eb" x="${ART_CX}" y="${ART_CY - Math.round(fs * 0.5) - 10}" text-anchor="middle" fill="${ink}" fill-opacity=".85">${esc(eyebrow)}</text>` +
+        `<text class="disp" x="${ART_CX}" y="${ART_CY + Math.round(fs * 0.42)}" font-size="${fs}" text-anchor="middle" fill="${ink}">${esc(s.artist)}</text>` +
+        `</g>`
+      );
+    })
+    .join('');
+
+  const label = closerList.length ? `Headliners: ${closerList.map((s) => s.artist).join(', ')}` : `${stage.name} art`;
+  return (
+    `<svg class="art-svg" viewBox="0 0 ${ART_W} ${ART_H}" preserveAspectRatio="xMidYMid slice" role="img" aria-label="${esc(label)}">` +
+    rings.join('') +
+    (names ? `<g class="lbl">${names}</g>` : '') +
+    `</svg>`
+  );
+}
+
+/** One name shows for its slice of the cycle; up to eight closers share one cycle. */
+function popKeyframes(): string {
+  let css = '';
+  for (let n = 1; n <= 8; n++) {
+    const k = 100 / n;
+    css += `@keyframes pop${n}{0%{opacity:0}${(k * 0.08).toFixed(2)}%{opacity:1}${(k * 0.82).toFixed(2)}%{opacity:1}${(k * 0.92).toFixed(2)}%{opacity:0}100%{opacity:0}}`;
+  }
+  return css;
 }
 
 // ---------------------------------------------------------------------------
@@ -392,11 +596,16 @@ h3{font-size:var(--t-card); line-height:1.05; margin:0}
   display:flex; flex-direction:column;
 }
 .stage-art{position:relative; aspect-ratio:400/240}
-.lineup{
-  position:absolute; left:var(--pad-card); bottom:var(--gap-2); right:var(--pad-card);
-  margin:0; font-size:18px; font-weight:600; line-height:1.3; color:#FCF9F4;
-}
-.lineup span{display:block}
+/* The beads: rings drift at their own speed, stars counter-rotate to stay
+   upright, the headliner names cycle in the center. See beadsArt(). */
+.rot{transform-origin:200px 120px; animation:spin var(--spin,240s) linear infinite}
+.unrot{animation:spin var(--spin,240s) linear infinite reverse}
+@keyframes spin{to{transform:rotate(360deg)}}
+.lbl{font-family:var(--font-sans); font-weight:600}
+.lbl .disp{font-stretch:125%; font-weight:var(--w-heading); letter-spacing:-0.01em}
+.lbl .eb{font-family:var(--font-mono); font-weight:400; font-size:11px; letter-spacing:.07em; text-transform:uppercase}
+.pop{opacity:0}
+${popKeyframes()}
 .stage-body{padding:0 var(--pad-card) var(--pad-card)}
 .stage-body h3{color:#FCF9F4}
 .stage-body .meta{
@@ -465,6 +674,7 @@ a{color:var(--red-deep)}
 @media (prefers-reduced-motion: reduce){
   *{transition:none !important; animation:none !important}
   .btn:active,.icon-btn:active,.text-btn:active,.fest-card:active{transform:none}
+  .pop.first{opacity:1}
 }
 @media (max-width:359px){
   :root{--t-display:46px; --t-title:32px; --t-card:26px}
@@ -556,20 +766,15 @@ export function zoneLabel(tz: string): string {
 // Subscribe page
 // ---------------------------------------------------------------------------
 
-function stageCard(stage: StageEntry, color: string, feedUrl: string, festivalKey: string): string {
+function stageCard(stage: StageEntry, color: string, feedUrl: string, festivalKey: string, dayDates: string[]): string {
   const webcal = feedUrl.replace(/^https:/, 'webcal:');
   const sets = `${stage.setCount} set${stage.setCount === 1 ? '' : 's'}`;
   // The year lives in the page title; repeating it on every card just makes the
   // mono caption wrap.
   const span = stage.dayspan.label.replace(/ \d{4}$/, '');
-  const lineup = stage.headliners
-    .slice(0, 3)
-    .map((a) => `<span>${esc(a)}</span>`)
-    .join('');
   return `<li class="stage-card" style="background:${color}">
-  <div class="stage-art">
-    ${capsuleArt(`${festivalKey}/${stage.id}`, color)}
-    <p class="lineup">${lineup}</p>
+  <div class="stage-art" style="background:${artGround(color)}">
+    ${beadsArt(stage, color, dayDates)}
   </div>
   <div class="stage-body">
     <h3>${esc(stage.name)}</h3>
@@ -589,8 +794,9 @@ export function renderSubscribePage(m: Manifest): string {
   const title = `${f.name} ${f.year} — set times by stage`;
   const desc = `${f.name} ${f.year} set times, one calendar per stage. Add the stages you care about to your phone.`;
 
+  const dayDates = m.all.dayspan.first ? dateRange(m.all.dayspan.first, m.all.dayspan.last) : [];
   const cards = m.stages
-    .map((s, i) => stageCard(s, STAGE_COLORS[i % STAGE_COLORS.length]!, `${PROD_ORIGIN}${s.icsPath}`, f.key))
+    .map((s, i) => stageCard(s, STAGE_COLORS[i % STAGE_COLORS.length]!, `${PROD_ORIGIN}${s.icsPath}`, f.key, dayDates))
     .join('\n');
 
   const allUrl = `${PROD_ORIGIN}${m.all.icsPath}`;

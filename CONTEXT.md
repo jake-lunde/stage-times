@@ -29,7 +29,11 @@ printed on the source is an **inferred-end set**.
 _Avoid_: performance, slot, show, gig, event (an event is what a set becomes inside a calendar)
 
 **Headliner**:
-The closing set of a calendar day on a stage. A display convenience, not a schedule fact.
+The act a stage bills as its closer each night — usually the last set, but an afters DJ set
+does not count. Named per stage in the data; failing that, the last set of the night. A night
+runs until 6 AM, so a 1:45 AM set belongs to the night before. A display convenience, not a
+schedule fact.
+_Avoid_: closer (when the billed act is meant), afters
 
 **Source**:
 The official published schedule for an edition, in whatever form the festival released it:

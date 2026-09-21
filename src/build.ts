@@ -190,6 +190,8 @@ export interface StageManifest {
   lastSetEnd: string;
   /** The artist closing each day on this stage, in day order, deduped — the "headliner preview". */
   headliners: string[];
+  /** Every set on this stage in start order, local wall times, for the card art. */
+  sets: { artist: string; start: string; end: string }[];
   icsPath: string;
 }
 
@@ -259,6 +261,14 @@ function isoDate(w: WallTime): string {
 function isoLocal(w: WallTime): string {
   const p2 = (n: number) => String(n).padStart(2, '0');
   return `${isoDate(w)}T${p2(w.hour)}:${p2(w.minute)}:${p2(w.second)}`;
+}
+
+/** The night a set belongs to: its date, or the day before when it starts before 6 AM. */
+export function nightOf(w: WallTime): string {
+  if (w.hour >= 6) return isoDate(w);
+  const d = new Date(Date.UTC(w.year, w.month - 1, w.day));
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
 }
 
 function dayLabel(iso: string): string {
@@ -356,11 +366,15 @@ export function buildFeeds(doc: FestivalDoc, state: BuildState, flags: EditionFl
     const starts = mySets.map((s) => isoLocal(s.start)).sort();
     const ends = mySets.map((s) => isoLocal(s.end)).sort();
 
-    // Headliner preview: the artist who starts last on each calendar day, in day
-    // order. `mine` is already sorted by start, so the last entry per date wins.
-    const closerByDate = new Map<string, string>();
-    for (const p of mine) closerByDate.set(isoDate(p.set.start), p.set.artist);
-    const headliners = [...new Set([...closerByDate.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([, artist]) => artist))];
+    // Headliners: the acts the stage bills as its closer each night, from the YAML
+    // when the uploader named them, otherwise the set that starts last each night.
+    // A night runs until 6 AM — a 1:45 AM set belongs to the night before (owner
+    // ruling, 2026-09-21). Night order; blocked editions have no sets and so none.
+    const closerByNight = new Map<string, string>();
+    for (const p of mine) closerByNight.set(nightOf(p.set.start), p.set.artist);
+    const derived = [...new Set([...closerByNight.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([, artist]) => artist))];
+    const billed = stage.headliners.filter((h) => mySets.some((s) => s.artist === h));
+    const headliners = billed.length > 0 ? billed : derived;
 
     stageManifests.push({
       id: stage.id,
@@ -372,6 +386,7 @@ export function buildFeeds(doc: FestivalDoc, state: BuildState, flags: EditionFl
       lastSet: starts[starts.length - 1] ?? '',
       lastSetEnd: ends[ends.length - 1] ?? '',
       headliners,
+      sets: mySets.map((s) => ({ artist: s.artist, start: isoLocal(s.start), end: isoLocal(s.end) })),
       icsPath,
     });
   }
