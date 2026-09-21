@@ -1,8 +1,9 @@
-# The two screens
+# The screens
 
-Stage Times has exactly two page types. Both are static, self-contained HTML with inlined CSS,
-no framework, no third-party requests — fonts are same-origin woff2, art is inline SVG or a
-committed image file. They get loaded on festival wifi at 2am.
+Stage Times has three page types — landing, subscribe, and upload — plus the removed page a
+blocked edition serves in place of its subscribe page (copy.md). All are static, self-contained
+HTML with inlined CSS, no framework, no third-party requests — fonts are same-origin woff2, art
+is inline SVG or a committed image file. They get loaded on festival wifi at 2am.
 
 ## 1. Landing — `/`
 
@@ -135,15 +136,16 @@ One sentence, in the footer region, in `--ink-soft`: *"Two or three stages reads
 view. Eight compresses into unreadable columns — use the official grid for the full lineup."*
 Honest, brief, not a modal, not a checkbox.
 
-## What neither screen has
+## What no screen has
 
 No search. No filters. No login. No dark mode toggle (respect `prefers-color-scheme` and stop).
 No cookie banner — there are no cookies. No third-party script (the same-origin Vercel Web
 Analytics snippet is the one owner-approved exception). No share sheet. No "add to home screen"
 prompt. No countdown timer.
 
-A festival-goer opens this page once, taps two or three times, and never returns. Every feature
-that assumes a second visit is dead weight.
+A festival-goer opens a festival page once, taps two or three times, and never returns. Every
+feature that assumes a second visit is dead weight. The one exception is the update link the
+upload flow hands an uploader: that is the second visit, and it is theirs alone.
 
 ## 3. Upload — `/upload/`
 

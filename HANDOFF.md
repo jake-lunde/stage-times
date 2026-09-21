@@ -9,14 +9,18 @@
 `Efforts/Notes/Stage Times/`. See `docs/agents/issue-tracker.md`. The vault, not this file, is
 the source of truth for what is next; this file is the orientation.
 
-**2026-09-20, ticket 08 (branch `feat/upload-screens`, worktree `.claude/worktrees/ticket-08`):** the
-upload flow is built — `/upload/`, one static page, five screens (`src/upload-pages.ts`), tests in
-`tests/upload-page.test.ts`, the smoke test extended. Built alongside ticket 06 in a separate worktree;
-merge after 06 lands (both touch `src/pages.ts`, `tests/smoke.ts`, `references/screens.md`). Two
-things for whoever picks up 09 and 10: the update link shape is `updateLink()` in
-`src/upload-pages.ts` (`/update/<edition path>/#<secret>`), and nothing links to `/upload/` yet — the
-homepage (06) or the footer is the owner's call. The upload page has not been driven on a real phone
-against a real deploy; that is the smoke test on the first preview.
+**2026-09-20, ticket 08 — the upload flow is built and merged to `main` locally, not pushed.** `/upload/`
+is one static page, five screens (`src/upload-pages.ts`), pinned by `tests/upload-page.test.ts`; the smoke
+test checks it live and takes `VERCEL_AUTOMATION_BYPASS_SECRET` for a protected preview. Reviewed on two
+axes (standards, spec) and the findings applied: the gate sentences now live once in `src/publisher.ts`
+(`GATE_COPY`, `EMAIL_RE`) and are injected into the page; a corrected start can cross midnight
+(`editedStart`/`editedEnd`, tested, embedded by source); the review says where the page will live. Checked
+at 320px in headless Chrome, not yet on a real phone against a real deploy — that is the first preview's
+smoke. For 09 and 10: the update link shape is `updateLink()` in `src/upload-pages.ts`
+(`/update/<edition path>/#<secret>`); nothing links to `/upload/` yet — the homepage or the footer is the
+owner's call; the build wait polls the page's own origin, so on a preview it always ends at "Nearly there".
+Left for later, deliberately: the day-rolling for time edits is a browser-side reading of a time picker
+(the publisher's `SetEdit` takes wall time); moving it into the publisher means changing 07's seam.
 
 Status: **everything from 6 Sep sits on `main` unpushed** — the morning's glossary, ADR, and copy
 review, plus tickets 02, 04, and 15. Nothing user-facing changes until Jake pushes.

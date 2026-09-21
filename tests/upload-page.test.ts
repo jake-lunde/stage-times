@@ -1,5 +1,5 @@
 /**
- * The upload flow (ticket 08): four screens on one static page, driven here
+ * The upload flow (ticket 08): five screens on one static page, driven here
  * through the pages seam — render in, HTML string out.
  *
  * Nothing here runs the browser script. What is pinned is the static markup
@@ -15,22 +15,12 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { ACCEPTED_IMAGE_TYPES, MAX_IMAGE_EDGE, MIN_IMAGE_EDGE, type Gate } from '../src/publisher.js';
+import { ACCEPTED_IMAGE_TYPES, EMAIL_RE, GATE_COPY, MAX_IMAGE_EDGE, MIN_IMAGE_EDGE, type Gate } from '../src/publisher.js';
 import { renderSitePages } from '../src/pages.js';
-import { GATE_SCREENS, renderUploadPage, REVIEW_ZONES, updateLink, type Screen } from '../src/upload-pages.js';
-import { buildFixtureSite, harborDoc } from './helpers.js';
+import { addDay, editedEnd, editedStart, GATE_SCREENS, renderUploadPage, REVIEW_ZONES, updateLink, type Screen } from '../src/upload-pages.js';
+import { buildFixtureSite, harborDoc, visibleText } from './helpers.js';
 
 const html = renderUploadPage();
-
-/** Visible text only: strip script/style, then tags. */
-function visibleText(markup: string): string {
-  return markup
-    .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/g, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ');
-}
 const text = visibleText(html);
 
 /** The markup of one screen's section. */
@@ -108,8 +98,18 @@ test('upload page: the review screen shows the image beside the sets in the row-
 
 test('upload page: an unreadable set disables confirm, with the same reason the publisher would give', () => {
   assert.ok(html.includes('btn.disabled = n > 0;'), 'confirm is disabled while any set is marked');
-  assert.ok(html.includes("One set is still marked as one you can\\'t read. Check it against your image, then confirm."));
-  assert.ok(html.includes("sets are still marked as ones you can\\'t read. Check them against your image, then confirm."));
+  assert.ok(html.includes('COPY.unreadableOne'), 'the singular reason is the publisher\'s');
+  assert.ok(html.includes('fill(COPY.unreadableMany, { n: n })'), 'and the plural');
+});
+
+test("upload page: the browser speaks the publisher's own sentences, injected, never retyped", () => {
+  assert.ok(html.includes(`var COPY = ${JSON.stringify(GATE_COPY)};`));
+  assert.ok(html.includes(`var EMAIL_RE = ${EMAIL_RE.toString()};`));
+  assert.ok(html.includes('function fill('), 'the placeholder filler rides along by source');
+  const pageText = visibleText(html);
+  for (const sentence of [GATE_COPY.festival, GATE_COPY.email, GATE_COPY.notImage]) {
+    assert.equal(pageText.includes(sentence), false, `not baked into the markup: ${sentence}`);
+  }
 });
 
 test('upload page: the time zone is shown as a guess and is changeable, in spoken names', () => {
@@ -126,6 +126,8 @@ test('upload page: the time zone is shown as a guess and is changeable, in spoke
 test('upload page: the publishing state is honest about the wait, and hands over the update link while it builds', () => {
   const publishing = visibleText(screen('publishing'));
   assert.ok(publishing.includes('Building your page'));
+  assert.ok(publishing.includes('Checking again every ten seconds.'), 'the cadence it states is the cadence it polls at');
+  assert.ok(html.includes('var POLL_MS = 10 * 1000;'));
   assert.ok(publishing.includes('Your times are saved. The page and its calendars take a couple of minutes to build, and this waits for them.'));
   assert.ok(publishing.includes("Keep this one now, while it builds. It's the only way to fix a time or take the page down later, and it's shown once."));
   assert.ok(html.includes("'/all.ics'"), 'it waits by asking for the calendar itself');
@@ -145,7 +147,12 @@ test('upload page: the success screen shows the share link and the update link, 
 
 test('updateLink: the secret rides in the fragment, under /update/ beside the edition', () => {
   assert.equal(updateLink('fan/low-tide-2026', 'abc123'), 'https://stagetimes.app/update/fan/low-tide-2026/#abc123');
-  assert.ok(html.includes("'/update/'"), 'the page builds the same shape');
+  assert.ok(html.includes(`var UPDATE_LINK = ${JSON.stringify(updateLink('{path}', '{secret}'))};`), 'the page carries the same shape');
+});
+
+test('upload page: the review says where the page will live before anything is confirmed', () => {
+  assert.match(screen('review'), /<p class="status" data-address><\/p>/);
+  assert.ok(html.includes("'Your page will be ' + ORIGIN.replace("), 'filled from the review\'s edition path');
 });
 
 // ===========================================================================
@@ -167,8 +174,31 @@ test("upload page: the browser checks type and dimensions with the publisher's o
   assert.ok(html.includes(`"minEdge":${MIN_IMAGE_EDGE}`));
   assert.ok(html.includes(`"maxEdge":${MAX_IMAGE_EDGE}`));
   assert.ok(html.includes(`"types":${JSON.stringify(ACCEPTED_IMAGE_TYPES)}`));
-  assert.ok(html.includes("That file isn\\'t an image. A screenshot or a photo of the schedule works."));
-  assert.ok(html.includes('there is nothing legible to read the times off.'));
+});
+
+// ===========================================================================
+// The time edits — the helpers the page embeds by source
+// ===========================================================================
+
+test('time edits: a corrected start that crosses midnight moves its date, either way', () => {
+  assert.equal(editedStart('2026-10-09T23:45:00', '00:15'), '2026-10-10T00:15:00', '11:45 PM read as 12:15 AM is the next morning');
+  assert.equal(editedStart('2026-10-10T00:15:00', '23:45'), '2026-10-09T23:45:00', 'and the reverse is the evening before');
+  assert.equal(editedStart('2026-10-09T21:00:00', '21:30'), '2026-10-09T21:30:00', 'a same-evening nudge keeps its date');
+  assert.equal(editedStart('2026-10-10T01:00:00', '01:30'), '2026-10-10T01:30:00', 'so does a same-night nudge after midnight');
+});
+
+test('time edits: a corrected end at or before the start\'s clock time is the next morning', () => {
+  assert.equal(editedEnd('2026-10-09T22:40:00', '23:40'), '2026-10-09T23:40:00');
+  assert.equal(editedEnd('2026-10-09T23:45:00', '00:45'), '2026-10-10T00:45:00');
+  assert.equal(editedEnd('2026-10-09T23:45:00', '23:45'), '2026-10-10T23:45:00', 'equal rolls too — a zero-length set is not a set');
+  assert.equal(addDay('2026-12-31', 1), '2027-01-01');
+  assert.equal(addDay('2026-03-01', -1), '2026-02-28');
+});
+
+test('upload page: the page embeds those helpers by source and reads a moved start back through them', () => {
+  for (const fn of [addDay, editedStart, editedEnd]) assert.ok(html.includes(fn.toString()), fn.name);
+  assert.ok(html.includes('editedStart(s.start, st)'));
+  assert.ok(html.includes('editedEnd(start, en || s.end.slice(11, 16))'), 'the end follows a moved start');
 });
 
 test('upload page: the script posts exactly the fields the two adapters read', () => {

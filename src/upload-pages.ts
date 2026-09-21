@@ -1,5 +1,5 @@
 /**
- * Stage Times — the upload flow: one static page at `/upload/`, four screens.
+ * Stage Times — the upload flow: one static page at `/upload/`, five screens.
  *
  *   details     festival name, first and last day, an email — one form
  *   upload      one file action; the image is checked and posted from here
@@ -16,7 +16,8 @@
  * in src/publisher.ts and reaches the page as JSON through the two adapters in
  * api/; the script here reads fields, checks the image before it costs
  * anything, shows one screen at a time, and repeats the publisher's own words
- * for every rejection. It holds no rule the publisher doesn't.
+ * for every rejection. The one rule it repeats is the publisher's own: a set
+ * marked unreadable blocks confirm, and the reason is the publisher's sentence.
  *
  * Deterministic and self-contained like every other page: no clock at render
  * time, no randomness, nothing fetched from anywhere but this origin. The
@@ -26,8 +27,8 @@
  * screens.md — the third page type).
  */
 
-import { ACCEPTED_IMAGE_TYPES, MAX_IMAGE_EDGE, MIN_IMAGE_EDGE, type Gate } from './publisher.js';
-import { esc, ICON_BACK, ICON_CHECK, ICON_LINK, page } from './pages.js';
+import { ACCEPTED_IMAGE_TYPES, EMAIL_RE, GATE_COPY, MAX_IMAGE_EDGE, MIN_IMAGE_EDGE, fill, type Gate } from './publisher.js';
+import { esc, ICON_BACK, ICON_CHECK, ICON_LINK, page, PROD_ORIGIN } from './pages.js';
 
 export type Screen = 'details' | 'upload' | 'review' | 'publishing' | 'success';
 
@@ -70,7 +71,38 @@ export const REVIEW_ZONES: { id: string; label: string }[] = [
   { id: 'Australia/Sydney', label: 'Eastern Australia' },
 ];
 
-const PROD_ORIGIN = 'https://stagetimes.app';
+// ---------------------------------------------------------------------------
+// The time edits — plain functions, tested in node, embedded in the page by
+// source (`Function.prototype.toString`), so the browser runs exactly what the
+// tests ran. Nothing here may close over module scope or use TS-only syntax.
+// ---------------------------------------------------------------------------
+
+/** `YYYY-MM-DD` plus `n` days. */
+export function addDay(iso: string, n: number): string {
+  var p = iso.split('-').map(Number);
+  return new Date(Date.UTC(p[0]!, p[1]! - 1, p[2]! + n)).toISOString().slice(0, 10);
+}
+
+/**
+ * A corrected start, as the wall time the review carries. A night runs until
+ * 6 AM (CONTEXT: headliner), so a start moved across midnight moves its date:
+ * 11:45 PM read as 12:15 AM is the next morning, and the reverse is the
+ * evening before.
+ */
+export function editedStart(originalStart: string, hhmm: string): string {
+  var date = originalStart.slice(0, 10);
+  var was = originalStart.slice(11, 16);
+  if (hhmm < '06:00' && was >= '06:00') date = addDay(date, 1);
+  else if (hhmm >= '06:00' && was < '06:00') date = addDay(date, -1);
+  return date + 'T' + hhmm + ':00';
+}
+
+/** An end at or before the start's clock time is the next morning. */
+export function editedEnd(start: string, hhmm: string): string {
+  var date = start.slice(0, 10);
+  if (hhmm <= start.slice(11, 16)) date = addDay(date, 1);
+  return date + 'T' + hhmm + ':00';
+}
 
 /**
  * The update link: the edition's path under `/update/`, the secret in the
@@ -130,9 +162,6 @@ const CSS = `
 button.text-btn{background:none; border:0; padding:0; font-family:inherit}
 .file-btn{position:relative; overflow:hidden}
 .file-btn input{position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; font-size:0}
-.btn:disabled{background:var(--ink-faint); color:#FCF9F4; cursor:default; pointer-events:none}
-.btn--tonal{background:var(--paper-sunk); color:var(--ink)}
-.btn--tonal[aria-pressed="true"]{background:var(--ink); color:var(--paper)}
 
 /* the uploader's own image, in a card, tall enough to read a poster off */
 .source{margin:var(--gap-4) 0 0; background:var(--paper-sunk); border-radius:var(--r-card); overflow:hidden}
@@ -213,6 +242,7 @@ export function renderUploadPage(): string {
   <section class="screen" data-screen="review" hidden>
     <h3>Check every set</h3>
     <p class="lead">Against your image. Fix what's off, and mark anything you can't read.</p>
+    <p class="status" data-address></p>
     <figure class="source"><img alt="Your image"><figcaption><a class="text-btn" target="_blank" rel="noopener">See it bigger ↗</a></figcaption></figure>
     <p class="problem" role="alert" hidden></p>
     <p class="problem" data-year hidden></p>
@@ -244,7 +274,7 @@ export function renderUploadPage(): string {
   <section class="screen" data-screen="publishing" hidden>
     <h3>Building your page</h3>
     <p class="lead">Your times are saved. The page and its calendars take a couple of minutes to build, and this waits for them.</p>
-    <p class="status" aria-live="polite" data-publish-status>Checking every few seconds.</p>
+    <p class="status" aria-live="polite" data-publish-status>Checking again every ten seconds.</p>
     <p class="eyebrow" style="margin-top:var(--gap-5)">Your update link</p>
     <div class="link-row"><code class="url" data-update></code><button class="icon-btn" data-copy aria-label="Copy update link">${ICON_LINK}${ICON_CHECK}</button></div>
     <p class="small">Keep this one now, while it builds. It's the only way to fix a time or take the page down later, and it's shown once.</p>
@@ -280,7 +310,11 @@ export function renderUploadPage(): string {
   'use strict';
   var GATES = ${JSON.stringify(GATE_SCREENS)};
   var LIMITS = ${JSON.stringify(LIMITS)};
+  var COPY = ${JSON.stringify(GATE_COPY)};
+  var EMAIL_RE = ${EMAIL_RE.toString()};
+  ${fill.toString()}
   var ORIGIN = '${PROD_ORIGIN}';
+  var UPDATE_LINK = ${JSON.stringify(updateLink('{path}', '{secret}'))};
   var WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
   var BUILD_WAIT_MS = 5 * 60 * 1000;
   var POLL_MS = 10 * 1000;
@@ -336,9 +370,9 @@ export function renderUploadPage(): string {
     e.preventDefault();
     var f = e.target;
     var d = { festival: f.festival.value.trim(), first: f.first.value, last: f.last.value, email: f.email.value.trim() };
-    if (!d.festival) return problem('details', 'Type the festival\\'s name first.');
-    if (!d.first || !d.last || d.last < d.first) return problem('details', 'Those dates don\\'t look right. Give the day it starts and the day it ends.');
-    if (!/^[^\\s@]+@[^\\s@.]+\\.[^\\s@]+$/.test(d.email)) return problem('details', 'That email address doesn\\'t look right.');
+    if (!d.festival) return problem('details', COPY.festival);
+    if (!d.first || !d.last || d.last < d.first) return problem('details', COPY.dates);
+    if (!EMAIL_RE.test(d.email)) return problem('details', COPY.email);
     problem('details', '');
     state.details = d;
     show('upload');
@@ -399,7 +433,7 @@ export function renderUploadPage(): string {
   function takeImage(file) {
     problem('upload', '');
     if (LIMITS.types.indexOf(file.type) === -1) {
-      return problem('upload', 'That file isn\\'t an image. A screenshot or a photo of the schedule works.');
+      return problem('upload', COPY.notImage);
     }
     loadImage(file).then(function (loaded) {
       var img = loaded.img;
@@ -407,7 +441,7 @@ export function renderUploadPage(): string {
       var short = Math.min(w, h), long = Math.max(w, h);
       if (short < LIMITS.minEdge) {
         URL.revokeObjectURL(loaded.url);
-        return problem('upload', 'That image is ' + short + ' pixels on its short side. Under ' + LIMITS.minEdge + ' there is nothing legible to read the times off.');
+        return problem('upload', fill(COPY.tooSmall, { short: short, min: LIMITS.minEdge }));
       }
       var ready = (file.size > LIMITS.postBytes || long > LIMITS.postEdge)
         ? shrink(img)
@@ -465,16 +499,9 @@ export function renderUploadPage(): string {
     var p = iso.slice(0, 10).split('-').map(Number);
     return WEEKDAYS[new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay()];
   }
-  function addDay(iso) {
-    var p = iso.split('-').map(Number);
-    return new Date(Date.UTC(p[0], p[1] - 1, p[2] + 1)).toISOString().slice(0, 10);
-  }
-  // An end at or before the start's clock time is the next morning.
-  function endIso(startIso, hhmm) {
-    var date = startIso.slice(0, 10);
-    if (hhmm <= startIso.slice(11, 16)) date = addDay(date);
-    return date + 'T' + hhmm + ':00';
-  }
+  ${addDay.toString()}
+  ${editedStart.toString()}
+  ${editedEnd.toString()}
   function zoneHint() {
     $('[data-zone-hint]').textContent = state.timezoneAssumed
       ? 'A guess, since the image can\\'t say. Change it if the festival is somewhere else.'
@@ -495,6 +522,7 @@ export function renderUploadPage(): string {
     zone.value = rv.timezone;
     zoneHint();
     problem('review', '');
+    $('[data-address]').textContent = 'Your page will be ' + ORIGIN.replace(/^https:\\/\\//, '') + '/' + rv.editionPath + '/';
     var year = $('[data-year]');
     year.textContent = rv.yearMismatch ? 'The image reads as ' + rv.year + ', not the year you typed. Check your dates against it.' : '';
     year.hidden = !rv.yearMismatch;
@@ -541,9 +569,7 @@ export function renderUploadPage(): string {
     var btn = $('[data-confirm]'), why = $('[data-blocked]');
     btn.disabled = n > 0;
     why.hidden = n === 0;
-    why.textContent = n === 1
-      ? 'One set is still marked as one you can\\'t read. Check it against your image, then confirm.'
-      : n + ' sets are still marked as ones you can\\'t read. Check them against your image, then confirm.';
+    why.textContent = n === 1 ? COPY.unreadableOne : fill(COPY.unreadableMany, { n: n });
   }
 
   screens.review.addEventListener('click', function (e) {
@@ -567,8 +593,11 @@ export function renderUploadPage(): string {
       var artist = $('[data-field="artist"]', li).value.trim();
       if (artist && artist !== s.artist) e.artist = artist;
       var st = $('[data-field="start"]', li).value, en = $('[data-field="end"]', li).value;
-      if (st && st !== s.start.slice(11, 16)) e.start = s.start.slice(0, 10) + 'T' + st + ':00';
-      if (en && en !== s.end.slice(11, 16)) e.end = endIso(e.start || s.start, en);
+      var start = st && st !== s.start.slice(11, 16) ? editedStart(s.start, st) : s.start;
+      if (start !== s.start) e.start = start;
+      // The end follows the start: a moved start can put an unchanged end before it.
+      var end = (start !== s.start || (en && en !== s.end.slice(11, 16))) ? editedEnd(start, en || s.end.slice(11, 16)) : s.end;
+      if (end !== s.end) e.end = end;
       if (Object.keys(e).length > 1) edits.push(e);
       if ($('[data-unreadable]', li).getAttribute('aria-pressed') === 'true') unverifiable.push(i);
     });
@@ -586,8 +615,8 @@ export function renderUploadPage(): string {
         return;
       }
       state.published = r.body;
-      var update = ORIGIN + '/update/' + r.body.editionPath + '/#' + r.body.updateSecret;
-      $$('[data-update]').forEach(function (el) { el.textContent = update; el.nextElementSibling.setAttribute('data-copy', update); });
+      var update = UPDATE_LINK.replace('{path}', r.body.editionPath).replace('{secret}', r.body.updateSecret);
+      $$('[data-update]').forEach(function (el) { el.textContent = update; $('[data-copy]', el.parentNode).setAttribute('data-copy', update); });
       show('publishing');
       waitForBuild(r.body.editionPath).then(showSuccess);
     });
@@ -614,7 +643,7 @@ export function renderUploadPage(): string {
         if (live) { state.live = true; return; }
         var elapsed = Date.now() - started;
         if (elapsed >= BUILD_WAIT_MS) { state.live = false; return; }
-        status.textContent = tries < 3 ? 'Checking every few seconds.' : 'Still building. ' + Math.round(elapsed / 1000) + ' seconds so far.';
+        status.textContent = tries < 3 ? 'Checking again every ten seconds.' : 'Still building. ' + Math.round(elapsed / 1000) + ' seconds so far.';
         return sleep(POLL_MS).then(check);
       });
     }
@@ -626,7 +655,7 @@ export function renderUploadPage(): string {
     var share = ORIGIN + '/' + state.published.editionPath + '/';
     var el = $('[data-share]');
     el.textContent = share;
-    el.nextElementSibling.setAttribute('data-copy', share);
+    $('[data-copy]', el.parentNode).setAttribute('data-copy', share);
     $('[data-open]').href = share;
     $('[data-live]').hidden = !state.live;
     $('[data-late]').hidden = state.live;

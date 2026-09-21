@@ -415,9 +415,33 @@ export function claimFanSlug(published: PublishedFile, slug: string, year: numbe
 }
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-// Deliberately loose. This is a contact address, not a credential: the only
-// failure that matters is a typo the uploader can see in their own sentence.
-const EMAIL_RE = /^[^\s@]+@[^\s@.]+\.[^\s@]+$/;
+/**
+ * Deliberately loose. This is a contact address, not a credential: the only
+ * failure that matters is a typo the uploader can see in their own sentence.
+ * Exported so the upload screen checks the same shape before it posts.
+ */
+export const EMAIL_RE = /^[^\s@]+@[^\s@.]+\.[^\s@]+$/;
+
+/**
+ * The sentences the free gates speak, in one place, so the upload screen can
+ * say exactly the same thing before a request is made (it injects this
+ * object) and no second copy of the copy rules exists. `{short}`, `{min}` and
+ * `{n}` are filled in by `fill()`.
+ */
+export const GATE_COPY = {
+  festival: "Type the festival's name first.",
+  email: "That email address doesn't look right.",
+  dates: "Those dates don't look right. Give the day it starts and the day it ends.",
+  notImage: "That file isn't an image. A screenshot or a photo of the schedule works.",
+  tooSmall: 'That image is {short} pixels on its short side. Under {min} there is nothing legible to read the times off.',
+  unreadableOne: "One set is still marked as one you can't read. Check it against your image, then confirm.",
+  unreadableMany: "{n} sets are still marked as ones you can't read. Check them against your image, then confirm.",
+} as const;
+
+/** `{name}` placeholders → values. The page carries the same one-liner. */
+export function fill(template: string, values: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (m, k: string) => (k in values ? String(values[k]) : m));
+}
 
 function reject(gate: Gate, reason: string, problems?: string[]): Rejection {
   return problems ? { gate, reason, problems } : { gate, reason };
@@ -455,7 +479,7 @@ export function lowConfidence(observations: string[], artist: string): boolean {
 /** Type, size and dimensions: everything knowable without asking anyone. */
 function checkImage(image: SourceImage): Rejection | null {
   if (!(ACCEPTED_IMAGE_TYPES as readonly string[]).includes(image.contentType)) {
-    return reject('type', "That file isn't an image. A screenshot or a photo of the schedule works.");
+    return reject('type', GATE_COPY.notImage);
   }
   if (image.bytes.byteLength > MAX_IMAGE_BYTES) {
     return reject(
@@ -466,10 +490,7 @@ function checkImage(image: SourceImage): Rejection | null {
   const short = Math.min(image.width, image.height);
   const long = Math.max(image.width, image.height);
   if (short < MIN_IMAGE_EDGE) {
-    return reject(
-      'dimensions',
-      `That image is ${short} pixels on its short side. Under ${MIN_IMAGE_EDGE} there is nothing legible to read the times off.`,
-    );
+    return reject('dimensions', fill(GATE_COPY.tooSmall, { short, min: MIN_IMAGE_EDGE }));
   }
   if (long > MAX_IMAGE_EDGE) {
     return reject(
@@ -485,7 +506,7 @@ function checkDetails(intent: UploadIntent): Rejection | null {
   const named = checkWhoAndWhat(intent.festival, intent.email);
   if (named) return named;
   if (!ISO_DATE_RE.test(intent.dates.first) || !ISO_DATE_RE.test(intent.dates.last) || intent.dates.last < intent.dates.first) {
-    return reject('details', "Those dates don't look right. Give the day it starts and the day it ends.");
+    return reject('details', GATE_COPY.dates);
   }
   if (intent.timezone !== undefined && !isValidTimeZone(intent.timezone)) {
     return reject('details', "That time zone isn't one I know.");
@@ -496,10 +517,10 @@ function checkDetails(intent: UploadIntent): Rejection | null {
 /** The two fields both intents carry. Checked here so the schema never has to. */
 function checkWhoAndWhat(festival: string, email: string): Rejection | null {
   if (festival.trim() === '' || slugify(festival) === '') {
-    return reject('details', "Type the festival's name first.");
+    return reject('details', GATE_COPY.festival);
   }
   if (!EMAIL_RE.test(email.trim())) {
-    return reject('details', "That email address doesn't look right.");
+    return reject('details', GATE_COPY.email);
   }
   return null;
 }
@@ -701,12 +722,7 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
   if (intent.unverifiable.length > 0) {
     const n = intent.unverifiable.length;
     return rejectedConfirm(
-      reject(
-        'review',
-        n === 1
-          ? "One set is still marked as one you can't read. Check it against your image, then confirm."
-          : `${n} sets are still marked as ones you can't read. Check them against your image, then confirm.`,
-      ),
+      reject('review', n === 1 ? GATE_COPY.unreadableOne : fill(GATE_COPY.unreadableMany, { n })),
     );
   }
 

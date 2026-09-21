@@ -90,7 +90,7 @@ export interface SiteManifest {
  * subscription pointed at one 404s the moment the deployment is superseded, and
  * there is no way to reach into someone's calendar to fix it.
  */
-const PROD_ORIGIN = 'https://stagetimes.app';
+export const PROD_ORIGIN = 'https://stagetimes.app';
 
 // Per-stage colors, assigned by order and then frozen. See references/color.md.
 //
@@ -540,6 +540,10 @@ h3{font-size:var(--t-card); line-height:1.05; margin:0}
 .btn--ink{background:var(--ink); color:var(--paper)}
 .btn--fit{width:auto; padding:0 var(--gap-4); flex:none}
 .btn--sm{height:var(--h-btn-sm); border-radius:var(--r-btn-sm)}
+/* Tonal: the skill's second pill species; pressed (aria-pressed) flips to ink. Disabled: faint, no press. */
+.btn--tonal{background:var(--paper-sunk); color:var(--ink)}
+.btn--tonal[aria-pressed="true"]{background:var(--ink); color:var(--paper)}
+.btn:disabled{background:var(--ink-faint); color:#FCF9F4; cursor:default; pointer-events:none}
 
 /* Text button — Apple's "Buy now": a bare label, full touch target, no fill. */
 .text-btn{
@@ -1222,7 +1226,7 @@ export function renderSitePages(site: SiteManifest, outDir: string): string[] {
     written.push(`${rel}/index.html`);
   }
 
-  // The upload flow (ticket 08): one static page, four screens, talking to /api/upload and /api/confirm.
+  // The upload flow (ticket 08): one static page, five screens, talking to /api/upload and /api/confirm.
   mkdirSync(join(outDir, 'upload'), { recursive: true });
   writeFileSync(join(outDir, 'upload', 'index.html'), renderUploadPage(), 'utf8');
   written.push('upload/index.html');
