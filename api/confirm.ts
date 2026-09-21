@@ -6,7 +6,8 @@
  * page asks for it, stream what the publisher reports on the way (ticket 21). The update-link
  * secret comes back in this response and in no other, ever: committed state
  * keeps only its hash. With a valid `update` link the confirm is a correction
- * of that edition, and `corrected` says so.
+ * of that edition, and `corrected` says so. `days`, when the page sends it, is
+ * the days as checked, one per day read (ticket 20).
  */
 
 import { confirm, type ConfirmIntent, type PublisherPorts } from '../src/publisher.js';
@@ -19,6 +20,7 @@ import {
   optHashList,
   optOwner,
   optStr,
+  optStrList,
   optUpdate,
   parseImages,
   readJsonBody,
@@ -42,6 +44,7 @@ export async function handle(request: Request, ports: PublisherPorts): Promise<R
       ...(optStr(body, 'officialUrl') !== undefined ? { officialUrl: optStr(body, 'officialUrl')! } : {}),
       edits: editList(body, 'edits'),
       unverifiable: indexList(body, 'unverifiable'),
+      ...(optStrList(body, 'days', 'days') !== undefined ? { days: optStrList(body, 'days', 'days')! } : {}),
       ...parseImages(body),
       ...(optHashList(body, 'reviewed') !== undefined ? { reviewed: optHashList(body, 'reviewed')! } : {}),
       ...optUpdate(body),

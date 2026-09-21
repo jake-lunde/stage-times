@@ -158,10 +158,15 @@ export function optOwner(body: Body): { owner: string } | Record<string, never> 
 
 /** The review's image hashes, echoed back on confirm. Optional. */
 export function optHashList(body: Body, field: string): string[] | undefined {
+  return optStrList(body, field, 'image hashes');
+}
+
+/** A list of strings, optional — `what` names them in the complaint. */
+export function optStrList(body: Body, field: string, what: string): string[] | undefined {
   const value = body[field];
   if (value === undefined || value === null) return undefined;
   if (!Array.isArray(value) || value.some((h) => typeof h !== 'string')) {
-    throw new BadRequestError(`\`${field}\` must be a list of image hashes`);
+    throw new BadRequestError(`\`${field}\` must be a list of ${what}`);
   }
   return value as string[];
 }

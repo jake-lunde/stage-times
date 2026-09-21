@@ -414,17 +414,26 @@ asserts the adapters import nothing but those three modules. Upload and confirm 
 take an `images` list or a single `image`; confirm takes the review's hashes back as `reviewed`,
 and a rejection about one image carries its position as `image`. Link takes `url`, `email` and
 the optional `owner`, and answers with the review, `officialUrl`, `days`, and `images` in the
-same shape confirm reads them. Upload and confirm stream on request (ticket 21): with
+same shape confirm reads them; confirm also takes `days` back, the days as the uploader checked
+them, one per day read, and a day that differs moves every set printed under it and the year
+with it (ticket 20). All three stream on request (tickets 20 and 21): with
 `Accept: application/x-ndjson` every report the publisher makes through its optional `progress`
-port goes out as one `{"progress": …}` line while it works — an image cleared the schedule check,
+port goes out as one `{"progress": …}` line while it works — a link's page being opened and the
+images found on it, an image cleared the schedule check,
 an image's reading is in hand (with the sets so far and that image's headliners), confirm is
 checking, saving, done — and the last line is exactly the body a plain request gets. The status
 is then 200, sent before the answer is known; without the header nothing changes.
 
 ### The screens
 
-`/upload/` is one static page rendered by `src/upload-pages.ts` (ticket 08): details, the
-images, review, the wait, success. A one-day festival is one file action that posts the moment an
+`/upload/` is one static page rendered by `src/upload-pages.ts` (ticket 08): the link, details,
+the images, review, the wait, success. The front door is the link (ticket 20): the festival's
+schedule page and an email, one pill, and a text button to the screenshot flow, which is the
+details screen and everything after it, unchanged. A link's review carries the name, the year
+and the days as read as fields above the sets, with the address the page will live at under
+them — a changed name or year changes the address as it is typed, and confirm gets the name and,
+when a day was moved, the `days`. Every answer to a link lands back on the link screen in the
+publisher's sentence. A one-day festival is one file action that posts the moment an
 image is chosen; more days is a row per day (ticket 18), every day shown from the start, each
 swappable until the read starts, and one pill that reads whatever was chosen — a day with no times
 yet can be left out. While the model reads, and again while confirm saves, the page draws the wait

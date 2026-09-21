@@ -15,6 +15,7 @@ import assert from 'node:assert/strict';
 
 import {
   confirm,
+  GATE_COPY,
   MAX_UPLOAD_IMAGES,
   sha256,
   upload,
@@ -399,4 +400,46 @@ test('days: an edition uploaded as a list of one is byte-identical to one upload
   assert.equal('images' in published.editions['fan/low-tide-2026']!.uploader!, false, 'no list recorded for one image');
   const ledger = JSON.parse(listed.repo.file('state/uploads.json')!) as { uploads: object[] };
   assert.equal('images' in ledger.uploads[0]!, false);
+});
+
+// ---------------------------------------------------------------------------
+// The days as checked (ticket 20)
+// ---------------------------------------------------------------------------
+
+test('days: confirm with the days as read changes nothing — the same edition, byte for byte', async () => {
+  const plain = await weekendReview();
+  const asIs = await confirm(confirmDays(plain.review, weekendImages()), plain.ports);
+  const listed = await weekendReview();
+  const same = await confirm(confirmDays(listed.review, weekendImages(), { days: ['2026-10-09', '2026-10-10', '2026-10-11'] }), listed.ports);
+  assert.ok(asIs.ok && same.ok, `${asIs.rejection?.reason ?? ''}${same.rejection?.reason ?? ''}`);
+  assert.equal(listed.ports.repo.file('data/fan/low-tide-2026.yaml'), plain.ports.repo.file('data/fan/low-tide-2026.yaml'));
+  assert.equal(listed.ports.repo.file('source/fan/low-tide-2026/TRANSCRIPTION.md'), plain.ports.repo.file('source/fan/low-tide-2026/TRANSCRIPTION.md'), 'nothing moved, so the log says nothing about it');
+});
+
+test('days: a day moved on review moves every set printed under it, the year and the address with it, and the log says so', async () => {
+  const { review, ports } = await weekendReview();
+  const result = await confirm(confirmDays(review, weekendImages(), { days: ['2027-10-08', '2027-10-09', '2027-10-10'] }), ports);
+  assert.ok(result.ok, result.rejection?.reason);
+  assert.equal(result.editionPath, 'fan/low-tide-2027', 'the year is read from the first day, so it moved');
+  const doc = loadFestivalFromString(ports.repo.file('data/fan/low-tide-2027.yaml')!, 'committed');
+  assert.equal(doc.festival.year, 2027);
+  const muna = doc.sets.find((s) => s.artist === 'MUNA')!;
+  assert.equal(muna.start.raw, '2027-10-08T22:40:00', 'Friday\'s sets are on the new Friday');
+  const late = doc.sets.find((s) => s.artist === 'MGNA CRRRTA')!;
+  assert.equal(late.start.raw, '2027-10-08T23:45:00');
+  assert.ok(doc.sets.every((s) => s.start.raw.startsWith('2027-10-')), 'every set moved');
+  const log = ports.repo.file('source/fan/low-tide-2027/TRANSCRIPTION.md')!;
+  assert.match(log, /Days moved on review: 2026-10-09 → 2027-10-08\./, 'the Friday reply notes its move');
+  assert.match(log, /Days moved on review: 2026-10-11 → 2027-10-10\./, 'and the Sunday reply its own');
+});
+
+test('days: a list that does not fit the reading is refused in a plain sentence, and nothing is published', async () => {
+  for (const days of [['2026-10-09', '2026-10-10'], ['2026-10-09', '2026-10-10', 'Sunday'], ['2026-10-09', '2026-10-09', '2026-10-11'], ['2026-10-09', '2026-10-10', '']]) {
+    const { review, ports } = await weekendReview();
+    const result = await confirm(confirmDays(review, weekendImages(), { days }), ports);
+    assert.equal(result.ok, false, `${JSON.stringify(days)} should be refused`);
+    assert.equal(result.rejection?.gate, 'review');
+    assert.equal(result.rejection?.reason, GATE_COPY.days);
+    assert.equal(ports.repo.file('data/fan/low-tide-2026.yaml'), undefined);
+  }
 });

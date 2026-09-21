@@ -32,6 +32,7 @@ import {
 import { loadFestivalFromString } from '../src/schema.js';
 import {
   fakeLinkPorts,
+  fakeProgress,
   fakeRepository,
   fakeVision,
   fakeWeb,
@@ -536,4 +537,54 @@ test('an address that does not look right is refused before anything is fetched'
   const result = await link(linkIntent({ email: 'not an email' }), ports);
   assert.equal(result.rejection?.gate, 'details');
   assert.deepEqual(ports.web.pageFetches, []);
+});
+
+// ---------------------------------------------------------------------------
+// What a link reports while it works (ticket 20)
+// ---------------------------------------------------------------------------
+
+test('progress: a link reports the page being opened, the images found, then each check and each reading as an upload does', async () => {
+  const progress = fakeProgress();
+  const result = await okLink({ ...linkPorts(), progress });
+  const steps = progress.reports.map((p) => (p.kind === 'link' ? [p.kind, p.step, 'images' in p ? p.images : null] : [p.kind, p.step, 'done' in p ? p.done : null]));
+  assert.deepEqual(steps, [
+    ['link', 'page', null],
+    ['link', 'found', 3],
+    ['read', 'checked', 0],
+    ['read', 'checked', 0],
+    ['read', 'checked', 0],
+    ['read', 'read', 1],
+    ['read', 'read', 2],
+    ['read', 'read', 3],
+  ]);
+  const last = progress.reports.at(-1)!;
+  assert.equal(last.kind === 'read' && last.total, 3, 'the total is the images kept off the page');
+  assert.equal(last.kind === 'read' && last.sets, result.review!.sets.length, 'the sets so far end at the review\'s sets');
+  assert.ok(progress.reports.every((p) => p.kind !== 'read' || p.headliners.length > 0 || p.step === 'checked'), 'each reading brings its headliners');
+});
+
+test('progress: a link tried again reports the page, the images, and each one as reused', async () => {
+  const ports = linkPorts();
+  await okLink(ports);
+  const progress = fakeProgress();
+  await okLink({ ...ports, progress });
+  assert.deepEqual(
+    progress.reports.map((p) => (p.kind === 'read' ? [p.step, p.done] : p.step)),
+    ['page', 'found', ['reused', 1], ['reused', 2], ['reused', 3]],
+  );
+});
+
+test('progress: a link refused before the page is opened reports nothing; an unreachable page reports only the opening', async () => {
+  const before = fakeProgress();
+  await link(linkIntent({ url: 'http://127.0.0.1/' }), { ...linkPorts(), progress: before });
+  assert.deepEqual(before.reports, []);
+  const gone = fakeProgress();
+  const result = await link(linkIntent(), { ...fakeLinkPorts({ web: fakeWeb() }), progress: gone });
+  assert.equal(result.rejection?.gate, 'unreachable');
+  assert.deepEqual(gone.reports, [{ kind: 'link', step: 'page' }]);
+});
+
+test('progress: without a progress port a link works exactly as before', async () => {
+  const result = await okLink(linkPorts());
+  assert.equal(result.review!.sets.length, 11);
 });

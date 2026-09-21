@@ -1,7 +1,15 @@
 /**
- * Stage Times — the upload flow: one static page at `/upload/`, five screens.
+ * Stage Times — the upload flow: one static page at `/upload/`, six screens.
  *
- *   details     festival name, first and last day, an email — one form
+ *   link        the front door (ticket 20): where the set times are — the
+ *               festival's schedule page — and an email, one pill, and a
+ *               text button to the screenshots for anyone who has those
+ *               instead. Nothing else is typed. The read is the same drawn
+ *               wait as an upload's, and a page that cannot be read comes
+ *               back here in the publisher's sentence, the screenshots one
+ *               tap away.
+ *   details     festival name, first and last day, an email — one form; the
+ *               screenshot flow's own first screen, unchanged
  *   upload      one image per day (ticket 18). A one-day festival is one file
  *               action that posts as soon as an image is chosen — exactly as
  *               before. More days is a row per day, offered one at a time as
@@ -14,6 +22,10 @@
  *               inline, a "can't read it" toggle that blocks confirm, and the
  *               time zone shown as a guess and changeable. Every row's day is
  *               the night it belongs to, so it matches the image above it.
+ *               After a link, the name, the year and the days as read sit
+ *               above the sets as fields, with the address the page will live
+ *               at under them, so a misread name is caught before it is
+ *               permanent; a changed name changes the address as it is typed.
  *   publishing  the honest wait: the times are saved, the page is building,
  *               and the update link is handed over now rather than after
  *   success     the share link and the update link, explained in one line
@@ -45,9 +57,10 @@
  */
 
 import { ACCEPTED_IMAGE_TYPES, EMAIL_RE, GATE_COPY, MAX_IMAGE_EDGE, MAX_UPLOAD_IMAGES, MIN_IMAGE_EDGE, fill, type Gate } from './publisher.js';
+import { slugify } from './transcribe.js';
 import { artGround, esc, ICON_BACK, ICON_CHECK, ICON_LINK, page, PROD_ORIGIN } from './pages.js';
 
-export type Screen = 'details' | 'upload' | 'review' | 'publishing' | 'success' | 'remove' | 'removed';
+export type Screen = 'link' | 'details' | 'upload' | 'review' | 'publishing' | 'success' | 'remove' | 'removed';
 
 /**
  * Where each gate's rejection lands. A typo in the form goes back to the form;
@@ -72,11 +85,14 @@ export const GATE_SCREENS: Record<Gate, Screen> = {
   stages: 'upload',
   removed: 'details',
   'update-link': 'remove',
-  // A link's answers, for the link-first screen (ticket 20); every one lands where the link was typed.
-  address: 'details',
-  unreachable: 'details',
-  login: 'details',
-  'no-schedule': 'details',
+  // A link's own answers (ticket 20) land where the link was typed. So does
+  // every other answer to a link — a bad email, the caps, a reading that will
+  // not build — since the link screen is the only one that came before it; the
+  // script sends every link answer there, whatever this map says of the gate.
+  address: 'link',
+  unreachable: 'link',
+  login: 'link',
+  'no-schedule': 'link',
 };
 
 /**
@@ -167,6 +183,36 @@ export function daysLabel(first: string, last: string): string {
   var a = dayLabel(first, true), b = dayLabel(last, true);
   if (first === last) return a;
   return (a.slice(-3) === b.slice(-3) ? a.slice(0, -4) : a) + ' – ' + b;
+}
+
+/** `FRIDAY` — the weekday a date falls on, the way a poster prints it; '' for anything that is not a date. */
+export function weekdayName(iso: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '';
+  var p = iso.split('-').map(Number);
+  var d = new Date(Date.UTC(p[0]!, p[1]! - 1, p[2]!));
+  if (d.getUTCDate() !== p[2]) return '';
+  return ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'][d.getUTCDay()]!;
+}
+
+/**
+ * Where the page will live, as the review's header has it (ticket 20): the
+ * path the publisher claimed while the name and the year are as read — suffix
+ * and all — and, once either is changed, the path that name and year derive,
+ * the way confirm will derive it. A suffix confirm may add for a changed name
+ * cannot be known here; the success screen shows what was claimed.
+ */
+export function readAddress(rv: { festival: string; year: number; namespace: string; editionPath: string }, name: string, year: string): string {
+  if (name.trim() === rv.festival && year === String(rv.year)) return rv.editionPath;
+  return (rv.namespace === 'fan' ? 'fan/' : '') + slugify(name) + '-' + year;
+}
+
+/** The status line while a link is read, from the link's own reports — before the images report as an upload's do. */
+export function linkStatus(p: { step: string; images?: number }): string {
+  if (p.step === 'found') {
+    var n = p.images || 0;
+    return 'Found ' + n + ' image' + (n === 1 ? '' : 's') + ' that could be the schedule. Reading ' + (n === 1 ? 'it' : 'them') + ' now.';
+  }
+  return 'Opening that page.';
 }
 
 /**
@@ -349,6 +395,8 @@ const CSS = `
   font:inherit; font-size:var(--t-body); padding:0 14px; margin:0;
 }
 .field input{-webkit-appearance:none; appearance:none}
+/* A hidden field stays hidden: the display rule above would otherwise beat the attribute. */
+.field[hidden]{display:none}
 .field input:focus,.field select:focus,.times input:focus{outline:2px solid var(--red-deep); outline-offset:2px}
 .field-pair{display:grid; grid-template-columns:1fr 1fr; gap:var(--gap-1)}
 .hint{display:block; margin-top:6px; font-family:var(--font-mono); font-size:var(--t-mono); color:var(--ink-soft); line-height:1.5}
@@ -364,6 +412,12 @@ const CSS = `
 button.text-btn{background:none; border:0; padding:0; font-family:inherit}
 .file-btn{position:relative; overflow:hidden}
 .file-btn input{position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; font-size:0}
+
+/* the read, as fields (ticket 20): the name, then the year beside each day */
+.read{margin-top:var(--gap-3)}
+.read .field-pair{margin-top:var(--gap-3)}
+.read .field-pair>.field{margin-top:0}
+.read+.status{margin-top:var(--gap-2)}
 
 /* one row per day: the row list — a 56pt tile at the margin, the day and the
    action beside it, 80pt pitch, no dividers. The whole row is the file action. */
@@ -481,7 +535,7 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     : `<header>
     <p class="lockup">Stage&nbsp;Times</p>
     <h2>Add a festival</h2>
-    <p class="title-meta mono-cap">From a screenshot of the set times, one per day</p>
+    <p class="title-meta mono-cap">From the festival’s schedule page, or your screenshots</p>
   </header>`;
 
   const changing = f
@@ -492,7 +546,27 @@ export function renderUploadPage(edition?: UpdateTarget): string {
   const removeAction = f
     ? `
     <button class="text-btn" type="button" data-back="remove">Take it down</button>`
-    : '';
+    : `
+    <button class="text-btn" type="button" data-back="link">Use a link</button>`;
+
+  // The front door (ticket 20): where the set times are, and an email. The
+  // update link's page keeps its own first screen — it names its festival.
+  const linkScreen = f
+    ? ''
+    : `
+  <section class="screen" data-screen="link">
+    <form id="link" novalidate>
+      <label class="field"><span>Schedule page</span><input name="url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://" required>
+        <span class="hint">The festival’s page with the set times on it, not the lineup.</span></label>
+      <label class="field"><span>Email</span><input name="email" type="email" inputmode="email" autocomplete="email" required>
+        <span class="hint">Only so I can reach you about a wrong time. No account, and nothing gets sent to it.</span></label>
+      <p class="problem" role="alert" hidden></p>
+      <figure class="loading" data-loading hidden></figure>
+      <p class="status" aria-live="polite" hidden></p>
+      <button class="btn btn--primary" type="submit">Read the times</button>
+    </form>
+    <button class="text-btn" type="button" data-back="details">Use screenshots</button>
+  </section>`;
 
   const removeScreens = f
     ? `
@@ -542,8 +616,8 @@ export function renderUploadPage(edition?: UpdateTarget): string {
   </nav>
 
   ${header}
-
-  <section class="screen" data-screen="details">${changing}
+${linkScreen}
+  <section class="screen" data-screen="details"${f ? '' : ' hidden'}>${changing}
     <form id="details" novalidate>
       <label class="field"><span>Festival</span><input name="festival" type="text" autocomplete="off" autocapitalize="words" required${value(f?.name)}></label>
       <div class="field-pair">
@@ -586,8 +660,17 @@ export function renderUploadPage(edition?: UpdateTarget): string {
   </section>
 
   <section class="screen" data-screen="review" hidden>
-    <h3>Check every set</h3>
+    <h3 data-review-title>Check every set</h3>
     <p class="lead" data-review-lead>Against your image. Fix what's off, and mark anything you can't read.</p>
+    <div class="read" data-as-read hidden>
+      <label class="field"><span>Festival</span><input name="name" type="text" autocomplete="off" autocapitalize="words" data-read-name></label>
+      <div class="field-pair" data-read-days>
+        <label class="field"><span>Year</span><input name="year" type="number" inputmode="numeric" min="2000" max="2100" data-read-year></label>
+      </div>
+      <template id="read-day">
+        <label class="field"><span data-weekday></span><input type="date" data-read-day></label>
+      </template>
+    </div>
     <p class="status" data-address></p>
     <p class="problem" role="alert" hidden></p>
     <p class="problem" data-year hidden></p>
@@ -694,6 +777,8 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     }
     return {
       say: function (text) { status.textContent = text; },
+      // A link learns how many images there are only once the page is open: the rings follow.
+      redraw: function (n) { var old = $('.lbl', svg); art.innerHTML = loadingArt(n, ART_GROUND); svg = $('svg', art); if (old) svg.appendChild(old); },
       headliners: function (list) {
         if (!list || !list.length) return;
         var first = names.length;
@@ -719,7 +804,8 @@ export function renderUploadPage(edition?: UpdateTarget): string {
 
   // state.days is every day an image can be chosen for; state.images is what
   // has been, by day, in day order and without gaps — the rows are offered one at a time.
-  var state = { details: null, days: [], images: [], review: null, unreadable: {}, timezoneAssumed: true, published: null, live: false };
+  // state.via says which first screen the review came from: 'link' or 'upload'.
+  var state = { via: 'upload', details: null, days: [], images: [], review: null, unreadable: {}, timezoneAssumed: true, published: null, live: false };
   function chosen() { return state.images.filter(function (im) { return !!im; }); }
   function multiDay() { return state.days.length > 1; }
 
@@ -754,6 +840,7 @@ export function renderUploadPage(edition?: UpdateTarget): string {
   // image of several lands under that day's row, in the publisher's own words.
   function land(body, fallback) {
     var to = screenFor(body.gate, fallback);
+    if (!screens[to]) to = fallback;
     // A review that will not build stays on review — but only if there is one.
     if (to === 'review' && !state.review) to = 'upload';
     // A source with no web address on it: the form grows the one field for it.
@@ -818,6 +905,7 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     if (d.link && !/^https?:\\/\\/\\S+$/.test(d.link)) return problem('details', 'That link doesn\\'t look right. It starts with https://');
     problem('details', '');
     state.details = d;
+    state.via = 'upload';
     var days = festivalDays(d.first, d.last, LIMITS.maxImages);
     if (days.join() !== state.days.join()) {
       state.images.forEach(function (im) { if (im) URL.revokeObjectURL(im.url); });
@@ -837,6 +925,59 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     if (d.link) body.officialUrl = d.link;
     return body;
   }
+
+  // ── link ─────────────────────────────────────────────────────────────────
+  ${slugify.toString()}
+  ${weekdayName.toString()}
+  ${readAddress.toString()}
+  ${linkStatus.toString()}
+  var linkForm = $('#link');
+  // Bytes from the answer's base64, so the page holds each fetched image as it
+  // holds a chosen one: shown on review, sent back on confirm untouched.
+  function bytesOf(b64) {
+    var bin = atob(b64), out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  // Every answer to a link lands here — the one screen that came before it —
+  // in the publisher's sentence, with the screenshots one tap away.
+  function landLink(body) { fail('link', body); show('link'); }
+  if (linkForm) linkForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var f = e.target;
+    var url = f.url.value.trim(), email = f.email.value.trim();
+    if (!url) return problem('link', 'Paste the link to the festival\\'s schedule page first.');
+    if (!EMAIL_RE.test(email)) return problem('link', COPY.email);
+    problem('link', '');
+    var btn = $('button[type="submit"]', f), was = btn.textContent;
+    btn.classList.add('is-loading');
+    btn.textContent = 'Reading\\u2026';
+    var work = startWork('link', CAN_STREAM ? linkStatus({ step: 'page' }) : 'Reading the set times off that page. This could take a few minutes.', 1);
+    post('/api/link', withOwner({ url: url, email: email }), function (p) {
+      if (p.kind === 'link') { work.say(linkStatus(p)); if (p.step === 'found') work.redraw(p.images); }
+      if (p.kind === 'read') { work.say(readingStatus(p)); work.headliners(p.headliners); }
+    }).then(function (r) {
+      work.stop();
+      btn.classList.remove('is-loading');
+      btn.textContent = was;
+      if (!r.ok) return landLink(r.body);
+      var rv = r.body.review, days = r.body.days;
+      state.images.forEach(function (im) { if (im) URL.revokeObjectURL(im.url); });
+      state.images = r.body.images.map(function (im) {
+        var blob = new Blob([bytesOf(im.data)], { type: im.contentType });
+        return { blob: blob, url: URL.createObjectURL(blob), filename: im.filename, contentType: im.contentType, width: im.width, height: im.height, data: im.data };
+      });
+      state.days = days;
+      // What an upload's form would have typed, as read off the page: the link is the official schedule.
+      state.details = { festival: rv.festival, first: days[0], last: days[days.length - 1], email: email, link: r.body.officialUrl };
+      state.via = 'link';
+      state.review = rv;
+      state.unreadable = {};
+      state.timezoneAssumed = rv.timezoneAssumed;
+      renderReview();
+      show('review');
+    });
+  });
 
   // ── upload ───────────────────────────────────────────────────────────────
   ${festivalDays.toString()}
@@ -1046,13 +1187,66 @@ export function renderUploadPage(edition?: UpdateTarget): string {
   }
   zone.addEventListener('change', function () { state.timezoneAssumed = false; zoneHint(); });
 
+  // The read, as fields (ticket 20): the name, the year, and each day the
+  // images were read as, labeled with the weekday that date falls on — so a
+  // wrong year shows up as the wrong weekday against the poster. The address
+  // under them follows the name and the year as they are typed.
+  var readBlock = $('[data-as-read]'), nameField = $('[data-read-name]'), yearField = $('[data-read-year]'), dayGrid = $('[data-read-days]'), dayTpl = $('#read-day');
+  function renderRead(rv, viaLink) {
+    readBlock.hidden = !viaLink;
+    if (!viaLink) return;
+    nameField.value = rv.festival;
+    yearField.value = String(rv.year);
+    $$('[data-read-day]', dayGrid).forEach(function (input) { input.parentNode.remove(); });
+    state.days.forEach(function (day) {
+      var label = dayTpl.content.firstElementChild.cloneNode(true);
+      $('[data-read-day]', label).value = day;
+      $('[data-weekday]', label).textContent = weekdayName(day);
+      dayGrid.appendChild(label);
+    });
+  }
+  function readDays() { return $$('[data-read-day]', dayGrid).map(function (input) { return input.value; }); }
+  function labelDay(input) { $('[data-weekday]', input.parentNode).textContent = weekdayName(input.value) || 'DAY'; }
+  function readPath() {
+    var rv = state.review;
+    return state.via === 'link' ? readAddress(rv, nameField.value, yearField.value.trim()) : rv.editionPath;
+  }
+  function updateAddress() {
+    var rv = state.review;
+    var address = ORIGIN.replace(/^https:\\/\\//, '') + '/' + readPath() + '/';
+    $('[data-address]').textContent = !UPDATE ? 'Your page will be ' + address
+      : rv.correcting ? 'This replaces the times on ' + address
+      : 'That update link didn\\'t match, so this will be a new page: ' + address;
+  }
+  nameField.addEventListener('input', updateAddress);
+  // The year moves every day with it; a first day moved into another year moves the year.
+  yearField.addEventListener('input', function () {
+    var y = yearField.value.trim();
+    if (/^\\d{4}$/.test(y)) $$('[data-read-day]', dayGrid).forEach(function (input) { if (input.value) { input.value = y + input.value.slice(4); labelDay(input); } });
+    updateAddress();
+  });
+  dayGrid.addEventListener('input', function (e) {
+    var input = e.target.closest('[data-read-day]');
+    if (!input) return;
+    labelDay(input);
+    var first = $('[data-read-day]', dayGrid);
+    if (first && first.value && first.value.slice(0, 4) !== yearField.value.trim()) yearField.value = first.value.slice(0, 4);
+    updateAddress();
+  });
+
   function renderReview() {
     var rv = state.review;
     var multi = rv.images.length > 1;
-    $('[data-review-lead]').textContent = multi
+    var viaLink = state.via === 'link';
+    $('[data-review-title]').textContent = viaLink ? 'Does this look right?' : 'Check every set';
+    $('[data-review-lead]').textContent = viaLink
+      ? 'As read off the page. Fix what\\'s off, and mark any set you can\\'t read.'
+      : multi
       ? 'Each day against its own image. Fix what\\'s off, and mark anything you can\\'t read.'
       : 'Against your image. Fix what\\'s off, and mark anything you can\\'t read.';
-    $('[data-swap]').textContent = multi ? 'Swap an image' : 'Different image';
+    var swap = $('[data-swap]');
+    swap.textContent = viaLink ? 'Different link' : multi ? 'Swap an image' : 'Different image';
+    swap.setAttribute('data-back', viaLink ? 'link' : 'upload');
     if (!$$('option', zone).some(function (o) { return o.value === rv.timezone; })) {
       var extra = document.createElement('option');
       extra.value = rv.timezone;
@@ -1062,10 +1256,8 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     zone.value = rv.timezone;
     zoneHint();
     problem('review', '');
-    var address = ORIGIN.replace(/^https:\\/\\//, '') + '/' + rv.editionPath + '/';
-    $('[data-address]').textContent = !UPDATE ? 'Your page will be ' + address
-      : rv.correcting ? 'This replaces the times on ' + address
-      : 'That update link didn\\'t match, so this will be a new page: ' + address;
+    renderRead(rv, viaLink);
+    updateAddress();
     var year = $('[data-year]');
     year.textContent = rv.yearMismatch ? 'The image reads as ' + rv.year + ', not the year you typed. Check your dates against it.' : '';
     year.hidden = !rv.yearMismatch;
@@ -1157,7 +1349,16 @@ export function renderUploadPage(edition?: UpdateTarget): string {
 
   $('[data-confirm]').addEventListener('click', function () {
     var btn = this, rv = state.review;
-    if (!rv) return show('upload');
+    if (!rv) return show(state.via === 'link' ? 'link' : 'upload');
+    // After a link, the header is checked first: a name, and a date for every day read.
+    var viaLink = state.via === 'link', name = '', days = [];
+    if (viaLink) {
+      name = nameField.value.trim();
+      days = readDays();
+      if (!name) return problem('review', COPY.festival);
+      var y = yearField.value.trim();
+      if (!/^\\d{4}$/.test(y) || days.some(function (d, i) { return !weekdayName(d) || days.indexOf(d) !== i; })) return problem('review', COPY.days);
+    }
     var edits = [], unverifiable = [];
     $$('#sets [data-index]').forEach(function (li) {
       var i = Number(li.getAttribute('data-index'));
@@ -1183,6 +1384,8 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     // them — so what is published is exactly what was checked.
     var body = withOwner(withImages(typed({ timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: unverifiable, update: updateClaim() })));
     if (rv.images.length > 1) body.reviewed = rv.images;
+    // After a link the name is the header's, and the days go too when one was moved.
+    if (viaLink) { body.festival = name; if (days.join() !== state.days.join()) body.days = days; }
     // A correction's calendar already answers, so the wait is for it to change:
     // note what it answers with now, before the new times are sent.
     (rv.correcting ? currentTag(rv.editionPath) : Promise.resolve(null)).then(function (before) {
@@ -1220,8 +1423,18 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     });
   });
 
+  // The email typed on one first screen is the same person on the other.
+  function carryEmail(to) {
+    var from = $(to === 'details' ? '#link [name="email"]' : '#details [name="email"]');
+    var into = $(to === 'details' ? '#details [name="email"]' : '#link [name="email"]');
+    if (from && into && !into.value && from.value) into.value = from.value;
+  }
   $$('[data-back]').forEach(function (b) {
-    b.addEventListener('click', function () { show(b.getAttribute('data-back')); });
+    b.addEventListener('click', function () {
+      var to = b.getAttribute('data-back');
+      if (to === 'details' || to === 'link') carryEmail(to);
+      show(to);
+    });
   });
 
   // ── publishing ───────────────────────────────────────────────────────────
@@ -1296,7 +1509,7 @@ export function renderUploadPage(edition?: UpdateTarget): string {
       )
     : page(
         'Stage Times — add a festival',
-        'Turn a screenshot of a festival’s set times into calendars, one per stage, from your phone.',
+        'Turn a festival’s schedule page, or a screenshot of its set times, into calendars, one per stage, from your phone.',
         body,
         CSS,
       );

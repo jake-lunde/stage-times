@@ -17,7 +17,8 @@ import { join } from 'node:path';
 
 import { ACCEPTED_IMAGE_TYPES, EMAIL_RE, GATE_COPY, MAX_IMAGE_EDGE, MAX_UPLOAD_IMAGES, MIN_IMAGE_EDGE, type Gate } from '../src/publisher.js';
 import { renderSitePages } from '../src/pages.js';
-import { addDay, confirmStatus, dayLabel, daysLabel, editedEnd, editedStart, festivalDays, GATE_SCREENS, loadingArt, nightOf, ownerFromFragment, ownerLink, percentDone, posterBlock, readingStatus, renderUploadPage, REVIEW_ZONES, takeLines, updateLink, updatePagePath, type Screen } from '../src/upload-pages.js';
+import { addDay, confirmStatus, dayLabel, daysLabel, editedEnd, editedStart, festivalDays, GATE_SCREENS, linkStatus, loadingArt, nightOf, ownerFromFragment, ownerLink, percentDone, posterBlock, readAddress, readingStatus, renderUploadPage, REVIEW_ZONES, takeLines, updateLink, updatePagePath, weekdayName, type Screen } from '../src/upload-pages.js';
+import { slugify } from '../src/transcribe.js';
 import { artGround } from '../src/pages.js';
 import { STREAM_TYPE } from '../src/publisher-http.js';
 import { buildFixtureSite, harborDoc, pierDoc, REPO_ROOT, visibleText } from './helpers.js';
@@ -33,19 +34,20 @@ function screen(name: Screen): string {
   return m![0];
 }
 
-const SCREENS: Screen[] = ['details', 'upload', 'review', 'publishing', 'success'];
-const ALL_GATES: Gate[] = ['details', 'images', 'type', 'size', 'dimensions', 'address-cap', 'daily-cap', 'schedule', 'expired', 'review', 'schema', 'link', 'year', 'stages', 'removed', 'update-link'];
+const SCREENS: Screen[] = ['link', 'details', 'upload', 'review', 'publishing', 'success'];
+const ALL_GATES: Gate[] = ['details', 'images', 'type', 'size', 'dimensions', 'address-cap', 'daily-cap', 'schedule', 'expired', 'review', 'schema', 'link', 'year', 'stages', 'removed', 'update-link', 'address', 'unreachable', 'login', 'no-schedule'];
 
 // ===========================================================================
 // The screens
 // ===========================================================================
 
-test('upload page: every screen is in the static markup, and only the first one shows', () => {
+test('upload page: every screen is in the static markup, and only the first one — the link — shows', () => {
   for (const name of SCREENS) screen(name);
-  assert.doesNotMatch(screen('details'), /^<section[^>]*\bhidden\b/, 'the details screen is the one that shows');
+  assert.doesNotMatch(screen('link'), /^<section[^>]*\bhidden\b/, 'the link screen is the one that shows (ticket 20)');
   for (const name of SCREENS.slice(1)) {
     assert.match(screen(name), /^<section[^>]*\bhidden\b/, `${name} waits its turn`);
   }
+  assert.ok(html.indexOf('data-screen="link"') < html.indexOf('data-screen="details"'), 'the front door comes first in the markup too');
 });
 
 /** The upload screen's two shapes: one day is the file pill; more is the day rows and one read pill. */
@@ -58,6 +60,7 @@ function uploadMode(mode: 'one' | 'many'): string {
 
 test('upload page: each deciding screen has exactly one primary pill; the wait has none', () => {
   const count = (markup: string) => (markup.match(/btn--primary/g) ?? []).length;
+  assert.equal(count(screen('link')), 1);
   assert.equal(count(screen('details')), 1);
   assert.equal(count(uploadMode('one')), 1, 'one day: the file pill');
   assert.equal(count(uploadMode('many')), 1, 'more days: the read pill — the rows are not pills');
@@ -170,7 +173,7 @@ test('upload page: a source with no web address on it grows the one field for it
 
 test('upload page: a rejection with nothing reviewed cannot strand the reader on the review screen', () => {
   assert.ok(html.includes("if (to === 'review' && !state.review) to = 'upload';"));
-  assert.ok(html.includes("if (!rv) return show('upload');"), 'confirm with nothing to confirm goes back');
+  assert.ok(html.includes("if (!rv) return show(state.via === 'link' ? 'link' : 'upload');"), 'confirm with nothing to confirm goes back to where it came from');
   assert.ok(html.includes(".catch(function () {") && html.includes("'Something went wrong on my end. Try again in a minute.' } }, before: null }"), 'a save that throws still restores the button with a line');
 });
 
@@ -198,7 +201,7 @@ test('upload page: the review shows each day\'s own image above that day\'s sets
   assert.ok(html.includes("head.textContent = label;"), 'the day heading over each image');
   assert.ok(html.includes("'Each day against its own image. Fix what\\'s off, and mark anything you can\\'t read.'"));
   assert.ok(html.includes("'No times were read off this one.'"), 'an image the model read nothing off says so');
-  assert.ok(html.includes("$('[data-swap]').textContent = multi ? 'Swap an image' : 'Different image';"));
+  assert.ok(html.includes("swap.textContent = viaLink ? 'Different link' : multi ? 'Swap an image' : 'Different image';"));
 });
 
 test('upload page: confirm sends every image back, and the review\'s own list of them', () => {
@@ -295,6 +298,85 @@ test('upload page: the review says where the page will live before anything is c
   assert.match(screen('review'), /<p class="status" data-address><\/p>/);
   assert.ok(html.includes("var address = ORIGIN.replace("), 'filled from the review\'s edition path');
   assert.ok(html.includes("!UPDATE ? 'Your page will be ' + address"));
+  assert.ok(html.includes("return state.via === 'link' ? readAddress(rv, nameField.value, yearField.value.trim()) : rv.editionPath;"), 'after screenshots it is what the publisher claimed; after a link it follows the header');
+});
+
+// ===========================================================================
+// The front door is the link (ticket 20)
+// ===========================================================================
+
+test('link screen: one decision — the link and the contact, one primary pill, and a text button to the screenshots', () => {
+  const link = screen('link');
+  const inputs = link.match(/<input[^>]*>/g) ?? [];
+  assert.equal(inputs.length, 2, 'the link and the email, nothing else typed up front');
+  assert.match(link, /<input name="url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https:\/\/" required>/);
+  assert.match(link, /<input name="email" type="email" inputmode="email" autocomplete="email" required>/);
+  assert.match(link, /<button class="btn btn--primary" type="submit">Read the times<\/button>/, 'the one label, the same words as the read pill');
+  assert.match(link, /<button class="text-btn" type="button" data-back="details">Use screenshots<\/button>/, 'today\'s flow is one tap away, as a text button');
+  const said = visibleText(link);
+  assert.ok(said.includes('The festival’s page with the set times on it, not the lineup.'), 'what to paste, in one line');
+  assert.ok(said.includes('Only so I can reach you about a wrong time. No account, and nothing gets sent to it.'), 'the same email line as the form');
+  assert.doesNotMatch(said, /\bfestival name\b|\bfirst day\b/i, 'no name, no dates');
+  assert.match(link, /<figure class="loading" data-loading hidden><\/figure>\s*<p class="status" aria-live="polite" hidden><\/p>/, 'the same drawn wait as an upload, above the pill');
+  assert.ok(link.indexOf('data-loading') < link.indexOf('btn--primary'));
+  assert.ok(text.includes('From the festival’s schedule page, or your screenshots'), 'the header caption says both doors');
+});
+
+test('link screen: the post carries the link, the email and the owner secret, asks for the stream, and lands every answer back here', () => {
+  assert.ok(html.includes("post('/api/link', withOwner({ url: url, email: email }), function (p) {"), 'the link intent, with the bookmark riding along');
+  assert.ok(html.includes("if (p.kind === 'link') { work.say(linkStatus(p)); if (p.step === 'found') work.redraw(p.images); }"), 'the link\'s own steps, and the rings follow the images found');
+  assert.ok(html.includes("if (p.kind === 'read') { work.say(readingStatus(p)); work.headliners(p.headliners); }"), 'then the same percentage and headliners as an upload');
+  assert.ok(html.includes("function landLink(body) { fail('link', body); show('link'); }"), 'every answer, in the publisher\'s sentence, where the link was typed');
+  assert.ok(html.includes('if (!r.ok) return landLink(r.body);'));
+  for (const gate of ['address', 'unreachable', 'login', 'no-schedule'] as Gate[]) assert.equal(GATE_SCREENS[gate], 'link', `${gate} → the link screen`);
+  assert.ok(html.includes("if (!screens[to]) to = fallback;"), 'a screen this page does not have never strands anyone');
+  assert.ok(html.includes("state.details = { festival: rv.festival, first: days[0], last: days[days.length - 1], email: email, link: r.body.officialUrl };"), 'what the form would have typed, as read; the link is the official schedule');
+  assert.ok(html.includes("var blob = new Blob([bytesOf(im.data)], { type: im.contentType });"), 'the fetched images are held like chosen ones');
+  assert.ok(html.includes("if (to === 'details' || to === 'link') carryEmail(to);"), 'the email typed on one first screen follows to the other');
+  assert.ok(screen('details').includes('<button class="text-btn" type="button" data-back="link">Use a link</button>'), 'and the form offers the way back');
+  assert.equal(linkStatus({ step: 'page' }), 'Opening that page.');
+  assert.equal(linkStatus({ step: 'found', images: 3 }), 'Found 3 images that could be the schedule. Reading them now.');
+  assert.equal(linkStatus({ step: 'found', images: 1 }), 'Found 1 image that could be the schedule. Reading it now.');
+  assert.ok(html.includes(linkStatus.toString()), 'embedded by source');
+});
+
+test('link review: the name, the year and the days as read sit above the sets as fields, with the address under them', () => {
+  const review = screen('review');
+  assert.match(review, /<h3 data-review-title>Check every set<\/h3>/, 'the title is set per door');
+  assert.ok(html.includes("$('[data-review-title]').textContent = viaLink ? 'Does this look right?' : 'Check every set';"));
+  assert.ok(html.includes("? 'As read off the page. Fix what\\'s off, and mark any set you can\\'t read.'"));
+  const block = /<div class="read" data-as-read hidden>[\s\S]*?<\/template>\s*<\/div>/.exec(review)?.[0] ?? '';
+  assert.ok(block.length > 0, 'the header block is in the static markup, hidden until a link');
+  assert.match(block, /<input name="name" type="text" autocomplete="off" autocapitalize="words" data-read-name>/, 'the name');
+  assert.match(block, /<input name="year" type="number" inputmode="numeric" min="2000" max="2100" data-read-year>/, 'the year');
+  assert.match(block, /<template id="read-day">\s*<label class="field"><span data-weekday><\/span><input type="date" data-read-day><\/label>/, 'a date per day read, labeled with its weekday');
+  assert.ok(review.indexOf('data-as-read') < review.indexOf('data-address'), 'the address comes right under the fields');
+  assert.ok(review.indexOf('data-address') < review.indexOf('<select name="timezone">'), 'then the zone, as today');
+  assert.ok(html.includes("readBlock.hidden = !viaLink;"), 'the screenshot flow\'s review is untouched');
+  assert.ok(html.includes("$('[data-weekday]', label).textContent = weekdayName(day);"), 'a wrong year shows as the wrong weekday');
+  assert.ok(html.includes("nameField.addEventListener('input', updateAddress);"), 'a change to the name changes the address as it is typed');
+  assert.ok(html.includes("if (/^\\d{4}$/.test(y)) $$('[data-read-day]', dayGrid).forEach(function (input) { if (input.value) { input.value = y + input.value.slice(4); labelDay(input); } });"), 'the year moves every day with it');
+  for (const fn of [slugify, weekdayName, readAddress]) assert.ok(html.includes(fn.toString()), `${fn.name} rides along by source`);
+});
+
+test('link review: confirm sends the header\'s name and, when a day was moved, the days — and checks both first', () => {
+  assert.ok(html.includes("if (viaLink) { body.festival = name; if (days.join() !== state.days.join()) body.days = days; }"));
+  assert.ok(html.includes("if (!name) return problem('review', COPY.festival);"), 'no name, the publisher\'s own sentence');
+  assert.ok(html.includes("return problem('review', COPY.days);"), 'a bad or missing date, the publisher\'s own sentence');
+  assert.ok(html.includes("swap.setAttribute('data-back', viaLink ? 'link' : 'upload');"), 'the way back from the review is the link screen');
+});
+
+test('read helpers: the weekday a date falls on, and the address the header derives', () => {
+  assert.equal(weekdayName('2026-10-09'), 'FRIDAY');
+  assert.equal(weekdayName('2025-10-09'), 'THURSDAY', 'the same printed date a year off is another weekday — the tell');
+  assert.equal(weekdayName('2026-02-29'), '', 'not a date');
+  assert.equal(weekdayName(''), '');
+  const rv = { festival: 'Low Tide', year: 2026, namespace: 'fan', editionPath: 'fan/low-tide-2-2026' };
+  assert.equal(readAddress(rv, 'Low Tide', '2026'), 'fan/low-tide-2-2026', 'as read: what the publisher claimed, suffix and all');
+  assert.equal(readAddress(rv, ' Low Tide ', '2026'), 'fan/low-tide-2-2026', 'whitespace is not a change');
+  assert.equal(readAddress(rv, 'Low Tide Fest', '2026'), 'fan/low-tide-fest-2026', 'a changed name derives its own path');
+  assert.equal(readAddress(rv, 'Low Tide', '2027'), 'fan/low-tide-2027', 'a changed year too');
+  assert.equal(readAddress({ ...rv, namespace: 'owner', editionPath: 'low-tide-2026' }, 'Low Tide!', '2026'), 'low-tide-2026', 'the owner\'s at the root');
 });
 
 // ===========================================================================
@@ -434,6 +516,7 @@ test('upload page: the checklist — capsules, no shadows or gradients, reduced 
   assert.ok(html.includes('max-width:359px'), 'the narrow-screen rules apply here too');
   assert.match(html, /\.chip\{[^}]*height:32px[^}]*border-radius:16px/, 'chips are 32pt capsules');
   assert.match(html, /\.field input,\.field select\{[^}]*height:52px[^}]*border-radius:8px/, 'fields are the one non-capsule control');
+  assert.ok(html.includes('.field[hidden]{display:none}'), 'a hidden field (the schedule link, waiting) really is hidden — the display rule does not beat the attribute');
   assert.equal(/#FFF\b|#000\b/i.test(html), false, 'nothing pure white or black');
 });
 
@@ -521,6 +604,13 @@ test('update link: a correction waits for the calendar to change, and does not h
   assert.equal(updateScreen('publishing').includes('data-update'), false, 'they already hold the link');
   assert.equal(updateScreen('success').includes('data-update'), false);
   assert.ok(visibleText(updateScreen('publishing')).includes('Your new times are saved.'));
+});
+
+test('update link: the update page keeps its flow — no link screen, the form first, no way to a link', () => {
+  assert.equal(updateHtml.includes('data-screen="link"'), false);
+  assert.doesNotMatch(updateScreen('details'), /^<section[^>]*\bhidden\b/, 'the form is the first screen, as before');
+  assert.equal(updateHtml.includes('Use a link'), false);
+  assert.equal(updateHtml.includes('Use screenshots'), false);
 });
 
 test('update link: the fresh upload page has no take-down screen', () => {

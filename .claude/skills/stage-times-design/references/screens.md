@@ -149,7 +149,7 @@ upload flow hands an uploader: that is the second visit, and it is theirs alone.
 
 ## 3. Upload — `/upload/`
 
-The third page type (ticket 08, 2026-09-20). One static page, five screens shown one at a time
+The third page type (ticket 08, 2026-09-20). One static page, six screens shown one at a time
 by a small script, so the image never leaves the phone's memory between screens. Everything the
 flow *decides* is in `src/publisher.ts`; the page repeats the publisher's own sentence for every
 rejection and holds no rule of its own. Markup and copy in `src/upload-pages.ts`.
@@ -159,14 +159,25 @@ rejection and holds no rule of its own. Markup and copy in `src/upload-pages.ts`
 │  (◀)                         │  the same top bar and lockup as the subscribe page
 │  STAGE TIMES                 │
 │  Add a festival              │  40pt / 630 expanded — the title stays across screens
-│  FROM ONE SCREENSHOT OF …    │  mono caption
+│  FROM THE FESTIVAL'S SCHED…  │  mono caption: both doors, the link first
 │                              │
-│  Festival                    │  1. DETAILS — four fields (festival, first day,
-│  [                    ]      │     last day, email), 52pt / 8pt radius, sunk fill:
-│  First day     Last day      │     the one non-capsule control. Email hint says it
-│  [        ]    [        ]    │     is a contact, not an account.
-│  Email                       │
-│  [                    ]      │
+│  Schedule page               │  0. LINK (ticket 20) — the front door: the festival's
+│  [ https://            ]     │     schedule page and an email, one primary pill
+│  Email                       │     ("Read the times"), and a text button to the
+│  [                    ]      │     screenshots ("Use screenshots"). Nothing else is
+│  [    Read the times   ]     │     typed. The read is the same drawn wait as an
+│  Use screenshots             │     upload's, with the link's own steps first
+│                              │     (opening the page, the images found — the rings
+│                              │     follow the count). Every answer to a link lands
+│                              │     back here in the publisher's sentence, the
+│                              │     screenshots one tap away.
+│                              │
+│  Festival                    │  1. DETAILS — the screenshot flow's own first screen,
+│  [                    ]      │     one tap from the link: four fields (festival,
+│  First day     Last day      │     first day, last day, email), 52pt / 8pt radius,
+│  [        ]    [        ]    │     sunk fill: the one non-capsule control. Email
+│  Email                       │     hint says it is a contact, not an account. "Use
+│  [                    ]      │     a link" under Next is the way back.
 │  [        Next        ]      │  one primary pill
 │                              │
 │  Your screenshot             │  2. UPLOAD — one line saying what to pick. A one-day
@@ -188,8 +199,15 @@ rejection and holds no rule of its own. Markup and copy in `src/upload-pages.ts`
 │                              │     what is being read and how many; after fifteen
 │                              │     seconds, how long it has been. Same while saving.
 │                              │
-│  Check every set             │  3. REVIEW — the time zone as a guess (select, spoken
-│  Time zone [Pacific      ▾]  │     names), then one section per image: its day as an
+│  Does this look right?       │  3. REVIEW — after a link (ticket 20), the name, the
+│  Festival [ Low Tide     ]   │     year and each day as read, as fields, the days
+│  Year [2026]  FRIDAY [Oct 9] │     labeled with the weekday that date falls on (a
+│  SATURDAY [ ] SUNDAY [   ]   │     wrong year shows as the wrong weekday), then the
+│  Your page will be …/fan/…/  │     address the page will live at, which follows the
+│                              │     name and the year as they are typed. After
+│  Check every set             │     screenshots the header is what was typed, unshown.
+│  Time zone [Pacific      ▾]  │     Then the time zone as a guess (select, spoken
+│                              │     names), then one section per image: its day as an
 │  FRI 9 OCT                   │     eyebrow (only with several), the image in a card,
 │  ┌────────────────────────┐  │     then a row list per stage: artist field, day +
 │  │   their Friday image   │  │     two time fields, the printed time in mono,
@@ -248,6 +266,12 @@ Rules that came out of building it:
   so in a sentence when it stops trying. Nothing on this page says "done" before it is.
 - **Glossary words stay off the page.** Screens say "your page", "your update link", "the times",
   "a guess" — never edition, feed, transcription, verified, or a zone id.
+- **The link is the front door; the screenshots are one tap away, unchanged** (ticket 20). The
+  link screen asks for two things and nothing about the festival — name, year and days come off
+  the page and are checked on review, where the address updates as the name is typed so a
+  misread name is caught before it is permanent. Every answer to a link, whatever its gate, lands
+  back on the link screen: it is the only screen that came before it. The update link's page has
+  no link screen; it already knows its festival.
 
 ### The update link's page — `/update/fan/<key>/`
 

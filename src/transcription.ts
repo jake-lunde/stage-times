@@ -119,6 +119,54 @@ export function transcribe(outputs: ModelOutput[], options: TranscriptionOptions
   };
 }
 
+/**
+ * The days a set of replies are read as: every day header across every
+ * image, ISO, once each, in order. What a link's review shows for the
+ * uploader to check, and what a confirm's `days` may move (ticket 20). A
+ * reply that will not parse contributes nothing — the full reading says why.
+ */
+export function daysRead(outputs: ModelOutput[]): string[] {
+  const days = new Set<string>();
+  for (const o of outputs) {
+    try {
+      for (const day of parseModelOutput(o.output, o.source).days) days.add(day.date);
+    } catch {
+      continue;
+    }
+  }
+  return [...days].sort();
+}
+
+/**
+ * The same replies with their days moved: `from[i]` becomes `to[i]` on every
+ * image, and every set printed under it goes with it — the year of the
+ * edition too, since that is read from the first day. Each moved reply says
+ * so in its observations, so the log records the human's call beside the
+ * model's reading. A reply that will not parse is passed through untouched.
+ */
+export function movedDays(outputs: ModelOutput[], from: string[], to: string[]): ModelOutput[] {
+  const moves = new Map(from.map((d, i) => [d, to[i]!]));
+  return outputs.map((o) => {
+    let raw: RawTranscription;
+    try {
+      raw = parseModelOutput(o.output, o.source);
+    } catch {
+      return o;
+    }
+    const moved = raw.days.filter((d) => moves.has(d.date) && moves.get(d.date) !== d.date);
+    if (moved.length === 0) return o;
+    const output: RawTranscription = {
+      ...raw,
+      days: raw.days.map((d) => (moves.has(d.date) ? { ...d, date: moves.get(d.date)! } : d)),
+      observations: [
+        ...(raw.observations ?? []),
+        `Days moved on review: ${moved.map((d) => `${d.date} → ${moves.get(d.date)}`).join(', ')}.`,
+      ],
+    };
+    return { source: o.source, output };
+  });
+}
+
 /** One stage's closer on one night, as the wait shows it while the rest is read. */
 export interface Headliner {
   /** As printed. */
