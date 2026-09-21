@@ -15,6 +15,7 @@ import {
   indexList,
   json,
   optHashList,
+  optOwner,
   optStr,
   parseImages,
   readJsonBody,
@@ -38,6 +39,7 @@ export async function handle(request: Request, ports: PublisherPorts): Promise<R
       unverifiable: indexList(body, 'unverifiable'),
       ...parseImages(body),
       ...(optHashList(body, 'reviewed') !== undefined ? { reviewed: optHashList(body, 'reviewed')! } : {}),
+      ...optOwner(body),
     };
   } catch (err) {
     return badRequest(err);
