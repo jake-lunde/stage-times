@@ -74,6 +74,25 @@ wrong). To have an edition offered again, delete its entry from `state/watch.jso
 and push, or run the workflow by hand after; the replies are stored by image hash, so the second
 offer costs no model call.
 
+## The Reddit signal
+
+For a festival whose set times land in an app or a social post, add its subreddit to the entry:
+
+```yaml
+  subreddit: <name>      # as in reddit.com/r/<name>; the r/ is optional
+```
+
+Check the name on reddit.com first — `r/ACL` is a knee-injury subreddit, not the festival. Inside
+the drop window, each hourly run reads the subreddit's newest posts. A post about set times (set
+times, stage times, timetable, schedule in its title), posted inside the window, naming no other
+year, with at least 10 votes, arrives as an issue labeled `signal`, titled `Set times on Reddit:
+<Festival> <Year>`, whose body is the link. That is all it carries. Open it, get the screenshot,
+upload it through your bookmark, close the issue. The same post never arrives twice
+(`state/signal.json`); a second post about the same drop does.
+
+Nothing arrives when the subreddit is unreachable. Reddit refuses its public JSON to some networks
+without credentials; the run log says `unreachable` beside the entry when that happens.
+
 ## Running it by hand
 
 - **Actions → Watch → Run workflow** runs it now; tick *force* to poll every entry whose
@@ -96,6 +115,6 @@ nothing, and the pull request is the owner path.
   else; every edition file waits on a merge.
 - Ask a model about an image twice. Every image is screened once and transcribed once, by
   content hash, in the same store an upload uses.
-- Read Instagram, an app, or anything behind a login. Those festivals rely on uploads and,
-  later, the Reddit signal.
+- Read Instagram, an app, or anything behind a login. Those festivals rely on uploads and the
+  Reddit signal, below.
 - Touch a blocked edition, or a fan edition. It reads and writes the owner namespace only.
