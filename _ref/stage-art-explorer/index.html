@@ -408,7 +408,8 @@ function centerName(set,i,n,o,base,cx,cy){
   }
 }
 function lit(x,y,k,i,n,o,base){ // while its name is up: the pill's ink for the pill style, otherwise the star grows
-  const big=o.hl!=='pill';const c=big?nameInk(o,base,inks(base,o.ground)):pillColors(o,base).bg;
+  // on the light ground the lit star is the full stage color, so it stands off both the ground and the ink name
+  const big=o.hl!=='pill';const c=big?(o.ground==='light'?base:nameInk(o,base,inks(base,o.ground))):pillColors(o,base).bg;
   return`<g class="pop${i===0?' first':''}" style="${popStyle(i,n)}">${sparkle(x,y,big?Math.round(k*1.8):k,c,1)}</g>`;
 }
 function frame(seed,base,sets,st,o,marks,rot,top=''){
@@ -545,7 +546,7 @@ function render(){
 }
 document.querySelectorAll('.seg').forEach(seg=>seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;seg.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');state[seg.id]=b.dataset.v;render();}));
 // names protection note
-const NOTE=document.createElement('p');NOTE.className='hint';NOTE.textContent='Names: Plain is what ships. Pills are 32px capsules; Deep pill keeps the stage hue, Cream pill matches the button so it can read as tappable, Ink pill is the neutral. Ticker runs the names along the bottom edge continuously. Ambient shows each headliner in the center of the art for about four seconds, one after another, in the Headliner style you pick: Marquee is the name alone, big and expanded; Poster block adds the night and the start time above it; Crop oversizes it past the card edge; Ghost day puts the night huge and faint behind it; Stamp is an outlined capsule with the sparkle; Pill is the filled chip. Name ink sets the color of the text treatments and of the star while its name is up. The Light ground mixes the stage color toward cream behind the art only (the card body stays the stage color), so ink names read; the slider sets how far. Scrim is a flat ink overlay on the art, set by the slider. Families without stars cycle the names at the bottom instead. ';document.getElementById('hint').after(NOTE);
+const NOTE=document.createElement('p');NOTE.className='hint';NOTE.textContent='Names: Plain is what ships. Pills are 32px capsules; Deep pill keeps the stage hue, Cream pill matches the button so it can read as tappable, Ink pill is the neutral. Ticker runs the names along the bottom edge continuously. Ambient shows each headliner in the center of the art for about four seconds, one after another, in the Headliner style you pick: Marquee is the name alone, big and expanded; Poster block adds the night and the start time above it; Crop oversizes it past the card edge; Ghost day puts the night huge and faint behind it; Stamp is an outlined capsule with the sparkle; Pill is the filled chip. Name ink sets the color of the text treatments and of the star while its name is up; on the Light ground the lit star is the stage color instead, so it never merges with the name. The Light ground mixes the stage color toward cream behind the art only (the card body stays the stage color), so ink names read; the slider sets how far. Scrim is a flat ink overlay on the art, set by the slider. Families without stars cycle the names at the bottom instead. ';document.getElementById('hint').after(NOTE);
 for(const id of['halftone','glow','text','anim','sheet','sheetFam','scrim'])document.getElementById(id).addEventListener('change',e=>{state[id]=e.target.checked;render();});
 document.getElementById('density').addEventListener('input',e=>{state.density=e.target.value/100;render();});
 document.getElementById('variant').addEventListener('input',e=>{state.variant=+e.target.value;render();});
