@@ -6,25 +6,32 @@ committed image file. They get loaded on festival wifi at 2am.
 
 ## 1. Landing — `/`
 
-Purpose: explain what this is in under five seconds and send people to the festival page.
+Purpose: explain what this is in under five seconds and send people to a festival page. Since
+ticket 06 (2026-09-20) it is the directory: one card per listed edition on a shelf
+(`references/store-density.md`), earliest first festival day first, then name. Nothing unlisted
+or blocked appears; the build never reads a clock, so there is no "past" and no "this weekend".
 
 ```
 ┌──────────────────────────────┐
-│                              │  RED FLOOD (--red), full bleed
+│                              │  RED FLOOD (--red), full bleed — unchanged
 │      STAGE TIMES             │  56–64pt / 650 / expanded caps / cream
 │      Set times, by stage.    │  20pt / 500 / cream at 85%
 │                              │
 ├──────────────────────────────┤  cream below here
-│  ┌────────────────────────┐  │
-│  │                        │  │  MEDIA CARD, 24pt radius, --paper-sunk
-│  │   [festival image or   │  │  image area edge-to-edge, no padding
-│  │    procedural art]     │  │  (assets/festivals/<key>.<ext>)
-│  │                        │  │
-│  │  AUG 7–9 · SEATTLE     │  │  eyebrow, mono, 12pt caps
-│  │  Capitol Hill          │  │  34pt / 600 / expanded — big and light
-│  │  Block Party           │  │
-│  │  79 sets · 4 stages  [See stages] │  footer row: mono meta left, pill right
-│  └────────────────────────┘  │
+│  Pick a festival. Then add   │  SECTION HEADER: two sentences on one line,
+│  the stages you want.        │  bold lead in ink, quiet tail in --ink-soft,
+│                              │  24 (phone) / 28, expanded 600
+│  ┌────────────────────────┐┌─│  SHELF: scroll-snap x, fixed-height cards
+│  │ AUG 7–9, 2026 · SEATTLE││ │  (450 phone / 500 desktop), 28pt inside,
+│  │ Capitol Hill           ││ │  20pt between, one 18pt radius; a phone
+│  │ Block Party            ││n│  shows one card with a 24pt peek, desktop
+│  │ 79 sets across 4 stages.│e│  two and a bit. Whole card is the link;
+│  │ MUNA · DISCO LINES · … ││x│  no button inside.
+│  │                        ││t│
+│  │ ░░ festival image, or ░││ │  ART fills the rest, edge to edge: the
+│  │ ░░ the Facets core    ░││ │  committed image, else the disco ball on
+│  │ ░░ (the disco ball)   ░││ │  the light ground (SKILL.md, Card art)
+│  └────────────────────────┘└─│
 │                              │
 │  What this is                │  eyebrow, mono
 │  Add one calendar per stage. │  body copy, 2 short paragraphs max — never
@@ -38,9 +45,17 @@ Purpose: explain what this is in under five seconds and send people to the festi
 └──────────────────────────────┘
 ```
 
-The hero flood is the only place the brand shouts. Everything below it is quiet. The festival
-card is the Apple Store product card: image first, light-weight big heading, one pill. The whole
-card is tappable (and shrinks on press); the pill is the same link restated.
+The card, top to bottom: **eyebrow** — the short dates and the city (`Aug 7–9, 2026 · Seattle`,
+mono caps, `--ink-soft`; city is an optional display-only field on the festival); on a fan
+edition the eyebrow slot carries the fan-made mark in `--red-deep` instead and the dates drop
+to the first quiet line. **Title** — the festival name, expanded 600, 24 (phone) / 28, at most
+two lines. **Lead** — one bold line, `79 sets across 4 stages.` **Quiet line** — the first
+stage's billed headliners, as the data has them. Then art to the bottom edge.
+
+The hero flood is the only place the brand shouts. Everything below it is quiet. The section
+header, the first card, and the prose all share the measure's left edge; the shelf runs from
+there to the right edge of the viewport. With nothing listed the shelf and its header are
+omitted and the page is the hero, the prose, and the footer.
 
 ## 2. Subscribe — `/<festival-slug>-<year>/`
 

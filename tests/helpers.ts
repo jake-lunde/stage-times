@@ -35,6 +35,19 @@ export const HARBOR_FIXTURE_PATH = join(REPO_ROOT, 'tests', 'fixtures', 'harbor-
 export const PIER_FIXTURE_PATH = join(REPO_ROOT, 'tests', 'fixtures', 'fan', 'pier-nine-2026.yaml');
 export const GOLDEN_DIR = join(REPO_ROOT, 'tests', 'golden');
 
+/** The fixtures' edition paths — the keys into committed state and the URL paths under dist/. */
+export const HARBOR_PATH = 'harbor-lights-2026';
+export const PIER_PATH = 'fan/pier-nine-2026';
+
+/** Visible text only: strip script/style, then tags. What a page reader sees, for the copy rules. */
+export function visibleText(html: string): string {
+  return html
+    .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/g, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ');
+}
+
 export function dstDoc(): FestivalDoc {
   return loadFestival(DST_FIXTURE_PATH);
 }

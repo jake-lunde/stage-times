@@ -203,6 +203,8 @@ export interface Manifest {
     year: number;
     timezone: string;
     officialUrl: string;
+    /** Display only, for the homepage card's eyebrow. Absent when the YAML has none. */
+    city?: string;
     /** `<slug>-<year>` */
     key: string;
     /** `/<key>` or `/fan/<key>` — the edition's URL path. */
@@ -404,6 +406,7 @@ export function buildFeeds(doc: FestivalDoc, state: BuildState, flags: EditionFl
       year: festival.year,
       timezone: festival.timezone,
       officialUrl: festival.official_url,
+      ...(festival.city ? { city: festival.city } : {}),
       key,
       basePath,
     },

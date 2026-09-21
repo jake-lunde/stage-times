@@ -20,6 +20,12 @@ export interface FestivalMeta {
   year: number;
   timezone: string;
   official_url: string;
+  /**
+   * Where the festival is, as a festival-goer would say it ("Seattle"). Display
+   * only — the homepage card's eyebrow. Optional; never touches a feed byte, a
+   * UID, or a slug, so it may change freely.
+   */
+  city?: string;
 }
 
 export interface Stage {
@@ -309,6 +315,14 @@ export function validateDoc(raw: unknown, sourcePath: string): FestivalDoc {
     }
     if (festival.official_url && !/^https?:\/\//.test(festival.official_url)) {
       problems.push(`festival: \`official_url\` "${festival.official_url}" must be an http(s) URL`);
+    }
+    const city = fRaw['city'];
+    if (city !== undefined) {
+      if (typeof city !== 'string' || city.trim() === '') {
+        problems.push(`festival: \`city\` must be a non-empty string when present (got ${JSON.stringify(city)})`);
+      } else {
+        festival.city = city.trim();
+      }
     }
   }
 

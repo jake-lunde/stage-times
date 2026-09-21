@@ -14,20 +14,14 @@ import assert from 'node:assert/strict';
 
 import { buildFeeds } from '../src/build.js';
 import { renderLandingPage, renderSubscribePage, zoneLabel } from '../src/pages.js';
-import { emptyState, harborDoc } from './helpers.js';
+import { HARBOR_PATH, PIER_PATH, buildFixtureSite, emptyState, harborDoc, pierDoc, visibleText } from './helpers.js';
 
 const harborBuild = buildFeeds(harborDoc(), emptyState('20260808T000000Z'));
-const landing = renderLandingPage(harborBuild.manifest);
+// The landing page lists listed editions: one owner card, one fan card.
+const landing = renderLandingPage(
+  buildFixtureSite([harborDoc(), pierDoc()], { [HARBOR_PATH]: { listed: true }, [PIER_PATH]: { listed: true } }).site,
+);
 const subscribe = renderSubscribePage(harborBuild.manifest);
-
-/** Visible text only: strip script/style, then tags. */
-function visibleText(html: string): string {
-  return html
-    .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/g, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/\s+/g, ' ');
-}
 
 const landingText = visibleText(landing);
 const subscribeText = visibleText(subscribe);

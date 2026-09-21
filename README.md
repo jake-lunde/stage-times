@@ -249,6 +249,12 @@ model calls. A test asserts the adapters import nothing but those three modules.
    by hand when it should appear on the homepage. Last year's edition keeps building alongside
    it — nothing is ever a "default" edition.
 
+The homepage is the directory: one card per listed edition, earliest first festival day first,
+then name; nothing unlisted or blocked. A card shows the edition's committed image from
+`assets/festivals/<key>.<ext>` when one exists, else generated art seeded by the festival key.
+An optional `city:` under `festival:` joins the dates in the card's eyebrow. It is display only
+— never in a feed, a UID, or a slug — so it may change freely and needs no `publishedAt` bump.
+
 ## The `verified` gate
 
 Ingest is the one non-deterministic, untested step in an otherwise fully-tested pipeline, and a

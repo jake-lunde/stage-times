@@ -27,8 +27,10 @@ find the tap target, it's wrong.
 ## Non-negotiables
 
 1. **Everything is a capsule.** `border-radius: 50%` of height on every button, chip, and field.
-   Across 236 screens the only exceptions were text inputs (~8.6pt), cards (16pt media cards
-   24pt), and bottom sheets (~38pt). **Zero sharp corners anywhere.**
+   Across 236 screens the only exceptions were text inputs (~8.6pt), cards, and bottom sheets
+   (~38pt). **Every card and tile is one radius, 18pt** (owner ruling 2026-09-20, from the Apple
+   Store's single-radius discipline; see `references/store-density.md`). **Zero sharp corners
+   anywhere.**
 2. **One decision per screen.** 500–700pt of a 926pt screen is empty. The emptiness is the
    product, not an oversight.
 3. **No shadows. No gradients.** Card edges are a single-step color change, verified at the pixel
@@ -65,8 +67,10 @@ find the tap target, it's wrong.
   --h-chip:     32px;  --r-chip:  16px;
   --h-icon:     44px;                     /* icon button, circle             */
   --h-field:    52px;  --r-field:  8px;  /* the ONE non-capsule control     */
-  --r-card:     16px;
-  --r-card-media: 24px;                   /* media cards + carousel cards    */
+  --r-card:     18px;  /* every card and tile — one radius (was 16 / 24)   */
+  --pad-shelf:  28px;  /* inside a shelf card; --pad-card stays for compact  */
+  --gap-shelf:  20px;  /* between cards on a shelf                           */
+  --gap-section: clamp(48px, 6vw, 64px);  /* shelf → next section header     */
   --border-hairline: 1px;
 
   /* ── type ─────────────────────────────────────────────────────────────── */
@@ -131,6 +135,7 @@ see the contrast table in `references/color.md`.
 | Hero wordmark | 56–64 | 650 / expanded, uppercase | Archivo |
 | Screen title (festival name) | 40 / 1.02 | 630 / expanded | Archivo |
 | Card heading (stage / festival name on card) | 28–34 / 1.05 | 600 / expanded | Archivo |
+| Shelf card title · shelf section header (`references/store-density.md`) | 24 phone / 28 | 600 / expanded | Archivo |
 | Row title · button label | 16–17 | 600 / normal | Archivo |
 | Body | 16–17 / 1.5 | 400 / normal | Archivo |
 | Caption · metadata line | 13 | 400 | Fragment Mono |
@@ -201,8 +206,9 @@ Use one per screen; don't blend them.
 2. **Stacked action pair** — 44pt tonal above 44pt primary.
 3. **Media card** — the Apple Store / Cash App "More for you" card: image area on top (edge to
    edge inside the card, no padding), then eyebrow, then a big light-weight heading, then a
-   footer row with metadata left and the action right. Radius 24pt (media cards are the second
-   exception to the 16pt card radius). **This is the festival card on the landing page.**
+   footer row with metadata left and the action right. Radius 18pt like every card. **Retired
+   from the landing page by ticket 06 (2026-09-20); the directory uses the shelf (6).** Nothing
+   on the site uses it today.
 4. **Card carousel** — horizontal scroll of media cards, one per snap stop: cards ~86% of the
    viewport wide, `scroll-snap-type: x mandatory`, snap to center, the next card peeking ~24pt.
    Scrollbar hidden; the peek IS the affordance. This is CSS scroll-snap doing the "scroll-jack"
@@ -210,19 +216,32 @@ Use one per screen; don't blend them.
    page.** Degrades on desktop: cards still snap with trackpad/drag, and a full-width fallback
    under 3 items is fine.
 5. **Row list** — 48pt leading element at 16pt, text at 80pt, 80pt row pitch, **no dividers**.
+6. **Shelf** — the Apple Store landing page: a two-sentence section header (bold lead, quiet
+   tail, same size, one line) over a horizontal row of fixed-height, text-first cards with
+   28pt inside padding, 20pt between, one 18pt radius. On a phone one card owns the shelf with
+   a 24pt peek; on desktop two and a bit show. Measured values, the density rules, and the
+   mapping onto our tokens are in `references/store-density.md` — load it before building any
+   page that lists more than one thing. **This is the homepage directory (ticket 06).**
 
 **Single content in the viewport.** At any scroll position on a phone, one card / one idea should
 own the screen. If two cards are fully visible at once, the cards are too small or the spacing is
 too tight. The carousel enforces this horizontally; section spacing (`--gap-6`+) enforces it
-vertically.
+vertically. A shelf on a desktop-width screen is the one exception: two or three cards in
+a row is the point of a directory, and the fixed card width (not a percentage) is what keeps
+the phone reading as one card while the desktop reads as a row.
 
 ## Card art
 
 Two sources of art, one per card, image area always edge-to-edge:
 
 1. **A real festival image** when one exists — `assets/festivals/<festival-key>.<ext>`, copied to
-   `dist/assets/festivals/` by the build. Landing-card hero. Store the file in the repo; never
-   hotlink the festival's CDN (their cache headers, their outages, their tracking).
+   `dist/assets/festivals/` by the build. The art of that edition's directory card on the
+   homepage. Store the file in the repo; never hotlink the festival's CDN (their cache headers,
+   their outages, their tracking). A directory card with no image draws **the Facets core**
+   (owner ruling 2026-09-20; `facetsArt()` in `src/pages.ts`, "Facets" in the explorer): the
+   disco ball, the festival's own globe motif — a cream disc on the light ground of the
+   edition's first stage color, the ground cutting five chords and two meridians back through
+   it, tilted by an angle seeded from the festival key. The tilt is the only seeded value.
 2. **The beads** on every stage card (owner pick, 2026-09-21; `beadsArt()` in `src/pages.ts`,
    explorer and rationale in `_ref/stage-art-explorer/`). The art area is the stage color mixed
    45% toward cream. On it: a ring per festival day, evenly spaced from the center to the card
@@ -235,13 +254,14 @@ Two sources of art, one per card, image area always edge-to-edge:
    each, and the closer's star lights in the stage color while its name is up. Rings drift at
    their own speeds; stars stay upright. Nothing is random: every mark is a set. CSS animation on
    static SVG, so the build stays byte-reproducible; under reduced motion the first name stays.
-   The old seeded capsules (`capsuleArt()`) survive only as the landing card's no-image fallback.
+   The old seeded capsules retired with ticket 06 (2026-09-20).
 
 Never a stock photo, never AI-generated imagery. Inside the art slot the flat rule is lifted
 (non-negotiable 3): the generative art may use gradients and bloom, and it is the one place on
 the site that may. Its parameters come from the sets — count, start time, length, guessed ends,
 how late the stage runs — so the art is the schedule drawn, not a texture. Seeded exactly as
-above; still byte-reproducible.
+above; still byte-reproducible. The one mark not drawn from the sets is the directory card's
+Facets fallback, which has no sets to draw and is seeded by festival key instead.
 
 ### Navigation bar
 
@@ -297,7 +317,8 @@ The six that decide most lines:
 - [ ] Everything tappable shrinks on press (`scale(.96)`, 120ms) — zeroed under reduced motion
 - [ ] Card headings are big and light (600–650 expanded), never small and heavy
 - [ ] Carousels are CSS scroll-snap — no JS scroll hijacking, no visible scrollbar
-- [ ] Card art is drawn from the sets, never from a clock or `Math.random()` — build output stays byte-identical
+- [ ] Card art is drawn from the sets (the directory fallback, from the festival key), never
+      from a clock or `Math.random()` — build output stays byte-identical
 - [ ] No `box-shadow`, no `linear-gradient`
 - [ ] Nothing is pure `#FFF` or pure `#000`
 - [ ] No cream text under 17pt on any colored surface (see contrast table)
@@ -313,3 +334,6 @@ The six that decide most lines:
 - `references/screens.md` — the two screens this product has, and what they deliberately omit
 - `references/copy.md` — voice, vocabulary, the tone test, and the three readers every string
   is written for
+- `references/store-density.md` — content and density for pages that list more than one
+  thing, measured off the Apple Store landing page (Sep 2026): shelf, card, header, and type
+  scale, plus the token changes they imply
