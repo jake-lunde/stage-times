@@ -200,6 +200,85 @@ export function loadingArt(days: number, ground: string): string {
   return '<svg class="art-svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="background:' + ground + '">' + rings + '</svg>';
 }
 
+// ---------------------------------------------------------------------------
+// The read, as it happens (ticket 21) — the adapters stream the publisher's
+// progress one JSON line at a time ahead of the answer. Embedded by source
+// like the time edits: the browser runs exactly what the tests ran.
+// ---------------------------------------------------------------------------
+
+/** One stage's closer on one night, as the progress lines carry it. */
+export interface PosterHeadliner {
+  artist: string;
+  stage: string;
+  night: string;
+  start: string;
+}
+
+/**
+ * The lines in what has arrived so far. `pending` is the unfinished line the
+ * last call left over, `chunk` is what just arrived, and `ended` says the
+ * response is over, so a last line without its newline still counts. A
+ * progress line lands in `progress`; any other line is the answer. A line that
+ * is not JSON is skipped: nothing is shown that was not said.
+ */
+export function takeLines(pending: string, chunk: string, ended: boolean): { progress: unknown[]; answer: unknown; rest: string } {
+  var parts = (pending + chunk).split('\n');
+  var rest = ended ? '' : parts.pop()!;
+  var progress = [], answer = null;
+  for (var i = 0; i < parts.length; i++) {
+    var line = parts[i]!.trim();
+    if (!line) continue;
+    var value;
+    try { value = JSON.parse(line); } catch (e) { continue; }
+    if (value && typeof value === 'object' && 'progress' in value) progress.push(value.progress);
+    else answer = value;
+  }
+  return { progress: progress, answer: answer, rest: rest };
+}
+
+/** Images done over images sent, as a whole percentage. Never more than 100, never a guess. */
+export function percentDone(done: number, total: number): number {
+  if (!(total > 0)) return 0;
+  return Math.max(0, Math.min(100, Math.floor((done * 100) / total)));
+}
+
+/** The status line while the times are read, from one progress report. */
+export function readingStatus(p: { step: string; image: number; total: number; done: number; sets: number }): string {
+  var pct = percentDone(p.done, p.total) + '% · ';
+  var sets = p.sets + ' set' + (p.sets === 1 ? '' : 's');
+  if (p.step === 'checked') {
+    return pct + (p.total === 1 ? 'Your image has set times on it.' : 'Image ' + (p.image + 1) + ' of ' + p.total + ' has set times on it.');
+  }
+  if (p.done >= p.total) return pct + 'All ' + sets + ' read.';
+  return pct + sets + ' read so far.';
+}
+
+/** The status line while confirm works, from the step it reported. */
+export function confirmStatus(step: string): string {
+  if (step === 'saving') return 'Saving them.';
+  if (step === 'done') return 'Saved.';
+  return 'Checking the times hold together.';
+}
+
+/**
+ * One headliner in the center of the wait, the way a stage card cycles its
+ * closers (`beadsArt()` in src/pages.ts): the night and the start in mono caps
+ * above the name in expanded display type, ink on the light ground, sized so
+ * a long name still fits across.
+ */
+export function posterBlock(h: PosterHeadliner): string {
+  var CX = 200, CY = 120, ink = '#12181F';
+  var p = h.night.split('-').map(Number);
+  var weekday = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'][new Date(Date.UTC(p[0]!, p[1]! - 1, p[2]!)).getUTCDay()];
+  var hh = Number(h.start.slice(11, 13)), mm = Number(h.start.slice(14, 16));
+  var clock = ((hh + 11) % 12) + 1 + (mm ? ':' + String(mm).padStart(2, '0') : '') + ' ' + (hh >= 12 ? 'PM' : 'AM');
+  var fs = Math.max(22, Math.min(48, Math.floor(340 / (Math.max(1, h.artist.length) * 0.78))));
+  return '<g class="lbl">' +
+    '<text class="eb" x="' + CX + '" y="' + (CY - Math.round(fs * 0.5) - 10) + '" text-anchor="middle" fill="' + ink + '" fill-opacity=".85">' + weekday + ' · ' + clock + '</text>' +
+    '<text class="disp" x="' + CX + '" y="' + (CY + Math.round(fs * 0.42)) + '" font-size="' + fs + '" text-anchor="middle" fill="' + ink + '">' + String(h.artist).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</text>' +
+    '</g>';
+}
+
 /**
  * The update link: the edition's path under `/update/`, the secret in the
  * fragment so it never reaches a server log. Ticket 09 builds what it opens;
@@ -310,10 +389,13 @@ button.text-btn{background:none; border:0; padding:0; font-family:inherit}
 .day>.problem{margin:0 0 var(--gap-2)}
 .fewer{margin:var(--gap-2) 0 0}
 
-/* the wait, drawn: the beads with no sets yet, in the art slot of a card */
+/* the wait, drawn: the beads with no sets yet, in the art slot of a card;
+   each headliner fades up in the center as its image is read */
 .loading{position:relative; margin:var(--gap-4) 0 0; aspect-ratio:400/240; border-radius:var(--r-card); overflow:hidden}
 .loading .bead{opacity:0; animation:bead-in 12s ease-in-out infinite}
 @keyframes bead-in{0%{opacity:0}6%{opacity:1}70%{opacity:1}82%{opacity:0}100%{opacity:0}}
+.loading .lbl{animation:name-in .5s ease-out}
+@keyframes name-in{from{opacity:0}to{opacity:1}}
 .screen>.loading+.status{margin-top:var(--gap-2)}
 
 /* the uploader's own image, in a card, tall enough to read a poster off */
@@ -358,6 +440,7 @@ button.text-btn{background:none; border:0; padding:0; font-family:inherit}
 @media (prefers-reduced-motion: reduce){
   .day-row:active{transform:none}
   .loading .bead{opacity:1}
+  .loading .lbl{animation:none}
 }
 @media (max-width:359px){
   .field-pair{grid-template-columns:1fr}
@@ -583,25 +666,47 @@ export function renderUploadPage(edition?: UpdateTarget): string {
   var ART_GROUND = '${artGround('#EC300C')}';
   ${loadingArt.toString()}
 
-  // The wait, said and drawn. The status line says what is happening and,
-  // past the first stretch, how long it has been — the one thing the browser
-  // can be sure of. Nothing here says a step is done that might not be.
-  function startWork(screen, first, still, days) {
+  ${takeLines.toString()}
+  ${percentDone.toString()}
+  ${readingStatus.toString()}
+  ${confirmStatus.toString()}
+  ${posterBlock.toString()}
+  var CALM = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var HOLD_MS = 4500;
+
+  // The wait, said and drawn. The status line says what has happened, and
+  // only that: the publisher's own reports as they arrive, a percentage of
+  // images done over images sent, never a guess from the clock. As each image
+  // is read, its headliners join the center of the art, one at a time, the
+  // way a stage card cycles its closers.
+  function startWork(screen, first, days) {
     var status = $('[data-loading] + .status', screens[screen]), art = $('[data-loading]', screens[screen]);
     art.innerHTML = loadingArt(days, ART_GROUND);
     art.hidden = false;
     status.textContent = first;
     status.hidden = false;
-    var started = Date.now();
-    var timer = setInterval(function () {
-      var s = Math.round((Date.now() - started) / 1000);
-      if (s >= 15) status.textContent = still + ' ' + s + ' seconds so far.';
-    }, 5000);
-    return function stop() {
-      clearInterval(timer);
-      art.hidden = true;
-      art.innerHTML = '';
-      status.hidden = true;
+    var svg = $('svg', art), names = [], at = -1, timer = null;
+    function showName(i) {
+      at = i;
+      var old = $('.lbl', svg);
+      if (old) old.remove();
+      svg.insertAdjacentHTML('beforeend', posterBlock(names[i]));
+    }
+    return {
+      say: function (text) { status.textContent = text; },
+      headliners: function (list) {
+        if (!list || !list.length) return;
+        var first = names.length;
+        names = names.concat(list);
+        showName(first);
+        if (!timer && !CALM) timer = setInterval(function () { if (names.length > 1) showName((at + 1) % names.length); }, HOLD_MS);
+      },
+      stop: function () {
+        if (timer) clearInterval(timer);
+        art.hidden = true;
+        art.innerHTML = '';
+        status.hidden = true;
+      },
     };
   }
 
@@ -662,10 +767,20 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     show(to);
   }
 
-  function post(path, body) {
-    return fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  // With a listener and a browser that can read a response as it arrives,
+  // the post asks for the progress lines ahead of the answer; the answer is
+  // the last line, the same body a plain post gets. Without either, it is a
+  // plain post and the answer comes all at once, as it always did.
+  var CAN_STREAM = typeof ReadableStream !== 'undefined' && typeof TextDecoder !== 'undefined';
+  function post(path, body, onProgress) {
+    var stream = !!onProgress && CAN_STREAM;
+    var headers = { 'Content-Type': 'application/json' };
+    if (stream) headers.Accept = 'application/x-ndjson';
+    return fetch(path, { method: 'POST', headers: headers, body: JSON.stringify(body) })
       .then(function (res) {
-        return res.json().catch(function () { return null; }).then(function (parsed) {
+        var lines = stream && res.body && res.body.getReader && (res.headers.get('content-type') || '').indexOf('application/x-ndjson') === 0;
+        var answer = lines ? readLines(res.body.getReader(), onProgress) : res.json().catch(function () { return null; });
+        return answer.then(function (parsed) {
           if (!parsed) {
             parsed = { ok: false, reason: res.status === 413
               ? 'That image is too big to send. A screenshot is usually fine; a photo of a poster may need to be smaller.'
@@ -673,9 +788,23 @@ export function renderUploadPage(edition?: UpdateTarget): string {
           }
           return { ok: res.ok && parsed.ok === true, status: res.status, body: parsed };
         });
-      }, function () {
+      }).catch(function () {
         return { ok: false, status: 0, body: { reason: 'It didn\\'t go through. Check your signal and try again.' } };
       });
+  }
+  // Each progress line to the listener as it lands; the answer when it ends.
+  function readLines(reader, onProgress) {
+    var decoder = new TextDecoder(), pending = '', answer = null;
+    function next() {
+      return reader.read().then(function (r) {
+        var got = takeLines(pending, r.done ? decoder.decode() : decoder.decode(r.value, { stream: true }), r.done);
+        pending = got.rest;
+        got.progress.forEach(function (p) { onProgress(p); });
+        if (got.answer) answer = got.answer;
+        return r.done ? answer : next();
+      });
+    }
+    return next();
   }
 
   // ── details ──────────────────────────────────────────────────────────────
@@ -883,13 +1012,17 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     problem('upload', '');
     btn.classList.add('is-loading');
     label.textContent = 'Reading\\u2026';
-    var stop = startWork('upload',
-      n === 1
+    var work = startWork('upload',
+      (CAN_STREAM ? percentDone(0, n) + '% · ' : '') + (n === 1
         ? 'Reading the times off your image. This could take about a minute.'
-        : 'Reading the times off your ' + n + ' images. This could take about a minute per image.',
-      'Still reading.', state.days.length);
-    return post('/api/upload', withOwner(withImages(typed({ dates: { first: d.first, last: d.last }, update: updateClaim() })))).then(function (r) {
-      stop();
+        : 'Reading the times off your ' + n + ' images. This could take about a minute per image.'),
+      state.days.length);
+    return post('/api/upload', withOwner(withImages(typed({ dates: { first: d.first, last: d.last }, update: updateClaim() }))), function (p) {
+      if (p.kind !== 'read') return;
+      work.say(readingStatus(p));
+      work.headliners(p.headliners);
+    }).then(function (r) {
+      work.stop();
       btn.classList.remove('is-loading');
       label.textContent = multi ? 'Read the times' : 'Choose image';
       if (!r.ok) return land(r.body, 'upload');
@@ -1045,7 +1178,7 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     var was = btn.textContent;
     btn.classList.add('is-loading');
     btn.textContent = 'Saving\\u2026';
-    var stop = startWork('review', 'Checking the times hold together and saving them. Usually under a minute.', 'Still saving.', rv.images.length);
+    var work = startWork('review', 'Checking the times hold together and saving them. Usually under a minute.', rv.images.length);
     // Every image goes back, and with more than one, the review's own list of
     // them — so what is published is exactly what was checked.
     var body = withOwner(withImages(typed({ timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: unverifiable, update: updateClaim() })));
@@ -1053,12 +1186,14 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     // A correction's calendar already answers, so the wait is for it to change:
     // note what it answers with now, before the new times are sent.
     (rv.correcting ? currentTag(rv.editionPath) : Promise.resolve(null)).then(function (before) {
-      return post('/api/confirm', body).then(function (r) { return { r: r, before: before }; });
+      return post('/api/confirm', body, function (p) {
+        if (p.kind === 'confirm') work.say(confirmStatus(p.step));
+      }).then(function (r) { return { r: r, before: before }; });
     }).catch(function () {
       return { r: { ok: false, body: { reason: 'Something went wrong on my end. Try again in a minute.' } }, before: null };
     }).then(function (x) {
       var r = x.r;
-      stop();
+      work.stop();
       btn.classList.remove('is-loading');
       btn.textContent = was;
       if (!r.ok) return land(r.body, 'review');

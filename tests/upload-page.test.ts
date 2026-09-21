@@ -17,8 +17,9 @@ import { join } from 'node:path';
 
 import { ACCEPTED_IMAGE_TYPES, EMAIL_RE, GATE_COPY, MAX_IMAGE_EDGE, MAX_UPLOAD_IMAGES, MIN_IMAGE_EDGE, type Gate } from '../src/publisher.js';
 import { renderSitePages } from '../src/pages.js';
-import { addDay, dayLabel, daysLabel, editedEnd, editedStart, festivalDays, GATE_SCREENS, loadingArt, nightOf, ownerFromFragment, ownerLink, renderUploadPage, REVIEW_ZONES, updateLink, updatePagePath, type Screen } from '../src/upload-pages.js';
+import { addDay, confirmStatus, dayLabel, daysLabel, editedEnd, editedStart, festivalDays, GATE_SCREENS, loadingArt, nightOf, ownerFromFragment, ownerLink, percentDone, posterBlock, readingStatus, renderUploadPage, REVIEW_ZONES, takeLines, updateLink, updatePagePath, type Screen } from '../src/upload-pages.js';
 import { artGround } from '../src/pages.js';
+import { STREAM_TYPE } from '../src/publisher-http.js';
 import { buildFixtureSite, harborDoc, pierDoc, REPO_ROOT, visibleText } from './helpers.js';
 
 const html = renderUploadPage();
@@ -125,14 +126,20 @@ test('upload page: every day has its row from the start, each swappable until th
   for (const fn of [festivalDays, nightOf, dayLabel, daysLabel]) assert.ok(html.includes(fn.toString()), `${fn.name} rides along by source`);
 });
 
-test('upload page: the reading state says what is being read, how many, and then how long it has been', () => {
+test('upload page: the reading state says what is being read and how many, and never how long it has been', () => {
   assert.ok(html.includes("'Reading the times off your image. This could take about a minute.'"));
   assert.ok(html.includes("'Reading the times off your ' + n + ' images. This could take about a minute per image.'"));
-  assert.ok(html.includes("'Still reading.'") && html.includes("' seconds so far.'"), 'past the first stretch, the elapsed time — the one thing the browser knows');
-  assert.ok(html.includes('if (s >= 15) status.textContent = still'), 'not before fifteen seconds');
+  assert.ok(html.includes("(CAN_STREAM ? percentDone(0, n) + '% · ' : '')"), 'the percentage starts at nothing done, and only where progress can arrive');
   assert.ok(html.includes("'Checking the times hold together and saving them. Usually under a minute.'"), 'saving says what it is doing too');
-  assert.ok(html.includes("'Still saving.'"));
   assert.ok(html.includes("label.textContent = multi ? 'Read the times' : 'Choose image';"), 'the pill comes back as what it was');
+});
+
+test('upload page: the elapsed-seconds line is gone from the read and the save — the clock estimates nothing', () => {
+  const work = /function startWork\([\s\S]*?\n  \}\n/.exec(html)?.[0] ?? '';
+  assert.ok(work.length > 0, 'startWork is in the script');
+  assert.doesNotMatch(work, /Date\.now|seconds so far/, 'nothing in the wait reads the clock');
+  assert.equal(html.includes("'Still reading.'"), false);
+  assert.equal(html.includes("'Still saving.'"), false);
 });
 
 test('upload page: the wait is drawn as the beads with no sets yet — a ring per day, on the light red ground', () => {
@@ -339,7 +346,7 @@ test('upload page: the page embeds those helpers by source and reads a moved sta
 test('upload page: the script posts exactly the fields the two adapters read', () => {
   assert.ok(
     html.includes(
-      "post('/api/upload', withOwner(withImages(typed({ dates: { first: d.first, last: d.last }, update: updateClaim() }))))",
+      "post('/api/upload', withOwner(withImages(typed({ dates: { first: d.first, last: d.last }, update: updateClaim() }))), function (p) {",
     ),
   );
   assert.ok(
@@ -348,7 +355,7 @@ test('upload page: the script posts exactly the fields the two adapters read', (
     ),
   );
   assert.ok(html.includes('body.festival = d.festival;') && html.includes('body.email = d.email;'), 'the form fields ride on both');
-  assert.ok(html.includes("post('/api/confirm', body)"));
+  assert.ok(html.includes("post('/api/confirm', body, function (p) {"));
   assert.ok(html.includes('var UPDATE = null;'), 'on /upload/ there is no update link, so nothing extra goes out');
   assert.ok(html.includes('filename: im.filename, contentType: im.contentType, width: im.width, height: im.height, data: im.data'));
 });
@@ -558,4 +565,95 @@ test('update link: the site build writes one update page per fan edition, and no
   } finally {
     rmSync(out, { recursive: true, force: true });
   }
+});
+
+// ===========================================================================
+// The read, as it happens (ticket 21)
+// ===========================================================================
+
+test('stream reader: progress lines go to the listener and the last line is the answer, however the chunks split', () => {
+  const body = '{"progress":{"step":"checked","done":0}}\n{"progress":{"step":"read","done":1}}\n{"ok":true,"review":{"slug":"low-tide"}}\n';
+  const whole = takeLines('', body, true);
+  assert.deepEqual(whole.progress, [{ step: 'checked', done: 0 }, { step: 'read', done: 1 }]);
+  assert.deepEqual(whole.answer, { ok: true, review: { slug: 'low-tide' } });
+
+  // Byte by byte: a line split anywhere is held over until its newline arrives.
+  let pending = '';
+  const progress: unknown[] = [];
+  let answer: unknown = null;
+  for (const ch of body) {
+    const got = takeLines(pending, ch, false);
+    pending = got.rest;
+    progress.push(...got.progress);
+    if (got.answer) answer = got.answer;
+  }
+  const end = takeLines(pending, '', true);
+  assert.deepEqual(progress, whole.progress, 'the same reports, in order');
+  assert.deepEqual(answer ?? end.answer, whole.answer, 'the same answer');
+});
+
+test('stream reader: an answer with no newline after it still counts once the response ends, and a garbled line is skipped', () => {
+  const held = takeLines('', '{"ok":false,"gate":"schedule"}', false);
+  assert.equal(held.answer, null, 'not yet — the line may not be finished');
+  assert.deepEqual(takeLines(held.rest, '', true).answer, { ok: false, gate: 'schedule' });
+  assert.deepEqual(takeLines('', 'not json\n\n{"progress":{"step":"saving"}}\n', true), { progress: [{ step: 'saving' }], answer: null, rest: '' });
+});
+
+test('percentage: images done over images sent, floored, clamped, and nothing when there is nothing to count', () => {
+  assert.equal(percentDone(0, 3), 0);
+  assert.equal(percentDone(1, 3), 33);
+  assert.equal(percentDone(2, 3), 66, 'floored: never ahead of what is done');
+  assert.equal(percentDone(3, 3), 100);
+  assert.equal(percentDone(1, 1), 100);
+  assert.equal(percentDone(4, 3), 100, 'never past all of it');
+  assert.equal(percentDone(0, 0), 0);
+});
+
+test('reading status: says what the last report said — a check cleared, or the sets read so far — behind the percentage', () => {
+  assert.equal(readingStatus({ step: 'checked', image: 1, total: 3, done: 1, sets: 5 }), '33% · Image 2 of 3 has set times on it.');
+  assert.equal(readingStatus({ step: 'checked', image: 0, total: 1, done: 0, sets: 0 }), '0% · Your image has set times on it.');
+  assert.equal(readingStatus({ step: 'read', image: 1, total: 3, done: 2, sets: 8 }), '66% · 8 sets read so far.');
+  assert.equal(readingStatus({ step: 'reused', image: 0, total: 3, done: 1, sets: 1 }), '33% · 1 set read so far.');
+  assert.equal(readingStatus({ step: 'read', image: 2, total: 3, done: 3, sets: 11 }), '100% · All 11 sets read.');
+});
+
+test('confirm status: the review screen names the step confirm is on', () => {
+  assert.equal(confirmStatus('checking'), 'Checking the times hold together.');
+  assert.equal(confirmStatus('saving'), 'Saving them.');
+  assert.equal(confirmStatus('done'), 'Saved.');
+  assert.ok(html.includes("if (p.kind === 'confirm') work.say(confirmStatus(p.step));"), 'each confirm report lands on the review screen\'s status line');
+  assert.match(screen('review'), /data-save-status/, 'under the art on review');
+});
+
+test('headliners: each lands in the center of the art as the stage card prints it — the night and start above the name', () => {
+  const block = posterBlock({ artist: 'MUNA', stage: 'Main Stage', night: '2026-10-09', start: '2026-10-09T22:40:00' });
+  assert.match(block, /^<g class="lbl">/, 'the stage card\'s label group, styled by the shared .lbl rules');
+  assert.match(block, /<text class="eb"[^>]*>FRIDAY · 10:40 PM<\/text>/, 'the eyebrow: the night, then the start');
+  assert.match(block, /<text class="disp" x="200" y="\d+" font-size="48" text-anchor="middle" fill="#12181F">MUNA<\/text>/, 'the name, big, ink, centered');
+  const late = posterBlock({ artist: 'LATE', stage: 'Main', night: '2026-08-07', start: '2026-08-08T00:30:00' });
+  assert.match(late, />FRIDAY · 12:30 AM</, 'a set past midnight keeps the night it closes');
+  const long = posterBlock({ artist: 'A VERY LONG NAME FOR A BAND <3', stage: 'S', night: '2026-10-09', start: '2026-10-09T21:00:00' });
+  assert.match(long, /font-size="22"/, 'a long name gets smaller, down to the floor');
+  assert.match(long, /&lt;3/, 'a name is text, never markup');
+  assert.ok(html.includes(posterBlock.toString()), 'embedded by source');
+});
+
+test('headliners: they appear one at a time as each image is read, cycling like a stage card, still under reduced motion', () => {
+  assert.ok(html.includes('work.headliners(p.headliners);'), 'each read report hands its headliners to the art');
+  assert.ok(html.includes("svg.insertAdjacentHTML('beforeend', posterBlock(names[i]));"), 'one name in the center at a time');
+  assert.ok(html.includes('var HOLD_MS = 4500;'), 'held about as long as a stage card holds each');
+  assert.ok(html.includes("if (!timer && !CALM) timer = setInterval("), 'no cycling under reduced motion — the newest stays');
+  assert.match(html, /@media \(prefers-reduced-motion: reduce\)\{[\s\S]*?\.loading \.lbl\{animation:none\}/);
+});
+
+test('upload page: the post asks for the stream only where it can read one, and falls back to the whole answer', () => {
+  assert.ok(html.includes(`if (stream) headers.Accept = '${STREAM_TYPE}';`), 'the same type the adapters answer to');
+  assert.ok(html.includes("var CAN_STREAM = typeof ReadableStream !== 'undefined' && typeof TextDecoder !== 'undefined';"));
+  assert.ok(html.includes(`(res.headers.get('content-type') || '').indexOf('${STREAM_TYPE}') === 0`), 'only a streamed answer is read line by line');
+  assert.ok(html.includes("readLines(res.body.getReader(), onProgress) : res.json()"), 'anything else is read whole, as it always was');
+  for (const fn of [takeLines, percentDone, readingStatus, confirmStatus, posterBlock]) {
+    assert.doesNotMatch(fn.toString(), /__name/, `${fn.name} carries no helper the browser lacks`);
+  }
+  assert.ok(html.includes(takeLines.toString()) && html.includes(percentDone.toString()) && html.includes(readingStatus.toString()) && html.includes(confirmStatus.toString()), 'embedded by source');
+  assert.ok(html.includes("work.say(readingStatus(p));"), 'the status line is the last report, and nothing else');
 });

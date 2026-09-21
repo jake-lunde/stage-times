@@ -414,7 +414,12 @@ asserts the adapters import nothing but those three modules. Upload and confirm 
 take an `images` list or a single `image`; confirm takes the review's hashes back as `reviewed`,
 and a rejection about one image carries its position as `image`. Link takes `url`, `email` and
 the optional `owner`, and answers with the review, `officialUrl`, `days`, and `images` in the
-same shape confirm reads them.
+same shape confirm reads them. Upload and confirm stream on request (ticket 21): with
+`Accept: application/x-ndjson` every report the publisher makes through its optional `progress`
+port goes out as one `{"progress": …}` line while it works — an image cleared the schedule check,
+an image's reading is in hand (with the sets so far and that image's headliners), confirm is
+checking, saving, done — and the last line is exactly the body a plain request gets. The status
+is then 200, sent before the answer is known; without the header nothing changes.
 
 ### The screens
 
@@ -424,7 +429,11 @@ image is chosen; more days is a row per day (ticket 18), every day shown from th
 swappable until the read starts, and one pill that reads whatever was chosen — a day with no times
 yet can be left out. While the model reads, and again while confirm saves, the page draws the wait
 as the beads of a stage card with no sets yet (`loadingArt()`, a ring per day) over a status line
-that says what is happening and, past fifteen seconds, how long it has been. A source with no web
+that says only what the publisher has reported: while reading, a percentage of images done over
+images sent and the sets read so far, with each image's headliners appearing in the center of the
+art as it is read, one at a time, in the stage card's poster block (`posterBlock()`); while
+saving, the step confirm is on. The clock estimates nothing; a browser that cannot read a stream
+gets the answer whole, as before. A source with no web
 address printed on it comes back as the `link` gate, which reveals the one field for it on the
 form. The script reads fields, checks type and dimensions with the publisher's own limits
 before posting, shrinks each image to its share of the platform's body cap, posts to the two
