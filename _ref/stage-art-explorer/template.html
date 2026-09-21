@@ -159,9 +159,11 @@ footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--line);font-fa
 <div class="panel">
   <div class="seg" id="ground" role="group" aria-label="Ground">
     <button data-v="color" aria-pressed="true">Stage color</button>
+    <button data-v="light">Light</button>
     <button data-v="deep">Deep</button>
     <button data-v="paper">Paper</button>
   </div>
+  <label class="ctl">Light % <input type="range" id="lightPct" min="20" max="75" value="45"></label>
   <label class="ctl"><input type="checkbox" id="halftone"> Halftone</label>
   <label class="ctl"><input type="checkbox" id="glow" checked> Glow</label>
   <label class="ctl"><input type="checkbox" id="text" checked> Headliners</label>
@@ -243,8 +245,10 @@ const hm=m=>{const h=Math.floor(m/60)%24,mm=m%60;const ap=h>=12?'PM':'AM';return
 function noise2(rand){const g=[];for(let i=0;i<64*64;i++)g.push(rand());const sm=t=>t*t*(3-2*t);return(x,y)=>{const xi=Math.floor(x)&63,yi=Math.floor(y)&63,xf=x-Math.floor(x),yf=y-Math.floor(y);const a=g[yi*64+xi],b=g[yi*64+((xi+1)&63)],c=g[((yi+1)&63)*64+xi],d=g[((yi+1)&63)*64+((xi+1)&63)];const u=sm(xf),v=sm(yf);return(a*(1-u)+b*u)*(1-v)+(c*(1-u)+d*u)*v;};}
 
 // ---- families. each returns inner SVG for a 400x240 viewBox, integer coords.
+let LIGHT_PCT=45;
 function inks(base,ground){
   if(ground==='paper')return{bg:CREAM,a:base,b:shade(base,.35),tint:o=>base,strokeOp:1,op:[.9,.55,.3]};
+  if(ground==='light')return{bg:mix(base,CREAM,LIGHT_PCT/100),a:CREAM,b:base,tint:o=>`rgba(252,249,244,${o})`,op:[.95,.6,.3]};
   const bg=ground==='deep'?shade(base,.62):base;
   return{bg,a:CREAM,b:shade(base,ground==='deep'?.2:.3),tint:o=>`rgba(252,249,244,${o})`,op:[.85,.45,.22]};
 }
@@ -378,8 +382,8 @@ function capsules(seed,base,sets,st,o){
 // ambient name: the pill sits still at the center of the art; a line from the center to the star pops with it.
 // inside a drifting ring the line is a radius, so it turns with the ring and always points at its star.
 const popStyle=(i,n)=>`animation:pop${n} ${n*4.5}s linear infinite;animation-delay:${(i*4.5).toFixed(1)}s`;
-function nameInk(o,base,ink){return o.nameInk==='deep'?(o.ground==='paper'?base:shade(base,.5)):o.nameInk==='ink'?'#12181F':ink.a;}
-function pillColors(o,base){return{bg:o.pillInk==='deep'?shade(base,o.ground==='paper'?0:.5):o.pillInk==='cream'?'#FCF9F4':'#12181F',fg:o.pillInk==='cream'?'#12181F':'#FCF9F4'};}
+function nameInk(o,base,ink){return o.nameInk==='deep'?(o.ground==='paper'||o.ground==='light'?base:shade(base,.5)):o.nameInk==='ink'?'#12181F':ink.a;}
+function pillColors(o,base){return{bg:o.pillInk==='deep'?shade(base,(o.ground==='paper'||o.ground==='light')?0:.5):o.pillInk==='cream'?'#FCF9F4':'#12181F',fg:o.pillInk==='cream'?'#12181F':'#FCF9F4'};}
 const WEEKDAY=['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
 const dayName=d=>{const [y,m,dd]=days[d].split('-').map(Number);return WEEKDAY[new Date(Date.UTC(y,m-1,dd)).getUTCDay()];};
 // display size that fits the name across the art: expanded Archivo caps run about 0.78em per character
@@ -480,10 +484,10 @@ const FAM={rays,petals,beads,ticks,stars,crowd,ridge,rings,field,capsules};
 const CORE_FAMS=['rays','petals','beads','ticks','stars','crowd'];
 
 // ---- state + render
-const state={fam:'beads',ground:'color',halftone:false,glow:true,text:true,anim:true,density:.7,variant:0,shape:'none',shapeInk:'cream',names:'ambient',pillInk:'deep',sheet:false,sheetFam:false,scrim:true,scrimPct:25,rayMap:'clock',beadStar:'closers',hl:'poster',nameInk:'cream'};
+const state={fam:'beads',ground:'light',lightPct:45,halftone:false,glow:false,text:true,anim:true,density:.7,variant:0,shape:'none',shapeInk:'cream',names:'ambient',pillInk:'deep',sheet:false,sheetFam:false,scrim:false,scrimPct:25,rayMap:'clock',beadStar:'closers',hl:'poster',nameInk:'ink'};
 // state in the hash, so a dialed-in configuration is a shareable link
 try{const h=new URLSearchParams(location.hash.slice(1));for(const[k,v]of h){if(!(k in state))continue;state[k]=typeof state[k]==='boolean'?v==='1':typeof state[k]==='number'?+v:v;}}catch(e){}
-function syncControls(){document.querySelectorAll('.seg').forEach(seg=>seg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===state[seg.id]))));for(const id of['halftone','glow','text','anim','sheet','sheetFam','scrim'])document.getElementById(id).checked=!!state[id];document.getElementById('density').value=Math.round(state.density*100);document.getElementById('variant').value=state.variant;document.getElementById('scrimPct').value=state.scrimPct;}
+function syncControls(){document.querySelectorAll('.seg').forEach(seg=>seg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===state[seg.id]))));for(const id of['halftone','glow','text','anim','sheet','sheetFam','scrim'])document.getElementById(id).checked=!!state[id];document.getElementById('density').value=Math.round(state.density*100);document.getElementById('variant').value=state.variant;document.getElementById('scrimPct').value=state.scrimPct;document.getElementById('lightPct').value=state.lightPct;}
 function pushHash(){const h=new URLSearchParams();for(const[k,v]of Object.entries(state))h.set(k,typeof v==='boolean'?(v?'1':'0'):String(v));history.replaceState(null,'','#'+h.toString());}
 const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
 let lastMain='';
@@ -491,7 +495,7 @@ const CORES=['polar','blob','eclipse','facets','bars','cluster','soft'];
 // pop keyframes for 1..12 names sharing one cycle: each shows for its slice, ~4s of a 4.5s slot
 (()=>{let css='';for(let n=1;n<=12;n++){const k=100/n;css+=`@keyframes pop${n}{0%{opacity:0}${(k*0.08).toFixed(2)}%{opacity:1}${(k*0.82).toFixed(2)}%{opacity:1}${(k*0.92).toFixed(2)}%{opacity:0}100%{opacity:0}}`;}const el=document.createElement('style');el.textContent=css;document.head.appendChild(el);})();
 function render(){
-  pushHash();
+  pushHash();LIGHT_PCT=state.lightPct;
   const grid=document.getElementById('grid');grid.innerHTML='';
   const runs=state.sheetFam?CORE_FAMS.map(f=>({fam:f,shape:state.shape})):state.sheet&&CORE_FAMS.includes(state.fam)?CORES.map(c=>({fam:state.fam,shape:c})):[{fam:state.fam,shape:state.shape}];
   for(const run of runs){
@@ -507,7 +511,7 @@ function render(){
     const svg=`<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${inner}</svg>`;
     if(i===0)lastMain=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" style="background:${r.bg}">${inner}</svg>`;
     const onPaper=state.ground==='paper';
-    const el=document.createElement('div');el.className='card'+(onPaper?' on-paper':'')+(state.anim?' anim':'');el.style.background=r.bg;
+    const el=document.createElement('div');el.className='card'+(onPaper?' on-paper':'')+(state.anim?' anim':'');el.style.background=state.ground==='light'?COLORS[i]:r.bg;
     const pillBg=state.pillInk==='deep'?shade(COLORS[i],onPaper?0:.5):state.pillInk==='cream'?'#FCF9F4':'#12181F';
     const pillFg=state.pillInk==='cream'?'#12181F':'#FCF9F4';
     const scrim=state.scrim&&!r.scrimInside?`<div class="scrim" style="background:rgba(18,24,31,${state.scrimPct/100})"></div>`:'';
@@ -520,7 +524,7 @@ function render(){
       :state.names==='ambient'
       ?(r.ambientInside?'':`<p class="ambient">${st.headliners.map((a,k)=>`<span class="${k===0?'first':''}" style="background:${pillBg};color:${pillFg};animation:pop${st.headliners.length} ${st.headliners.length*4.5}s linear infinite;animation-delay:${(k*4.5).toFixed(1)}s">${esc(a)}</span>`).join('')}</p>`)
       :`<p class="lineup">${st.headliners.map(a=>`<span>${esc(a)}</span>`).join('')}</p>`):'';
-    el.innerHTML=`<div class="art">${svg}${scrim}${names}</div>
+    el.innerHTML=`<div class="art" style="background:${r.bg}">${svg}${scrim}${names}</div>
       <div class="body"><h3>${esc(stg.name)}</h3><p class="meta">${st.n} sets · Fri–Sun</p>
       <p class="map">${st.n} sets · first ${hm(st.first)} · last ends ${hm(st.lastEnd)} · median ${st.median} min · late ${Math.round(st.late*100)}%</p>
       <div class="pill">Add calendar</div></div>`;
@@ -541,11 +545,12 @@ function render(){
 }
 document.querySelectorAll('.seg').forEach(seg=>seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;seg.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');state[seg.id]=b.dataset.v;render();}));
 // names protection note
-const NOTE=document.createElement('p');NOTE.className='hint';NOTE.textContent='Names: Plain is what ships. Pills are 32px capsules; Deep pill keeps the stage hue, Cream pill matches the button so it can read as tappable, Ink pill is the neutral. Ticker runs the names along the bottom edge continuously. Ambient shows each headliner in the center of the art for about four seconds, one after another, in the Headliner style you pick: Marquee is the name alone, big and expanded; Poster block adds the night and the start time above it; Crop oversizes it past the card edge; Ghost day puts the night huge and faint behind it; Stamp is an outlined capsule with the sparkle; Pill is the filled chip. Name ink sets the color of the text treatments and of the star while its name is up; Deep is the stage color cut toward black, which reads on Paper and fights the stage ground. Scrim is a flat ink overlay on the art, set by the slider. Families without stars cycle the names at the bottom instead. ';document.getElementById('hint').after(NOTE);
+const NOTE=document.createElement('p');NOTE.className='hint';NOTE.textContent='Names: Plain is what ships. Pills are 32px capsules; Deep pill keeps the stage hue, Cream pill matches the button so it can read as tappable, Ink pill is the neutral. Ticker runs the names along the bottom edge continuously. Ambient shows each headliner in the center of the art for about four seconds, one after another, in the Headliner style you pick: Marquee is the name alone, big and expanded; Poster block adds the night and the start time above it; Crop oversizes it past the card edge; Ghost day puts the night huge and faint behind it; Stamp is an outlined capsule with the sparkle; Pill is the filled chip. Name ink sets the color of the text treatments and of the star while its name is up. The Light ground mixes the stage color toward cream behind the art only (the card body stays the stage color), so ink names read; the slider sets how far. Scrim is a flat ink overlay on the art, set by the slider. Families without stars cycle the names at the bottom instead. ';document.getElementById('hint').after(NOTE);
 for(const id of['halftone','glow','text','anim','sheet','sheetFam','scrim'])document.getElementById(id).addEventListener('change',e=>{state[id]=e.target.checked;render();});
 document.getElementById('density').addEventListener('input',e=>{state.density=e.target.value/100;render();});
 document.getElementById('variant').addEventListener('input',e=>{state.variant=+e.target.value;render();});
 document.getElementById('scrimPct').addEventListener('input',e=>{state.scrimPct=+e.target.value;render();});
+document.getElementById('lightPct').addEventListener('input',e=>{state.lightPct=+e.target.value;render();});
 document.getElementById('copysvg').addEventListener('click',e=>{if(navigator.clipboard){navigator.clipboard.writeText(lastMain).then(()=>{e.target.textContent='Copied';setTimeout(()=>e.target.textContent='Copy Main Stage SVG',1400);},()=>{});}});
 syncControls();render();
 </script>

@@ -1,7 +1,8 @@
 # Stage art explorer
 
-Default state (owner pick, 21 Sep 2026): Beads, no core, stage-color ground, glow, drift,
-scrim at 25%, ambient names in the Poster block treatment, cream ink, stars on the closers.
+Default state (owner pick, 21 Sep 2026): Beads, no core, Light ground (the stage color mixed
+45% toward cream behind the art only; the card body stays the stage color), no glow, drift,
+no scrim, ambient names in the Poster block treatment in ink, stars on the closers lit in ink.
 
 A knob-turning tool for the generative stage-card art (ticket 06 follow-on, 20 Sep 2026).
 Open `index.html` in a browser. It is a design instrument, not a page of the site: it loads
