@@ -31,8 +31,10 @@
  * events whose content moved. A wrong or absent secret is simply a fresh upload
  * and never touches an existing edition (ticket 09).
  *
- * The watcher and the signal are the same shape and land here too (tickets 11,
- * 12).
+ * The watcher (`src/watcher.ts`, ticket 11) is the same shape from the other
+ * side: the same ports plus one for pages, and its review pull requests carry
+ * the edition exactly as the owner's confirm commits it. The signal (ticket
+ * 12) will be too.
  *
  * Three rules this module exists to enforce:
  *
@@ -213,15 +215,17 @@ export interface RepositoryPort {
 
 /** What the owner is told. GitHub is the channel; this is the content. */
 export interface Notification {
-  kind: 'edition-published' | 'edition-corrected';
+  kind: 'edition-published' | 'edition-corrected' | 'watch-failed';
   editionPath: string;
   title: string;
   body: string;
   /**
    * The uploader's address. The only place it appears — committed state keeps
    * a hash, because the repository is public and the address is a contact.
+   * Absent when nobody uploaded anything: the watcher's notices have no one
+   * behind them.
    */
-  email: string;
+  email?: string;
 }
 
 export interface NotifyPort {
@@ -710,7 +714,7 @@ function claimSlug(
 // ---------------------------------------------------------------------------
 
 /** Type, size and dimensions: everything knowable without asking anyone. */
-function checkImage(image: SourceImage): Rejection | null {
+export function checkImage(image: SourceImage): Rejection | null {
   if (!(ACCEPTED_IMAGE_TYPES as readonly string[]).includes(image.contentType)) {
     return reject('type', GATE_COPY.notImage);
   }
@@ -1425,14 +1429,17 @@ function span(t: SetTimes): string {
   return `${wall(t.start)}–${t.end.slice(11, 16)}`;
 }
 
+/** One changed set as a line the owner reads, in a notification or a review. */
+export function changeLine(c: SetChange): string {
+  if (c.kind === 'added') return `- Added: ${c.after!.artist} (${c.stageName}), ${span(c.after!)}`;
+  if (c.kind === 'removed') return `- Dropped: ${c.before!.artist} (${c.stageName}), was ${span(c.before!)}`;
+  const renamed = c.before!.artist !== c.after!.artist ? `${c.before!.artist} → ${c.after!.artist}` : c.after!.artist;
+  return `- ${renamed} (${c.stageName}): ${span(c.before!)} → ${span(c.after!)}`;
+}
+
 /** The notification body: one line per changed set, then where it lives. */
 function correctionBody(path: string, changes: SetChange[]): string {
-  const lines = changes.map((c) => {
-    if (c.kind === 'added') return `- Added: ${c.after!.artist} (${c.stageName}), ${span(c.after!)}`;
-    if (c.kind === 'removed') return `- Dropped: ${c.before!.artist} (${c.stageName}), was ${span(c.before!)}`;
-    const renamed = c.before!.artist !== c.after!.artist ? `${c.before!.artist} → ${c.after!.artist}` : c.after!.artist;
-    return `- ${renamed} (${c.stageName}): ${span(c.before!)} → ${span(c.after!)}`;
-  });
+  const lines = changes.map(changeLine);
   const summary =
     changes.length === 0
       ? 'The uploader re-uploaded through the update link; no set changed.'
@@ -1496,17 +1503,17 @@ export async function publish(intent: Intent, ports: PublisherPorts): Promise<Up
 // ---------------------------------------------------------------------------
 
 /** The stored name of a source image: its content hash plus a real extension. */
-function storedImageName(saved: SavedTranscription): string {
+export function storedImageName(saved: Pick<SavedTranscription, 'image' | 'contentType'>): string {
   return `${saved.image}${EXTENSIONS[saved.contentType] ?? '.bin'}`;
 }
 
 /** The saved replies as the library takes them, one source per image, in order. */
-function modelOutputs(saved: SavedTranscription[]): ModelOutput[] {
+export function modelOutputs(saved: SavedTranscription[]): ModelOutput[] {
   return saved.map((s) => ({ source: storedImageName(s), output: s.output }));
 }
 
 /** `a`, `a and b`, `a, b and c` — for a sentence the owner reads. */
-function listed(items: string[]): string {
+export function listed(items: string[]): string {
   return items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
 }
 
@@ -1533,7 +1540,7 @@ function droppedStages(names: string[]): Rejection {
  * means the edition would not build — usually a time an edit made impossible —
  * and its own problems ride along for the screen to lay out.
  */
-function readingProblem(err: unknown): Rejection {
+export function readingProblem(err: unknown): Rejection {
   if (err instanceof SchemaError) {
     return reject(
       'schema',
@@ -1548,11 +1555,15 @@ function readingProblem(err: unknown): Rejection {
 }
 
 /** JSON as committed state is written: 2-space indent, trailing newline. */
+export function committedJson(value: unknown): string {
+  return json(value);
+}
+
 function json(value: unknown): string {
   return JSON.stringify(value, null, 2) + '\n';
 }
 
-function sortKeys<T>(obj: Record<string, T>): Record<string, T> {
+export function sortKeys<T>(obj: Record<string, T>): Record<string, T> {
   const out: Record<string, T> = {};
   for (const k of Object.keys(obj).sort()) out[k] = obj[k]!;
   return out;

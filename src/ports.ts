@@ -3,9 +3,10 @@
  *
  * `src/publisher.ts` holds the rules and never touches the outside world; this
  * module is the outside world, and holds no rules. Everything here is one of
- * five things: the vision model (through `src/vision.ts`, still the only module
- * that calls a model), the repository, notifications, the clock, and
- * randomness. Nothing here decides anything.
+ * six things: the vision model (through `src/vision.ts`, still the only module
+ * that calls a model), the repository, notifications, the clock, randomness,
+ * and — for the watcher — the schedule pages it reads. Nothing here decides
+ * anything.
  *
  * The repository port commits through GitHub's Git Data API rather than the
  * Contents API, one blob per file and one tree per intent, because an edition
@@ -47,6 +48,7 @@ import {
 import { ownerMatches, PUBLISHER_REPO, type Env } from './secrets.js';
 import { requireSdkBackend, screenForSchedule, transcribeBytes } from './vision.js';
 import type { PublishedFile } from './build.js';
+import type { FetchedImage, PagePort, WatcherPorts } from './watcher.js';
 
 const API = 'https://api.github.com';
 const BRANCH = 'main';
@@ -278,11 +280,63 @@ export function githubNotifier(
         },
         body: JSON.stringify({
           title: notification.title,
-          body: `${notification.body}\n\nUploader: ${notification.email}`,
+          body: notification.email ? `${notification.body}\n\nUploader: ${notification.email}` : notification.body,
           labels: [notification.kind],
         }),
       });
       if (!res.ok) throw new GitHubError('issue write', res.status, await res.text().catch(() => ''));
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Pages
+// ---------------------------------------------------------------------------
+
+/** How long one page or one image may take to answer. */
+export const PAGE_TIMEOUT_MS = 30_000;
+/** The most an image on a schedule page is read in; the publisher refuses anything larger anyway. */
+const MAX_FETCHED_IMAGE_BYTES = 10 * 1024 * 1024;
+
+/**
+ * The watcher's read of the outside world: a festival's schedule page and the
+ * images on it, over plain HTTP, identifying itself honestly. Anything that
+ * does not answer with a page or an image — a timeout, a 404, a login wall
+ * serving HTML for an image — is null, and the watcher treats null as
+ * "not there", never as a change.
+ */
+export function livePages(fetchFn: FetchLike = fetch): PagePort {
+  const agent = 'stage-times-watcher/1.0 (+https://stagetimes.app)';
+  return {
+    async page(url): Promise<string | null> {
+      try {
+        const res = await fetchFn(url, {
+          headers: { 'User-Agent': agent, Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5' },
+          signal: AbortSignal.timeout(PAGE_TIMEOUT_MS),
+        });
+        if (!res.ok) return null;
+        const type = res.headers.get('content-type') ?? '';
+        if (type && !/html|xml/i.test(type)) return null;
+        return await res.text();
+      } catch {
+        return null;
+      }
+    },
+    async image(url): Promise<FetchedImage | null> {
+      try {
+        const res = await fetchFn(url, {
+          headers: { 'User-Agent': agent, Accept: 'image/*,*/*;q=0.5' },
+          signal: AbortSignal.timeout(PAGE_TIMEOUT_MS),
+        });
+        if (!res.ok) return null;
+        if (Number(res.headers.get('content-length') ?? 0) > MAX_FETCHED_IMAGE_BYTES) return null;
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        if (bytes.byteLength > MAX_FETCHED_IMAGE_BYTES) return null;
+        const type = res.headers.get('content-type')?.split(';')[0]?.trim();
+        return type ? { bytes, contentType: type } : { bytes };
+      } catch {
+        return null;
+      }
     },
   };
 }
@@ -301,4 +355,9 @@ export function livePorts(env: Env = process.env): PublisherPorts {
     random: cryptoRandom(),
     owner: envOwner(env),
   };
+}
+
+/** The publisher's ports plus the pages. What the scheduled entrypoint hands the watcher. */
+export function watcherPorts(env: Env = process.env): WatcherPorts {
+  return { ...livePorts(env), pages: livePages() };
 }

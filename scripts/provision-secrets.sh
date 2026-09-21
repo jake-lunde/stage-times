@@ -275,6 +275,7 @@ else
   if [[ -z "$ANTHROPIC_API_KEY" ]]; then warn "empty; skipping"; else
     write_env ANTHROPIC_API_KEY "$ANTHROPIC_API_KEY"   # local: npm run ingest reads it (set -a; . ./.env; set +a)
     set_vercel_env ANTHROPIC_API_KEY "$ANTHROPIC_API_KEY"
+    set_secret ANTHROPIC_API_KEY "$ANTHROPIC_API_KEY"  # GitHub Actions: the hourly watcher (.github/workflows/watch.yml)
   fi
 fi
 pause

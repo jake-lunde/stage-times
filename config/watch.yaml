@@ -1,0 +1,44 @@
+# The watch list: the festivals whose official schedule pages the watcher polls
+# (src/watcher.ts, hourly from .github/workflows/watch.yml). One entry per
+# edition; adding a festival is adding an entry. Every field but `slug` and
+# `match` is required — it is what the machine cannot know.
+#
+#   festival   display name; becomes the edition's name
+#   slug       permanent URL slug; derived from the name when omitted
+#   year
+#   source     the schedule page — where the set-times images will appear
+#   timezone   IANA zone the times are printed in
+#   dates      first and last festival day; polling stops after the last
+#   window     the drop window: hourly polls from `from` through `to` (default:
+#              the last day); daily before it
+#   match      a regular expression on the image URL; only matching images are read
+#
+# A drop opens a review pull request; merging it publishes and lists the edition
+# at stagetimes.app/<slug>-<year>/ the way the owner's own confirm would.
+# Procedure: docs/watcher-runbook.md.
+
+- festival: Austin City Limits
+  year: 2026
+  source: https://www.aclfestival.com/schedule
+  timezone: America/Chicago
+  dates: { first: 2026-10-09, last: 2026-10-11 }
+  window: { from: 2026-08-14 }
+  # Both weekends share one page and one edition is one weekend — the same
+  # artist on the same stage twice collides on UID (README, known limitation).
+  # This watches weekend two; its images are named Wk2.
+  match: Wk2
+
+- festival: III Points
+  slug: iii-points
+  year: 2026
+  source: https://www.iiipoints.com/lineup-2026/
+  timezone: America/New_York
+  dates: { first: 2026-10-16, last: 2026-10-17 }
+  window: { from: 2026-10-02 }
+
+- festival: Camp Flog Gnaw
+  year: 2026
+  source: https://www.campfloggnaw.com/lineup
+  timezone: America/Los_Angeles
+  dates: { first: 2026-11-14, last: 2026-11-15 }
+  window: { from: 2026-10-31 }
