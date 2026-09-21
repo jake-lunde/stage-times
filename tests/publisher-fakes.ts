@@ -166,6 +166,9 @@ export function fakeRepository(initial: Partial<Pick<FakeRepository, 'published'
     async readTranscription(hash) {
       return repo.transcriptions.get(hash) ?? null;
     },
+    async readFile(path) {
+      return files.get(path) ?? null;
+    },
     async commit(commit) {
       repo.commits.push(commit);
       for (const f of commit.files) files.set(f.path, f.contents);

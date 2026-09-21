@@ -114,6 +114,11 @@ export interface UploaderRecord {
   image: string;
   /** Every stored source image, in the order given, when there was more than one. */
   images?: string[];
+  /**
+   * The publish stamp of the latest correction through the update link, if any.
+   * `image`/`images` then name the images that correction was read from.
+   */
+  correctedAt?: string;
 }
 
 export interface PublishedEdition {

@@ -136,13 +136,18 @@ export function githubRepository(
     return (await res.json()) as T;
   }
 
-  async function readJson<T>(path: string, fallback: T): Promise<T> {
+  async function readText(path: string): Promise<string | null> {
     const res = await fetchFn(`${API}/repos/${repo}/contents/${path}?ref=${BRANCH}`, { headers });
-    if (res.status === 404) return fallback;
+    if (res.status === 404) return null;
     if (!res.ok) throw new GitHubError(`read of ${path}`, res.status, await res.text().catch(() => ''));
     const body = (await res.json()) as { content?: string; encoding?: string };
-    if (!body.content) return fallback;
-    return JSON.parse(Buffer.from(body.content, 'base64').toString('utf8')) as T;
+    if (!body.content) return null;
+    return Buffer.from(body.content, 'base64').toString('utf8');
+  }
+
+  async function readJson<T>(path: string, fallback: T): Promise<T> {
+    const text = await readText(path);
+    return text === null ? fallback : (JSON.parse(text) as T);
   }
 
   return {
@@ -154,6 +159,9 @@ export function githubRepository(
     },
     async readTranscription(hash) {
       return readJson<SavedTranscription | null>(`${TRANSCRIPTION_STORE_DIR}/${hash}.json`, null);
+    },
+    async readFile(path) {
+      return readText(path);
     },
     async commit(commit: Commit) {
       if (commit.files.length === 0 && commit.images.length === 0) return;

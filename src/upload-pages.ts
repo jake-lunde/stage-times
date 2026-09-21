@@ -30,7 +30,7 @@
 import { ACCEPTED_IMAGE_TYPES, EMAIL_RE, GATE_COPY, MAX_IMAGE_EDGE, MIN_IMAGE_EDGE, fill, type Gate } from './publisher.js';
 import { esc, ICON_BACK, ICON_CHECK, ICON_LINK, page, PROD_ORIGIN } from './pages.js';
 
-export type Screen = 'details' | 'upload' | 'review' | 'publishing' | 'success';
+export type Screen = 'details' | 'upload' | 'review' | 'publishing' | 'success' | 'remove';
 
 /**
  * Where each gate's rejection lands. A typo in the form goes back to the form;
@@ -50,6 +50,10 @@ export const GATE_SCREENS: Record<Gate, Screen> = {
   expired: 'upload',
   review: 'review',
   schema: 'review',
+  year: 'upload',
+  stages: 'upload',
+  removed: 'details',
+  'update-link': 'remove',
 };
 
 /**
