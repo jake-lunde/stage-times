@@ -486,9 +486,9 @@ test('watcher: the committed watch list names ACL, III Points, Camp Flog Gnaw, E
     'austin-city-limits': undefined,
     'iii-points': 'IIIPoints',
     'camp-flog-gnaw': 'CampFlogGnaw',
-    'edc-orlando': undefined,
+    'edc-orlando': 'EDCOrlando',
     'corona-capital': 'coronacapital',
-  }, 'the signal watches the three subreddits the owner found on 2026-09-21; ACL and EDC Orlando have none on record');
+  }, 'the signal watches the four subreddits the owner found on 2026-09-21; ACL has none on record');
 });
 
 test('watcher: the job runs hourly from a schedule with the permissions a review needs, and no server', () => {

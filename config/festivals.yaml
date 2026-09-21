@@ -54,6 +54,7 @@
   source: https://orlando.edc.com/
   timezone: America/New_York
   form: app
+  subreddit: EDCOrlando
   editions:
     - year: 2026
       dates: { first: 2026-11-06, last: 2026-11-08 }

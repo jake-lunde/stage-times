@@ -55,6 +55,7 @@
   timezone: America/New_York
   dates: { first: 2026-11-06, last: 2026-11-08 }
   window: { from: 2026-10-01 }
+  subreddit: EDCOrlando
 
 - festival: Corona Capital
   year: 2026
