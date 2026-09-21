@@ -171,8 +171,9 @@ and randomness go in, and the writes and notifications it would make come out. N
 reads a file, calls a model, opens a socket or looks at a clock, so every rule below is tested
 with fakes and no API key (`tests/publisher.test.ts`).
 
-Two intents exist today, each with an owner variant. Correction, self-removal, the watcher and the
-signal are the same shape and land in the same module.
+Three intents exist today — `upload`, `confirm` and `remove` — each of the first two with an
+owner variant, and upload and confirm carrying an update link are a correction. The watcher and
+the signal are the same shape and land in the same module.
 
 **`upload`** — the source images, one per day in day order, plus a festival name, dates and a
 contact address. One image is a list of one. The gates run cheapest first and stop at the first
@@ -230,11 +231,44 @@ The **update link** secret is minted from the injected randomness, returned once
 response, and stored only as a SHA-256 hash. The contact address is stored only as a hash too —
 this repository is public — and reaches the owner through the notification instead.
 
+### The update link: correction and self-removal
+
+Holding the update link is what makes someone an edition's uploader. Upload and confirm take it
+as `update: {editionPath, secret}`; the publisher hashes the secret and compares it with the
+edition's `uploader.secretHash` (`claimedEdition()`). When it holds, the upload's review says
+`correcting: true` and the confirm is a **correction**: the edition's YAML and log are replaced
+in place under the same slug, year and stage ids — so every UID a subscriber holds is still that
+set's UID — and `publishedAt` moves to the injected clock. The build's sequence ledger then
+advances SEQUENCE for exactly the events whose content changed. The publisher never writes
+`state/sequences.json`.
+
+- A correction cannot drop a stage that was ever published (gate 4 would refuse the build); it is
+  refused in words instead. An image that reads as another year is refused too.
+- If the edition is **listed**, the owner gets an `edition-corrected` notification carrying a
+  per-set diff (`diffSets()`, keyed as the UID is). Nothing waits on him. An unlisted edition's
+  correction notifies nobody.
+- A **wrong or absent secret never touches an existing edition.** It is a fresh upload, and gets
+  a suffixed slug like any second upload of a festival-year; the review says where it will live.
+- A correction stays in the namespace it was published in and opens **no listing pull request**:
+  the link names a fan edition that already exists, `listed` is left exactly as it was, and an
+  `owner` secret sent alongside a link that holds changes neither. The owner path is for making
+  an edition; the update link is for changing one.
+
+**`remove`** takes only the update link. It sets `blocked: true` — the takedown runbook's one-line
+edit, `listed` left alone — and keeps the stored source image; a wrong secret is refused and
+writes nothing. The next build serves empty calendars and the removed page. A taken-down edition's
+link can no longer correct it.
+
+The link itself is `https://stagetimes.app/update/<edition path>/#<secret>`. The build writes one
+page there per fan edition (`renderUploadPage(edition)`): the upload flow, but naming the festival
+and what a new screenshot replaces before anything is uploaded, with "Take it down" behind a text
+button. The secret is the fragment, so it never reaches a server log.
+
 ### The state the publisher owns
 
 | File | What it is |
 |---|---|
-| `state/published.json` | gains an `uploader` record per fan edition: secret hash, address hash, the confirm's stamp, the first source image hash (and `images`, every one in order, when there was more than one). Its presence is what *uploader-verified* means. The build carries it forward and never writes it. |
+| `state/published.json` | gains an `uploader` record per fan edition: secret hash, address hash, the confirm's stamp, the first source image hash (and `images`, every one in order, when there was more than one). A correction replaces the image hashes and adds `correctedAt`. Its presence is what *uploader-verified* means. The build carries it forward and never writes it. |
 | `state/uploads.json` | what the caps count. Not a log — entries older than 24 hours are dropped on every write. |
 | `state/transcriptions/<hash>.json` | the model's reply for one image, verbatim, under that image's content hash. This is what makes a retry free. |
 | `source/images/<hash>.<ext>` | the stored source image. Never served. |
@@ -242,12 +276,14 @@ this repository is public — and reaches the owner through the notification ins
 
 ### Over HTTP
 
-`api/upload.ts` and `api/confirm.ts` are two thin adapters: read the fields, call the publisher,
+`api/upload.ts`, `api/confirm.ts` and `api/remove.ts` are three thin adapters: read the fields, call the publisher,
 return what it said. `src/publisher-http.ts` holds what they share (field readers, the base64
 image, the gate-to-status-code map) and `src/ports.ts` holds the live ports — GitHub's Git Data
 API for the commit (one tree per intent, because a half-applied publish is an edition whose feeds
 exist and whose state does not) and for the listing pull request, a GitHub issue for the
-notification, `OWNER_SECRET` for the owner port, and `src/vision.ts` for both model calls. A test asserts the adapters import nothing but those three modules. Both adapters
+notification, `OWNER_SECRET` for the owner port, and `src/vision.ts` for both model calls. A test
+asserts the adapters import nothing but those three modules. Upload and confirm take an optional
+`owner` secret and an optional `update` link; remove requires the link. Both adapters
 take an `images` list or a single `image`; confirm takes the review's hashes back as `reviewed`,
 and a rejection about one image carries its position as `image`.
 
@@ -258,8 +294,8 @@ action, review, the wait, success. The script reads fields, checks type and dime
 publisher's own limits before posting, shrinks a photo to fit the platform's body cap, posts to
 the two adapters, and shows one screen at a time; every rejection is the publisher's sentence,
 landed on the screen that can fix it (`GATE_SCREENS`). The update link is
-`https://stagetimes.app/update/<edition path>/#<secret>` — decided in `updateLink()` there, built
-by ticket 09. After confirm the page waits for the edition's own `all.ics` to answer, and after
+`https://stagetimes.app/update/<edition path>/#<secret>` — decided in `updateLink()` there; the
+page it opens is the same flow for that edition (above). After confirm the page waits for the edition's own `all.ics` to answer, and after
 five minutes says so instead of pretending. `tests/upload-page.test.ts` pins the static markup;
 the smoke test checks the page on a live deployment (set `VERCEL_AUTOMATION_BYPASS_SECRET` to
 smoke a protected preview).

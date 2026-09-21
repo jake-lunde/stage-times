@@ -178,6 +178,9 @@ export function fakeRepository(initial: FakeRepositoryOptions = {}): FakeReposit
     async readTranscription(hash) {
       return repo.transcriptions.get(hash) ?? null;
     },
+    async readFile(path) {
+      return files.get(path) ?? null;
+    },
     async commit(commit) {
       repo.commits.push(commit);
       for (const f of commit.files) files.set(f.path, f.contents);

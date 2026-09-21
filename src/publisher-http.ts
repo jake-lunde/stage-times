@@ -17,7 +17,7 @@
  * upload screen (ticket 08) downscales before posting for exactly that reason.
  */
 
-import type { Gate, Rejection, SourceImage } from './publisher.js';
+import type { Gate, Rejection, SourceImage, UpdateClaim } from './publisher.js';
 
 /** A request that could not be read as an intent at all. */
 export class BadRequestError extends Error {
@@ -97,6 +97,22 @@ export function editList(body: Body, field: string): { index: number; artist?: s
       ...(optStr(entry, 'end') !== undefined ? { end: optStr(entry, 'end')! } : {}),
     };
   });
+}
+
+/**
+ * The update link, as `{editionPath, secret}` — the page reads the secret from
+ * the link's fragment. Optional on upload and confirm: without it, or with one
+ * that does not hold, the publisher treats the intent as a fresh upload.
+ */
+export function optUpdate(body: Body): { update: UpdateClaim } | Record<string, never> {
+  if (body['update'] === undefined || body['update'] === null) return {};
+  return { update: update(body) };
+}
+
+/** The update link, required — a self-removal has nothing else to go on. */
+export function update(body: Body): UpdateClaim {
+  const raw = obj(body, 'update');
+  return { editionPath: str(raw, 'editionPath'), secret: str(raw, 'secret') };
 }
 
 /** `{filename, contentType, width, height, data}` with base64 bytes. */
@@ -180,6 +196,10 @@ const STATUS: Record<Gate, number> = {
   expired: 410,
   review: 409,
   schema: 422,
+  year: 422,
+  stages: 422,
+  removed: 410,
+  'update-link': 403,
 };
 
 export function json(body: unknown, status: number): Response {

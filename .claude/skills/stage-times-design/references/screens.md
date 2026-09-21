@@ -214,3 +214,23 @@ Rules that came out of building it:
   so in a sentence when it stops trying. Nothing on this page says "done" before it is.
 - **Glossary words stay off the page.** Screens say "your page", "your update link", "the times",
   "a guess" — never edition, feed, transcription, verified, or a zone id.
+
+### The update link's page — `/update/fan/<key>/`
+
+The same flow for one festival (ticket 09, 2026-09-21), rendered once per fan edition. It differs
+from `/upload/` in four places and nowhere else:
+
+- **The header names the festival** — `{Festival} {Year}` like the removed page, mono caption
+  `Fix a time or take it down`.
+- **The first screen says what it will change before anything is chosen**: one line above the
+  form — `A new screenshot replaces every time on stagetimes.app/fan/<key>/. Anyone who added a
+  stage gets the new times the next time their calendar app checks.` Name and days are filled in.
+- **Take it down** is a text button under Next, leading to its own screen: one line on what
+  happens, a tonal button with `--red-deep` text (destructive, never a red pill), and `Keep it`
+  back. After it: `Taken down` and one line.
+- **No update link on the way out** — they are holding it. The wait is for the calendar to
+  *change*, not merely to answer. If the link did not hold, the review says so above the sets:
+  `That update link didn't match, so this will be a new page: …`.
+
+A taken-down festival's link says `This page was taken down, so there's nothing left to change
+here.` and offers nothing.

@@ -8,23 +8,31 @@
  * reads a file, calls a model, opens a socket, or looks at the wall clock, so
  * every rule below is testable with fakes and no API key (`tests/publisher.test.ts`).
  *
- * Two intents live here, the two that make an edition exist:
+ * Three intents live here:
  *
  *   upload   an image plus a festival name, dates and an address, through the
  *            pre-spend gates, into a review payload the uploader can check
  *            against their own image.
  *   confirm  that review, with the uploader's corrections, validated through
  *            the real schema and committed to main as an edition.
+ *   remove   the uploader's self-removal: the edition is blocked, its stored
+ *            image kept.
  *
- * Both carry an optional `owner` secret — the owner's bookmarked link. When the
- * owner port recognizes it, the same intent publishes into the root namespace
- * and its confirm sets `listed` in the same commit: the human tapping is the
- * approval. A wrong secret is no secret. A fan confirm, instead, opens a
- * pull request on the owner's behalf whose only change is listing the edition;
- * merging it is the one-tap listing (ticket 10).
+ * Upload and confirm carry an optional `owner` secret — the owner's bookmarked
+ * link. When the owner port recognizes it, the same intent publishes into the
+ * root namespace and its confirm sets `listed` in the same commit: the human
+ * tapping is the approval. A wrong secret is no secret. A fan confirm, instead,
+ * opens a pull request on the owner's behalf whose only change is listing the
+ * edition; merging it is the one-tap listing (ticket 10).
  *
- * Correction, self-removal, the watcher and the signal are the same shape and
- * land here too (tickets 09, 11, 12).
+ * Upload and confirm carrying a valid update link are a **correction**: the
+ * same two steps, but the confirm replaces that edition's sets in place instead
+ * of making a new one. The build's sequence ledger then advances exactly the
+ * events whose content moved. A wrong or absent secret is simply a fresh upload
+ * and never touches an existing edition (ticket 09).
+ *
+ * The watcher and the signal are the same shape and land here too (tickets 11,
+ * 12).
  *
  * Three rules this module exists to enforce:
  *
@@ -47,14 +55,22 @@
  * notification, which is not a public repo.
  */
 
-import { createHash } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import {
   editionPath,
   type PublishedEdition,
   type PublishedFile,
   type UploaderRecord,
 } from './build.js';
-import { isValidTimeZone, SchemaError, type FestivalDoc, type Namespace } from './schema.js';
+import { eventContentHash, makeEventContent } from './ics.js';
+import {
+  isValidTimeZone,
+  loadFestivalFromString,
+  SchemaError,
+  type FestivalDoc,
+  type Namespace,
+  type SetEntry,
+} from './schema.js';
 import { slugify, TranscribeError, type SetEdit } from './transcribe.js';
 import { transcribe, type ModelOutput, type Transcription } from './transcription.js';
 
@@ -188,6 +204,8 @@ export interface RepositoryPort {
   readUploads(): Promise<UploadLedger>;
   /** The saved transcription for an image content hash, or null. */
   readTranscription(hash: string): Promise<SavedTranscription | null>;
+  /** A committed text file on main, or null when there is none. A correction reads the YAML it replaces. */
+  readFile(path: string): Promise<string | null>;
   /** Applies the commit to main and returns an id a pull request can branch from. */
   commit(commit: Commit): Promise<string>;
   openPullRequest(pr: PullRequest): Promise<void>;
@@ -195,7 +213,7 @@ export interface RepositoryPort {
 
 /** What the owner is told. GitHub is the channel; this is the content. */
 export interface Notification {
-  kind: 'edition-published';
+  kind: 'edition-published' | 'edition-corrected';
   editionPath: string;
   title: string;
   body: string;
@@ -311,8 +329,20 @@ export interface UploadIntent {
    */
   images?: SourceImage[];
   image?: SourceImage;
+  /** Present when the upload came through an update link. A correction if it holds. */
+  update?: UpdateClaim;
   /** The secret from the owner's bookmarked link, if the page had one. */
   owner?: string;
+}
+
+/**
+ * The update link as the browser hands it over: the edition it names and the
+ * secret from its fragment. Holding a secret whose hash matches that edition's
+ * uploader record is what makes someone its uploader (CONTEXT: update link).
+ */
+export interface UpdateClaim {
+  editionPath: string;
+  secret: string;
 }
 
 export interface ConfirmIntent {
@@ -340,11 +370,19 @@ export interface ConfirmIntent {
   edits: SetEdit[];
   /** Indices of sets the uploader could not verify. Any one blocks confirm. */
   unverifiable: number[];
+  /** Present when the confirm came through an update link. A correction if it holds. */
+  update?: UpdateClaim;
   /** The secret from the owner's bookmarked link, if the page had one. */
   owner?: string;
 }
 
-export type Intent = UploadIntent | ConfirmIntent;
+/** The uploader taking their own edition down, from its update link. */
+export interface RemoveIntent {
+  kind: 'remove';
+  update: UpdateClaim;
+}
+
+export type Intent = UploadIntent | ConfirmIntent | RemoveIntent;
 
 /** Which gate stopped it. The screen picks its shape from this. */
 export type Gate =
@@ -358,7 +396,15 @@ export type Gate =
   | 'schedule'
   | 'expired'
   | 'review'
-  | 'schema';
+  | 'schema'
+  /** A correction whose source reads as a different year than the edition. */
+  | 'year'
+  /** A correction that would drop a stage people have already added. */
+  | 'stages'
+  /** An update link for an edition that has been taken down. */
+  | 'removed'
+  /** A self-removal whose secret does not match the edition. */
+  | 'update-link';
 
 export interface Rejection {
   gate: Gate;
@@ -405,6 +451,11 @@ export interface Review {
   namespace: Namespace;
   /** Where the feeds would live: `<slug>-<year>` for the owner, `fan/<slug>-<year>` otherwise. */
   editionPath: string;
+  /**
+   * True when the update link held: confirming replaces the sets of the edition
+   * at `editionPath` rather than making a new one.
+   */
+  correcting: boolean;
   timezone: string;
   /** True while nobody has confirmed the zone. The source cannot carry it. */
   timezoneAssumed: boolean;
@@ -440,10 +491,43 @@ export interface ConfirmResult {
   updateSecret: string | null;
   /** `fan/<slug>-<year>`, or `<slug>-<year>` for the owner — where the feeds live. */
   editionPath: string | null;
+  /** True when this confirm replaced an existing edition's sets through its update link. */
+  corrected: boolean;
+  /** On a correction, every set whose calendar event changed, was added, or was dropped. */
+  changes: SetChange[];
   commit: Commit | null;
   notifications: Notification[];
   /** The listing pull request a fan confirm opens. Empty for the owner, who listed by confirming. */
   pullRequests: PullRequest[];
+}
+
+export interface RemoveResult {
+  ok: boolean;
+  rejection: Rejection | null;
+  editionPath: string | null;
+  /** Null when there was nothing to write — the edition was already blocked. */
+  commit: Commit | null;
+  notifications: Notification[];
+}
+
+/** One set as it was and as it is, local wall times. */
+export interface SetTimes {
+  artist: string;
+  start: string;
+  end: string;
+}
+
+/**
+ * One set a correction changed, keyed as the UID is — stage and normalized
+ * artist — so a changed set is exactly an event whose SEQUENCE the build will
+ * advance, an added one a new UID, and a removed one a UID that leaves the feed.
+ */
+export interface SetChange {
+  kind: 'added' | 'removed' | 'changed';
+  stage: string;
+  stageName: string;
+  before: SetTimes | null;
+  after: SetTimes | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -487,6 +571,29 @@ export function claimFanSlug(published: PublishedFile, slug: string, year: numbe
   return candidate;
 }
 
+/** A fan edition an update link has proved its holder uploaded. */
+export interface ClaimedEdition {
+  path: string;
+  record: PublishedEdition & { uploader: UploaderRecord };
+}
+
+/**
+ * The edition an update link names, if the secret it carries is that
+ * edition's: its SHA-256 matches the hash the confirm stored. Anything else —
+ * no link, an edition that does not exist or has no uploader, a wrong secret —
+ * is null, and the intent is treated as a fresh upload that never touches an
+ * existing edition. Fan editions only; the owner path is its own (ticket 10).
+ */
+export function claimedEdition(published: PublishedFile, claim: UpdateClaim | undefined): ClaimedEdition | null {
+  if (!claim) return null;
+  const record = Object.hasOwn(published.editions, claim.editionPath) ? published.editions[claim.editionPath] : undefined;
+  if (!record || record.namespace !== 'fan' || !record.uploader) return null;
+  const presented = Buffer.from(sha256(claim.secret), 'hex');
+  const stored = Buffer.from(record.uploader.secretHash, 'hex');
+  if (presented.length !== stored.length || !timingSafeEqual(presented, stored)) return null;
+  return { path: claim.editionPath, record: record as ClaimedEdition['record'] };
+}
+
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 /**
  * Deliberately loose. This is a contact address, not a credential: the only
@@ -509,6 +616,8 @@ export const GATE_COPY = {
   tooSmall: 'That image is {short} pixels on its short side. Under {min} there is nothing legible to read the times off.',
   unreadableOne: "One set is still marked as one you can't read. Check it against your image, then confirm.",
   unreadableMany: "{n} sets are still marked as ones you can't read. Check them against your image, then confirm.",
+  removed: "This page was taken down, so it can't be changed from here.",
+  wrongLink: "That update link doesn't match this page. Check you copied all of it.",
 } as const;
 
 /** `{name}` placeholders → values. The page carries the same one-liner. */
@@ -525,7 +634,21 @@ function rejectedUpload(rejection: Rejection, commit: Commit | null = null): Upl
 }
 
 function rejectedConfirm(rejection: Rejection): ConfirmResult {
-  return { ok: false, rejection, updateSecret: null, editionPath: null, commit: null, notifications: [], pullRequests: [] };
+  return {
+    ok: false,
+    rejection,
+    updateSecret: null,
+    editionPath: null,
+    corrected: false,
+    changes: [],
+    commit: null,
+    notifications: [],
+    pullRequests: [],
+  };
+}
+
+function rejectedRemove(rejection: Rejection): RemoveResult {
+  return { ok: false, rejection, editionPath: null, commit: null, notifications: [] };
 }
 
 /** Megabytes, one decimal, for a sentence a person reads. */
@@ -549,8 +672,18 @@ export function lowConfidence(observations: string[], artist: string): boolean {
  * Which namespace an intent publishes into. The owner port's yes is the only
  * way into the root; every no — wrong, missing, or no secret configured — is a
  * fan, with nothing in the result to say which kind of no it was.
+ *
+ * A correction has no say in this: the edition its update link names keeps the
+ * namespace it was published in, whatever secret came with the request. An
+ * edition never moves between namespaces (README, the permanence contract;
+ * docs/adr/0001-fan-namespace-prefix.md).
  */
-function namespaceOf(intent: { owner?: string }, ports: PublisherPorts): Namespace {
+function namespaceOf(
+  intent: { owner?: string },
+  ports: PublisherPorts,
+  target: ClaimedEdition | null = null,
+): Namespace {
+  if (target) return target.record.namespace;
   return ports.owner.recognizes(intent.owner) ? 'owner' : 'fan';
 }
 
@@ -728,6 +861,12 @@ export async function upload(intent: UploadIntent, ports: PublisherPorts): Promi
   const imageProblem = checkImages(images, hashes);
   if (imageProblem) return rejectedUpload(imageProblem);
 
+  // An update link is checked before anything is spent, so a correction to a
+  // page that has been taken down costs nothing. A link that does not hold is
+  // not an error: it is a fresh upload, and the review says where it will live.
+  const target = intent.update ? claimedEdition(await ports.repo.readPublished(), intent.update) : null;
+  if (target?.record.blocked) return rejectedUpload(reject('removed', GATE_COPY.removed));
+
   const now = ports.clock.now();
   const stamp = icalStamp(now);
   const address = addressHash(intent.email);
@@ -739,7 +878,7 @@ export async function upload(intent: UploadIntent, ports: PublisherPorts): Promi
   const saved = await Promise.all(hashes.map((hash) => ports.repo.readTranscription(hash)));
   const unread = images.flatMap((image, i) => (saved[i] ? [] : [i]));
   if (unread.length === 0) {
-    return finishUpload(intent, ports, saved as SavedTranscription[], { reused: true, commit: null });
+    return finishUpload(intent, ports, saved as SavedTranscription[], { reused: true, commit: null, target });
   }
 
   // The caps count the upload, not its images: one request is one upload.
@@ -799,7 +938,7 @@ export async function upload(intent: UploadIntent, ports: PublisherPorts): Promi
     images: [],
   };
 
-  return finishUpload(intent, ports, saved as SavedTranscription[], { reused: false, commit });
+  return finishUpload(intent, ports, saved as SavedTranscription[], { reused: false, commit, target });
 }
 
 /** Read the saved replies into one review payload. Shared by the cached path. */
@@ -807,20 +946,21 @@ async function finishUpload(
   intent: UploadIntent,
   ports: PublisherPorts,
   saved: SavedTranscription[],
-  opts: { reused: boolean; commit: Commit | null },
+  opts: { reused: boolean; commit: Commit | null; target: ClaimedEdition | null },
 ): Promise<UploadResult> {
   // Recorded before it is read. A reply the library then refuses is still on
   // the record for the audit trail, and the fix-and-retry is free.
   if (opts.commit) await ports.repo.commit(opts.commit);
 
-  const namespace = namespaceOf(intent, ports);
+  const { target } = opts;
+  const namespace = namespaceOf(intent, ports, target);
   const timezone = intent.timezone ?? DEFAULT_TIMEZONE;
   let transcription: Transcription;
   try {
     transcription = transcribe(modelOutputs(saved), {
       namespace,
       name: intent.festival.trim(),
-      slug: slugify(intent.festival),
+      slug: opts.target?.record.slug ?? slugify(intent.festival),
       officialUrl: intent.officialUrl,
       timezone,
       timezoneAssumed: intent.timezone === undefined,
@@ -829,9 +969,16 @@ async function finishUpload(
     return rejectedUpload(readingProblem(err), opts.commit);
   }
 
-  const published = await ports.repo.readPublished();
   const { festival, stages } = transcription.edition;
-  const claimed = claimSlug(published, namespace, festival);
+  if (target && festival.year !== target.record.year) {
+    return rejectedUpload(wrongYear(festival.year, target.record.year), opts.commit);
+  }
+  // A correction keeps the slug it has — the UIDs are derived from it. Anything
+  // else claims one: suffixed inside `/fan/`, the festival's own at the root,
+  // and refused where the owner already has that festival-year.
+  const claimed = target
+    ? { slug: target.record.slug }
+    : claimSlug(await ports.repo.readPublished(), namespace, festival);
   if ('gate' in claimed) return rejectedUpload(claimed, opts.commit);
   const slug = claimed.slug;
   const stageNames = new Map(stages.map((s) => [s.id, s.name]));
@@ -845,6 +992,7 @@ async function finishUpload(
     year: festival.year,
     namespace,
     editionPath: editionPath(namespace, `${slug}-${festival.year}`),
+    correcting: target !== null,
     timezone,
     timezoneAssumed: transcription.timezoneAssumed,
     yearMismatch: intent.dates.first.slice(0, 4) !== String(festival.year),
@@ -926,18 +1074,21 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
     return rejectedConfirm(reject('details', "That time zone isn't one I know."));
   }
 
-  const namespace = namespaceOf(intent, ports);
   const published = await ports.repo.readPublished();
+  const target = claimedEdition(published, intent.update);
+  const namespace = namespaceOf(intent, ports, target);
+  if (target?.record.blocked) return rejectedConfirm(reject('removed', GATE_COPY.removed));
 
   // Two passes. The first reads the source to find out what year it is, which
   // is what decides the slug; the second builds the edition under the slug that
-  // read gives it. Both are deterministic over the same saved reply.
+  // read gives it. Both are deterministic over the same saved reply. A
+  // correction keeps the slug it has — the UIDs are derived from it.
   let probe: Transcription;
   try {
     probe = transcribe(modelOutputs(saved), {
       namespace,
       name: intent.festival.trim(),
-      slug: slugify(intent.festival),
+      slug: target?.record.slug ?? slugify(intent.festival),
       officialUrl: intent.officialUrl,
       timezone: intent.timezone,
       timezoneAssumed: intent.timezoneAssumed,
@@ -946,7 +1097,10 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
     return rejectedConfirm(readingProblem(err));
   }
 
-  const claimed = claimSlug(published, namespace, probe.edition.festival);
+  if (target && probe.edition.festival.year !== target.record.year) {
+    return rejectedConfirm(wrongYear(probe.edition.festival.year, target.record.year));
+  }
+  const claimed = target ? { slug: target.record.slug } : claimSlug(published, namespace, probe.edition.festival);
   if ('gate' in claimed) return rejectedConfirm(claimed);
   const slug = claimed.slug;
 
@@ -969,6 +1123,8 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
   }
 
   const doc: FestivalDoc = transcription.edition;
+  if (target) return correct(intent, ports, { target, published, transcription, saved, images, hashes });
+
   const key = `${doc.festival.slug}-${doc.festival.year}`;
   const path = editionPath(namespace, key);
   const owner = namespace === 'owner';
@@ -1024,7 +1180,17 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
   // The owner's confirm was a person tapping: nothing machine-initiated
   // happened, so nothing lands in the inbox.
   if (owner) {
-    return { ok: true, rejection: null, updateSecret, editionPath: path, commit, notifications: [], pullRequests: [] };
+    return {
+      ok: true,
+      rejection: null,
+      updateSecret,
+      editionPath: path,
+      corrected: false,
+      changes: [],
+      commit,
+      notifications: [],
+      pullRequests: [],
+    };
   }
 
   // A fan confirm asks the owner to list it. The edition is already live and
@@ -1059,6 +1225,8 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
     rejection: null,
     updateSecret,
     editionPath: path,
+    corrected: false,
+    changes: [],
     commit,
     notifications: [notification],
     pullRequests: opened,
@@ -1101,15 +1269,226 @@ function listingPullRequest(
 }
 
 // ---------------------------------------------------------------------------
+// correction — confirm through a valid update link
+// ---------------------------------------------------------------------------
+
+/**
+ * Replace an edition's sets in place. Same slug, same year, same stage ids —
+ * so every UID a subscriber already holds is still the UID of that set — and a
+ * new publish stamp, so the build advances SEQUENCE for exactly the events
+ * whose content moved and leaves the rest alone (src/build.ts, buildFeeds). The
+ * sequence ledger is the build's to write; nothing here touches it.
+ *
+ * A stage already published cannot disappear (gate 4 would refuse the build),
+ * so a correction that drops one is refused here, in words. The owner hears
+ * about a correction only when the edition is listed, and nothing waits on
+ * him: the commit lands either way.
+ */
+async function correct(
+  intent: ConfirmIntent,
+  ports: PublisherPorts,
+  ctx: {
+    target: ClaimedEdition;
+    published: PublishedFile;
+    transcription: Transcription;
+    saved: SavedTranscription[];
+    images: SourceImage[];
+    hashes: string[];
+  },
+): Promise<ConfirmResult> {
+  const { target, published, transcription, saved, images, hashes } = ctx;
+  const doc = transcription.edition;
+  const { path, record } = target;
+  const key = `${record.slug}-${record.year}`;
+  const yamlPath = `${FAN_DATA_DIR}/${key}.yaml`;
+
+  const previousYaml = await ports.repo.readFile(yamlPath);
+  const before = previousYaml === null ? null : loadFestivalFromString(previousYaml, yamlPath);
+
+  const kept = new Set(doc.stages.map((s) => s.id));
+  const dropped = record.stages.filter((id) => !kept.has(id));
+  if (dropped.length > 0) {
+    const names = dropped.map((id) => before?.stages.find((s) => s.id === id)?.name ?? id);
+    return rejectedConfirm(droppedStages(names));
+  }
+
+  const stamp = icalStamp(ports.clock.now());
+  const { images: _previousImages, ...uploader } = record.uploader;
+  const nextRecord: PublishedEdition & { uploader: UploaderRecord } = {
+    ...record,
+    stages: [...new Set([...record.stages, ...kept])].sort(),
+    uploader: {
+      ...uploader,
+      image: hashes[0]!,
+      ...(hashes.length > 1 ? { images: hashes } : {}),
+      correctedAt: stamp,
+    },
+  };
+  const nextPublished: PublishedFile = {
+    ...published,
+    publishedAt: stamp,
+    editions: sortKeys({ ...published.editions, [path]: nextRecord }),
+  };
+
+  const commit: Commit = {
+    message: `Correct ${doc.festival.name} ${doc.festival.year} (${path}) through its update link`,
+    files: [
+      { path: yamlPath, contents: transcription.yaml },
+      { path: `${SOURCE_DIR}/${path}/TRANSCRIPTION.md`, contents: transcription.log },
+      { path: PUBLISHED_PATH, contents: json(nextPublished) },
+    ],
+    images: saved.map((reading, i) => ({
+      path: `${SOURCE_IMAGE_DIR}/${storedImageName(reading)}`,
+      contentType: reading.contentType,
+      bytes: images[i]!.bytes,
+    })),
+  };
+
+  const changes = before ? diffSets(before, doc) : [];
+  const notifications: Notification[] = record.listed
+    ? [
+        {
+          kind: 'edition-corrected',
+          editionPath: path,
+          title: `Listed edition corrected: ${doc.festival.name} ${doc.festival.year}`,
+          body: correctionBody(path, changes),
+          email: intent.email.trim(),
+        },
+      ]
+    : [];
+
+  await ports.repo.commit(commit);
+  for (const n of notifications) await ports.notify.send(n);
+
+  return {
+    ok: true,
+    rejection: null,
+    // The secret the uploader already holds. Still never stored — only its hash.
+    updateSecret: intent.update!.secret,
+    editionPath: path,
+    corrected: true,
+    changes,
+    commit,
+    notifications,
+    // No listing pull request. That one exists to offer the owner an edition
+    // that has just appeared; a correction changes the times of one already
+    // published and leaves `listed` exactly as it found it.
+    pullRequests: [],
+  };
+}
+
+/**
+ * What a correction changed, set by set, keyed as the UID is. "Changed" means
+ * the subscriber-visible event changed — the same content hash the build's
+ * sequence ledger compares — so this list and the SEQUENCE bumps agree.
+ */
+export function diffSets(before: FestivalDoc, after: FestivalDoc): SetChange[] {
+  const index = (doc: FestivalDoc) => {
+    const stages = new Map(doc.stages.map((s) => [s.id, s]));
+    const out = new Map<string, { set: SetEntry; stageName: string; hash: string }>();
+    for (const set of doc.sets) {
+      const stage = stages.get(set.stage)!;
+      const content = makeEventContent(doc.festival, stage, set);
+      out.set(content.uid, { set, stageName: stage.name, hash: eventContentHash(content) });
+    }
+    return out;
+  };
+  const was = index(before);
+  const now = index(after);
+  const times = (set: SetEntry): SetTimes => ({ artist: set.artist, start: set.start.raw, end: set.end.raw });
+
+  const changes: SetChange[] = [];
+  for (const [uid, next] of now) {
+    const prev = was.get(uid);
+    if (!prev) {
+      changes.push({ kind: 'added', stage: next.set.stage, stageName: next.stageName, before: null, after: times(next.set) });
+    } else if (prev.hash !== next.hash) {
+      changes.push({ kind: 'changed', stage: next.set.stage, stageName: next.stageName, before: times(prev.set), after: times(next.set) });
+    }
+  }
+  for (const [uid, prev] of was) {
+    if (!now.has(uid)) {
+      changes.push({ kind: 'removed', stage: prev.set.stage, stageName: prev.stageName, before: times(prev.set), after: null });
+    }
+  }
+  const at = (c: SetChange) => (c.after ?? c.before)!;
+  return changes.sort((a, b) => (at(a).start < at(b).start ? -1 : at(a).start > at(b).start ? 1 : at(a).artist < at(b).artist ? -1 : 1));
+}
+
+/** `2026-10-09T22:40:00` → `Oct 9 22:40`, for a line the owner reads. */
+function wall(raw: string): string {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[Number(raw.slice(5, 7)) - 1]} ${Number(raw.slice(8, 10))} ${raw.slice(11, 16)}`;
+}
+
+function span(t: SetTimes): string {
+  return `${wall(t.start)}–${t.end.slice(11, 16)}`;
+}
+
+/** The notification body: one line per changed set, then where it lives. */
+function correctionBody(path: string, changes: SetChange[]): string {
+  const lines = changes.map((c) => {
+    if (c.kind === 'added') return `- Added: ${c.after!.artist} (${c.stageName}), ${span(c.after!)}`;
+    if (c.kind === 'removed') return `- Dropped: ${c.before!.artist} (${c.stageName}), was ${span(c.before!)}`;
+    const renamed = c.before!.artist !== c.after!.artist ? `${c.before!.artist} → ${c.after!.artist}` : c.after!.artist;
+    return `- ${renamed} (${c.stageName}): ${span(c.before!)} → ${span(c.after!)}`;
+  });
+  const summary =
+    changes.length === 0
+      ? 'The uploader re-uploaded through the update link; no set changed.'
+      : `The uploader corrected ${changes.length} set${changes.length === 1 ? '' : 's'} through the update link. Live already; nothing waits on you.`;
+  return [summary, '', ...lines, ...(lines.length ? [''] : []), `https://stagetimes.app/${path}/`].join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// remove — the uploader's self-removal
+// ---------------------------------------------------------------------------
+
+/**
+ * Block the edition the update link names. The same one-line edit the takedown
+ * runbook describes: `blocked: true`, `listed` left alone, the YAML and the
+ * sequence ledger untouched, so a revert brings every event back exactly as it
+ * was. The stored source image is kept — a self-removal is not a rights claim,
+ * and the image is the evidence behind the times (docs/takedown-runbook.md).
+ *
+ * A wrong secret is refused and writes nothing: removal has no "fresh" reading.
+ */
+export async function remove(intent: RemoveIntent, ports: PublisherPorts): Promise<RemoveResult> {
+  const published = await ports.repo.readPublished();
+  const target = claimedEdition(published, intent.update);
+  if (!target) return rejectedRemove(reject('update-link', GATE_COPY.wrongLink));
+  if (target.record.blocked) {
+    return { ok: true, rejection: null, editionPath: target.path, commit: null, notifications: [] };
+  }
+
+  const nextPublished: PublishedFile = {
+    ...published,
+    editions: { ...published.editions, [target.path]: { ...target.record, blocked: true } },
+  };
+  const commit: Commit = {
+    message:
+      `Block ${target.path}: self-removal through its update link\n\n` +
+      'The stored source image is kept; a self-removal is not a rights claim (docs/takedown-runbook.md).',
+    files: [{ path: PUBLISHED_PATH, contents: json(nextPublished) }],
+    images: [],
+  };
+  await ports.repo.commit(commit);
+  return { ok: true, rejection: null, editionPath: target.path, commit, notifications: [] };
+}
+
+// ---------------------------------------------------------------------------
 // The seam
 // ---------------------------------------------------------------------------
 
 /** One intent in, the writes and notifications it would make out. */
 export async function publish(intent: UploadIntent, ports: PublisherPorts): Promise<UploadResult>;
 export async function publish(intent: ConfirmIntent, ports: PublisherPorts): Promise<ConfirmResult>;
-export async function publish(intent: Intent, ports: PublisherPorts): Promise<UploadResult | ConfirmResult>;
-export async function publish(intent: Intent, ports: PublisherPorts): Promise<UploadResult | ConfirmResult> {
-  return intent.kind === 'upload' ? upload(intent, ports) : confirm(intent, ports);
+export async function publish(intent: RemoveIntent, ports: PublisherPorts): Promise<RemoveResult>;
+export async function publish(intent: Intent, ports: PublisherPorts): Promise<UploadResult | ConfirmResult | RemoveResult>;
+export async function publish(intent: Intent, ports: PublisherPorts): Promise<UploadResult | ConfirmResult | RemoveResult> {
+  if (intent.kind === 'upload') return upload(intent, ports);
+  if (intent.kind === 'confirm') return confirm(intent, ports);
+  return remove(intent, ports);
 }
 
 // ---------------------------------------------------------------------------
@@ -1129,6 +1508,24 @@ function modelOutputs(saved: SavedTranscription[]): ModelOutput[] {
 /** `a`, `a and b`, `a, b and c` — for a sentence the owner reads. */
 function listed(items: string[]): string {
   return items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
+}
+
+/** A correction whose source reads as another year: that is another edition. */
+function wrongYear(read: number, edition: number): Rejection {
+  return reject(
+    'year',
+    `That image reads as ${read}, and this page is for ${edition}. For ${read}, add it as a new festival.`,
+  );
+}
+
+/** A correction without a stage people have already added. */
+function droppedStages(names: string[]): Rejection {
+  return reject(
+    'stages',
+    names.length === 1
+      ? `${names[0]} isn't in these times, and people have already added it. Include the image with its sets.`
+      : `${listed(names)} aren't in these times, and people have already added them. Include the images with their sets.`,
+  );
 }
 
 /**

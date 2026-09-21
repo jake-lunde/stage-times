@@ -41,11 +41,13 @@ One commit to `main`, same as a fan's, except:
   **`listed: true`** in the same commit — your tap is the approval;
 - no listing pull request and no notification: nothing machine-initiated happened.
 
-The success screen still hands you an update link, as it would anyone.
+The success screen still hands you an update link, as it would anyone — but keep it as a
+receipt, not a tool. The update link (ticket 09) corrects and takes down fan editions only, and
+its page is written for fan editions only, so an owner edition's link has nowhere to land.
 
 An owner edition that already exists at that path is **refused**, never replaced and never
 suffixed — replacing one is a correction, not a new upload. To change an owner edition's times,
-edit its YAML (README, "Pushing a schedule change") until correction ships (ticket 09).
+edit its YAML (README, "Pushing a schedule change").
 
 The upload caps (3 per address per hour, 20 a day across everyone) apply to you too.
 

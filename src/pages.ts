@@ -30,7 +30,7 @@
 import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { renderUploadPage } from './upload-pages.js';
+import { renderUploadPage, updatePagePath } from './upload-pages.js';
 
 // ---------------------------------------------------------------------------
 // Manifest shape (structurally typed — build.ts owns the real type)
@@ -1205,6 +1205,8 @@ function committedImages(site: SiteManifest): Record<string, string> {
  *   dist/<key>/index.html                    subscribe page, owner edition
  *   dist/fan/<key>/index.html                subscribe page, fan edition
  *   …or the removed page at the same path when the edition is blocked
+ *   dist/upload/index.html                   the upload flow
+ *   dist/update/fan/<key>/index.html         the update link's page, per fan edition
  *   dist/assets/**                           self-hosted fonts + festival art
  */
 export function renderSitePages(site: SiteManifest, outDir: string): string[] {
@@ -1230,6 +1232,17 @@ export function renderSitePages(site: SiteManifest, outDir: string): string[] {
   mkdirSync(join(outDir, 'upload'), { recursive: true });
   writeFileSync(join(outDir, 'upload', 'index.html'), renderUploadPage(), 'utf8');
   written.push('upload/index.html');
+
+  // The update link (ticket 09): the same flow for one fan edition, at
+  // /update/fan/<key>/. The secret is the link's fragment and never reaches
+  // the build; the publisher decides whether it holds. Owner editions have no
+  // uploader record and so no update link.
+  for (const m of site.editions.filter((e) => e.namespace === 'fan')) {
+    const rel = updatePagePath(m.festival.basePath.replace(/^\//, ''));
+    mkdirSync(join(outDir, rel), { recursive: true });
+    writeFileSync(join(outDir, rel, 'index.html'), renderUploadPage(m), 'utf8');
+    written.push(`${rel}/index.html`);
+  }
 
   return written;
 }
