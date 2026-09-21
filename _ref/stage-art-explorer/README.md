@@ -19,7 +19,9 @@ Archivo and Fragment Mono from Google Fonts, which the site's own pages never do
 - Rays do not read as a count: sets at the same hour on different days stack into one ray.
   Ray mapping offers Fanned by day (each day nudged a few degrees) and Even (running order, no
   clock). Five countable families sit beside Rays, one mark per set that never merges: Petals
-  (capsules in running order), Beads (a ring per day, a dot per set at its clock position),
+  (capsules in running order), Beads (a ring per day, evenly spaced from the core to the card edge, a bead per set at its
+  clock position; bead size is set length, a dim bead is a guessed end, the ring is solid across
+  the hours that day runs, stars mark the closers or every hour-plus set),
   Ticks (a bezel), Stars (time left to right, day top to bottom, the closer a sparkle), Crowd
   (scattered pills). All share the cores, names, scrim, and glow.
 - The scrim sits between the marks and the core, so the core stays cream.

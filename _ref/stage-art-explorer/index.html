@@ -110,6 +110,11 @@ footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--line);font-fa
     <button data-v="fanned">Fanned by day</button>
     <button data-v="even">Even</button>
   </div>
+  <div class="seg" id="beadStar" role="group" aria-label="Bead stars">
+    <button data-v="closers" aria-pressed="true">Stars: closers</button>
+    <button data-v="long">Stars: 60 min+</button>
+    <button data-v="none">No stars</button>
+  </div>
   <div class="seg" id="shapeInk" role="group" aria-label="Shape ink">
     <button data-v="cream" aria-pressed="true">Cream</button>
     <button data-v="deep">Deep</button>
@@ -153,7 +158,7 @@ footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--line);font-fa
 <div class="fam">
   <div class="f"><h3>Rays <span class="v v-yes">Flat</span></h3><p>A core per stage, half the art height, and one ray per set leaving its edge on a clock: 2 PM at twelve, a set\u2019s start is its position, its length is its width, so a late stage fills the bottom of the dial. The core is one type across the site, and each stage\u2019s is its own: Polar puts a bump on the rim for every set, aligned with its ray. Eclipse is a full disc for an afternoon stage and a thinning crescent the later it runs. Bars are the seven longest sets as capsules. Blob, Facets (the festival\u2019s globe), and Cluster vary by seed only. Soft has no edge at all.</p></div>
   <div class="f"><h3>Petals <span class="v v-yes">Countable</span></h3><p>One capsule per set, evenly spaced in running order, length from set length, opacity stepping down by day. Rays made countable: nothing overlaps, so twenty reads as twenty.</p></div>
-  <div class="f"><h3>Beads <span class="v v-yes">Countable</span></h3><p>A ring per day, a dot per set at its clock position. Days nest outward, dots never touch. Reads as a lineup around a stage.</p></div>
+  <div class="f"><h3>Beads <span class="v v-yes">Countable</span></h3><p>A ring per day, evenly spaced from the core to the card edge, a bead per set at its clock position. Bead size is set length; a dim bead is a guessed end; the ring is solid only across the hours that day runs. Stars mark the closers, or every hour-plus set. Reads as a lineup around a stage.</p></div>
   <div class="f"><h3>Ticks <span class="v v-yes">Countable</span></h3><p>A bezel with one tick per set at its clock position, fanned by day. Halfway between rays and beads: still a dial, but discrete.</p></div>
   <div class="f"><h3>Stars <span class="v v-yes">Countable</span></h3><p>One star per set, time of day left to right, day top to bottom, joined in running order. Each night\u2019s closer is a four-point sparkle, the same mark as the festival\u2019s own art.</p></div>
   <div class="f"><h3>Crowd <span class="v v-yes">Countable</span></h3><p>One pill per set scattered around the core without overlap, height from set length. Seeded placement, true count. The loosest of the five.</p></div>
@@ -363,11 +368,21 @@ function petals(seed,base,sets,st,o){ // one capsule per set, evenly spaced in r
   return frame(seed,base,sets,st,o,sets.map((s,i)=>{const len=Math.round(Math.min(110,30+s.len/60*70));const deg=Math.round(i*360/n);
     return`<rect x="${-Math.floor(w/2)}" y="${-(r0+len)}" width="${w}" height="${len}" rx="${Math.floor(w/2)}" fill="${ink.a}" fill-opacity="${s.inf?.4:dayOp(s.day)}" transform="translate(${cx} ${cy}) rotate(${deg})"/>`;}).join(''),true);
 }
-function beads(seed,base,sets,st,o){ // one dot per set on a ring per day, at its clock position
+const sparkle=(x,y,k,fill,op)=>`<path d="M${x} ${y-k}Q${x} ${y} ${x+k} ${y}Q${x} ${y} ${x} ${y+k}Q${x} ${y} ${x-k} ${y}Q${x} ${y} ${x} ${y-k}Z" fill="${fill}" fill-opacity="${op}"/>`;
+function beads(seed,base,sets,st,o){ // a ring per day, evenly spaced from the core to the card's edge; a bead per set at its clock position
   const {cx,cy,hh}=geo(o);const ink=inks(base,o.ground);const nd=days.length;
-  const rings=Array.from({length:nd},(_,d)=>`<circle cx="${cx}" cy="${cy}" r="${hh+16+d*18}" fill="none" stroke="${ink.a}" stroke-opacity=".14" stroke-width="1"/>`).join('');
-  const dots=sets.map(s=>{const r=hh+16+s.day*18;const a=-Math.PI/2+s.x*2*Math.PI;const rad=Math.round((4+s.len/60*5)*(0.6+o.density*0.6));
-    return`<circle cx="${Math.round(cx+Math.cos(a)*r)}" cy="${Math.round(cy+Math.sin(a)*r)}" r="${rad}" fill="${ink.a}" fill-opacity="${s.inf?.45:.95}"/>`;}).join('');
+  const inner=hh+26,outer=188;const rOf=d=>Math.round(nd===1?outer:inner+d*(outer-inner)/(nd-1));
+  const angOf=x=>-Math.PI/2+x*2*Math.PI;
+  const closers=new Map();for(const s of sets)closers.set(s.day,s);
+  // the ring is solid across the hours the stage runs that day (first set start to last set end), faint elsewhere
+  const rings=Array.from({length:nd},(_,d)=>{const r=rOf(d);const ds=sets.filter(s=>s.day===d);if(!ds.length)return'';
+    const a0=angOf(Math.min(...ds.map(s=>s.x))),a1=angOf(Math.max(...ds.map(s=>(s.bm-T0)/(T1-T0))));
+    const large=a1-a0>Math.PI?1:0;
+    return`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${ink.a}" stroke-opacity=".12" stroke-width="1"/><path d="M${Math.round(cx+Math.cos(a0)*r)} ${Math.round(cy+Math.sin(a0)*r)}A${r} ${r} 0 ${large} 1 ${Math.round(cx+Math.cos(a1)*r)} ${Math.round(cy+Math.sin(a1)*r)}" fill="none" stroke="${ink.a}" stroke-opacity=".45" stroke-width="2" stroke-linecap="round"/>`;}).join('');
+  const dots=sets.map(s=>{const r=rOf(s.day);const a=angOf(s.x);const x=Math.round(cx+Math.cos(a)*r),y=Math.round(cy+Math.sin(a)*r);
+    const rad=Math.round((4+s.len/60*5)*(0.6+o.density*0.6));const op=s.inf?.6:.95;
+    const star=o.beadStar==='closers'?closers.get(s.day)===s:o.beadStar==='long'?s.len>=60:false;
+    return star?sparkle(x,y,Math.round(rad*2.4),ink.a,op):`<circle cx="${x}" cy="${y}" r="${rad}" fill="${ink.a}" fill-opacity="${op}"/>`;}).join('');
   return frame(seed,base,sets,st,o,rings+dots,true);
 }
 function ticks(seed,base,sets,st,o){ // a bezel: one tick per set at its clock position, fanned by day; length = set length
@@ -385,7 +400,7 @@ function stars(seed,base,sets,st,o){ // one star per set: x is time of day, y is
   const closers=new Set();for(const p of pts)closers.add(p.s.day);
   const last={};for(const p of pts)last[p.s.day]=p;
   const marks=pts.map(p=>{const r=Math.round((2.5+p.s.len/60*3)*(0.6+o.density*0.6));
-    if(last[p.s.day]===p){const k=r*2.6;return`<path d="M${p.x} ${p.y-k}Q${p.x} ${p.y} ${p.x+k} ${p.y}Q${p.x} ${p.y} ${p.x} ${p.y+k}Q${p.x} ${p.y} ${p.x-k} ${p.y}Q${p.x} ${p.y} ${p.x} ${p.y-k}Z" fill="${ink.a}"/>`;}
+    if(last[p.s.day]===p){return sparkle(p.x,p.y,Math.round(r*2.6),ink.a,1);}
     return`<circle cx="${p.x}" cy="${p.y}" r="${r}" fill="${ink.a}" fill-opacity="${p.s.inf?.5:.95}"/>`;}).join('');
   return frame(seed,base,sets,st,o,path+marks,false);
 }
@@ -402,7 +417,7 @@ const FAM={rays,petals,beads,ticks,stars,crowd,ridge,rings,field,capsules};
 const CORE_FAMS=['rays','petals','beads','ticks','stars','crowd'];
 
 // ---- state + render
-const state={fam:'rays',ground:'color',halftone:false,glow:true,text:true,anim:true,density:.7,variant:0,shape:'polar',shapeInk:'cream',names:'pills',pillInk:'deep',sheet:false,sheetFam:false,scrim:false,rayMap:'clock'};
+const state={fam:'rays',ground:'color',halftone:false,glow:true,text:true,anim:true,density:.7,variant:0,shape:'polar',shapeInk:'cream',names:'pills',pillInk:'deep',sheet:false,sheetFam:false,scrim:false,rayMap:'clock',beadStar:'closers'};
 // state in the hash, so a dialed-in configuration is a shareable link
 try{const h=new URLSearchParams(location.hash.slice(1));for(const[k,v]of h){if(!(k in state))continue;state[k]=typeof state[k]==='boolean'?v==='1':typeof state[k]==='number'?+v:v;}}catch(e){}
 function syncControls(){document.querySelectorAll('.seg').forEach(seg=>seg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===state[seg.id]))));for(const id of['halftone','glow','text','anim','sheet','sheetFam','scrim'])document.getElementById(id).checked=!!state[id];document.getElementById('density').value=Math.round(state.density*100);document.getElementById('variant').value=state.variant;}
@@ -448,7 +463,7 @@ function render(){
   document.getElementById('hint').textContent={
     rays:'One ray per set. Clock: 2 PM at twelve, start time is position, length is width; sets at the same hour on different days stack. Fanned: the clock with each day nudged a few degrees apart, so the count reads. Even: rays evenly spaced in running order, count first, no clock.',
     petals:'Petals: one capsule per set, evenly spaced in running order from twelve o\'clock, length = set length, opacity steps down by day. The count is the first thing you read.',
-    beads:'Beads: one dot per set on a ring per day (Friday inside, Sunday outside), at its clock position. Dots never merge; size = set length.',
+    beads:'Beads: a ring per day, Friday inside, evenly spaced out to the card edge. A bead per set at its clock position; size = set length; a dim bead is a set whose end time was never printed (a guess in the feed too). The ring is solid across the hours the stage runs that day. Stars mark each day\'s closer, or every set of an hour or more.',
     ticks:'Ticks: a bezel. One tick per set at its clock position, fanned a few degrees by day, length = set length.',
     stars:'Stars: one star per set. Left to right is time of day, top to bottom is the day, joined in running order. The closer of each night is a sparkle, the festival\'s own motif.',
     crowd:'Crowd: one pill per set scattered around the core, never overlapping, height = set length. Seeded positions, true count.',
