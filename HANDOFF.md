@@ -76,7 +76,7 @@ owner's to confirm, as they are permanent once published); fill in 2025 drop dat
 source form for III Points, Camp Flog Gnaw and Corona Capital (`unknown`); whether the almanac
 should be refreshed by a model or a scheduled agent rather than by hand.
 
- — multi-day uploads through the publisher, on branch
+**2026-09-21, ticket 17 — multi-day uploads through the publisher, on branch
 `ticket/17-multi-day-uploads-through-the-publisher`.** Both intents take `images` (day order; the
 old `image` is a list of one and reads exactly as before). Each image is gated, hashed and cached
 on its own; every unread image clears the schedule check before any is transcribed; the caps

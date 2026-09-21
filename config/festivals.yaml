@@ -43,6 +43,7 @@
   source: https://www.iiipoints.com/lineup-2026/
   timezone: America/New_York
   form: unknown
+  subreddit: IIIPoints
   editions:
     - year: 2026
       dates: { first: 2026-10-16, last: 2026-10-17 }
@@ -61,6 +62,7 @@
   source: https://www.campfloggnaw.com/lineup
   timezone: America/Los_Angeles
   form: unknown
+  subreddit: CampFlogGnaw
   editions:
     - year: 2026
       dates: { first: 2026-11-14, last: 2026-11-15 }
@@ -71,6 +73,7 @@
   source: https://www.coronacapital.com.mx/
   timezone: America/Mexico_City
   form: unknown
+  subreddit: coronacapital
   editions:
     - year: 2026
       dates: { first: 2026-11-20, last: 2026-11-22 }
