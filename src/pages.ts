@@ -1165,7 +1165,6 @@ export function renderLandingPage(site: SiteManifest, opts: LandingOptions = {})
     <p class="eyebrow">What this is</p>
     <p>Add one calendar per stage. The sets show up in the calendar app you already use, and you
     can color or hide each stage on its own.</p>
-    <p>Two or three stages is usually all you want. Add those, skip the rest.</p>
   </section>
 
   <footer>

@@ -102,7 +102,6 @@ test('copy: landing meta description and "What this is" are the rewritten lines'
     landing.includes('content="Set times for each festival stage, as a calendar you can add to your phone."'),
   );
   assert.ok(landingText.includes('Add one calendar per stage. The sets show up in the calendar app you already use, and you can color or hide each stage on its own.'));
-  assert.ok(landingText.includes('Two or three stages is usually all you want. Add those, skip the rest.'));
 });
 
 test('copy: subscribe meta description leads with the festival name', () => {
