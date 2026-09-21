@@ -21,6 +21,8 @@ import {
   type Notification,
   type NotifyPort,
   type OwnerPort,
+  type Progress,
+  type ProgressPort,
   type PublisherPorts,
   type PullRequest,
   type RandomPort,
@@ -270,6 +272,20 @@ export function fakeNotifier(): FakeNotifier {
 }
 
 // ---------------------------------------------------------------------------
+// Progress
+// ---------------------------------------------------------------------------
+
+export interface FakeProgress extends ProgressPort {
+  /** Every report, in the order it was made. */
+  reports: Progress[];
+}
+
+export function fakeProgress(): FakeProgress {
+  const reports: Progress[] = [];
+  return { reports, report(p) { reports.push(p); } };
+}
+
+// ---------------------------------------------------------------------------
 // The owner
 // ---------------------------------------------------------------------------
 
@@ -303,6 +319,7 @@ export function fakePorts(overrides: Partial<Fakes> = {}): Fakes {
     clock: overrides.clock ?? fakeClock(),
     random: overrides.random ?? fakeRandom(),
     owner: overrides.owner ?? fakeOwner(),
+    ...(overrides.progress ? { progress: overrides.progress } : {}),
   };
 }
 
