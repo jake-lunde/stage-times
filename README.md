@@ -171,9 +171,9 @@ and randomness go in, and the writes and notifications it would make come out. N
 reads a file, calls a model, opens a socket or looks at a clock, so every rule below is tested
 with fakes and no API key (`tests/publisher.test.ts`).
 
-Three intents exist today — `upload`, `confirm` and `remove` — and upload and confirm carrying
-an update link are a correction. The owner path, the watcher and the signal are the same shape
-and land in the same module.
+Three intents exist today — `upload`, `confirm` and `remove` — each of the first two with an
+owner variant, and upload and confirm carrying an update link are a correction. The watcher and
+the signal are the same shape and land in the same module.
 
 **`upload`** — the source images, one per day in day order, plus a festival name, dates and a
 contact address. One image is a list of one. The gates run cheapest first and stop at the first
@@ -213,6 +213,20 @@ A fan intent writes `data/fan/` and `fan/<key>` and nothing else; the root names
 owner-only. A second upload for a festival-year someone else already published gets a suffixed
 slug (`low-tide-2`), because nobody is blocked by another fan's work.
 
+**The owner path** (ticket 10). Both intents take an optional `owner` secret — the owner's
+bookmarked link, `/upload/#owner=<secret>`, which the page reads from the fragment and sends
+with each post. When the **owner port** recognizes it (`OWNER_SECRET`, constant time), the same
+confirm writes `data/<key>.yaml`, records `<key>` with `listed: true` in the same commit, and
+opens nothing: the owner's tap is the approval. A root edition already there is refused, never
+replaced or suffixed. A wrong, missing or unconfigured secret is no secret — the intent is a
+fan's and the response is byte-for-byte a fan's. A fan confirm, after its publish commit, opens
+a **listing pull request** on the owner's behalf: branch `list/fan/<key>` off the publish
+commit, titled `List <Festival> <Year>`, its body the page link and the set count, its only
+change `listed: true` on that edition. Merging it from the GitHub app lists the edition on the
+next build and moves no feed byte. A pull request that will not open never fails the confirm;
+the notification says to list by hand. Procedure and secret rotation:
+[docs/owner-runbook.md](./docs/owner-runbook.md).
+
 The **update link** secret is minted from the injected randomness, returned once in the confirm
 response, and stored only as a SHA-256 hash. The contact address is stored only as a hash too —
 this repository is public — and reaches the owner through the notification instead.
@@ -235,6 +249,10 @@ advances SEQUENCE for exactly the events whose content changed. The publisher ne
   correction notifies nobody.
 - A **wrong or absent secret never touches an existing edition.** It is a fresh upload, and gets
   a suffixed slug like any second upload of a festival-year; the review says where it will live.
+- A correction stays in the namespace it was published in and opens **no listing pull request**:
+  the link names a fan edition that already exists, `listed` is left exactly as it was, and an
+  `owner` secret sent alongside a link that holds changes neither. The owner path is for making
+  an edition; the update link is for changing one.
 
 **`remove`** takes only the update link. It sets `blocked: true` — the takedown runbook's one-line
 edit, `listed` left alone — and keeps the stored source image; a wrong secret is refused and
@@ -262,9 +280,10 @@ button. The secret is the fragment, so it never reaches a server log.
 return what it said. `src/publisher-http.ts` holds what they share (field readers, the base64
 image, the gate-to-status-code map) and `src/ports.ts` holds the live ports — GitHub's Git Data
 API for the commit (one tree per intent, because a half-applied publish is an edition whose feeds
-exist and whose state does not), a GitHub issue for the notification, and `src/vision.ts` for both
-model calls. A test asserts the adapters import nothing but those three modules. Upload and
-confirm take an optional `update` link; remove requires one. Both adapters
+exist and whose state does not) and for the listing pull request, a GitHub issue for the
+notification, `OWNER_SECRET` for the owner port, and `src/vision.ts` for both model calls. A test
+asserts the adapters import nothing but those three modules. Upload and confirm take an optional
+`owner` secret and an optional `update` link; remove requires the link. Both adapters
 take an `images` list or a single `image`; confirm takes the review's hashes back as `reviewed`,
 and a rejection about one image carries its position as `image`.
 

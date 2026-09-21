@@ -18,14 +18,21 @@
  *   remove   the uploader's self-removal: the edition is blocked, its stored
  *            image kept.
  *
+ * Upload and confirm carry an optional `owner` secret — the owner's bookmarked
+ * link. When the owner port recognizes it, the same intent publishes into the
+ * root namespace and its confirm sets `listed` in the same commit: the human
+ * tapping is the approval. A wrong secret is no secret. A fan confirm, instead,
+ * opens a pull request on the owner's behalf whose only change is listing the
+ * edition; merging it is the one-tap listing (ticket 10).
+ *
  * Upload and confirm carrying a valid update link are a **correction**: the
  * same two steps, but the confirm replaces that edition's sets in place instead
  * of making a new one. The build's sequence ledger then advances exactly the
  * events whose content moved. A wrong or absent secret is simply a fresh upload
- * and never touches an existing edition.
+ * and never touches an existing edition (ticket 09).
  *
- * The owner path, the watcher and the signal are the same shape and land here
- * too (tickets 10, 11, 12).
+ * The watcher and the signal are the same shape and land here too (tickets 11,
+ * 12).
  *
  * Three rules this module exists to enforce:
  *
@@ -34,8 +41,10 @@
  *      sentence a person can read. A previously transcribed image costs
  *      nothing at all.
  *   2. **The root namespace is owner-only.** A fan intent writes `data/fan/`
- *      and `fan/<key>` in committed state, never the root. Permanent from
- *      first publish — docs/adr/0001-fan-namespace-prefix.md.
+ *      and `fan/<key>` in committed state, never the root; only an intent the
+ *      owner port recognizes writes the root, and never over an edition
+ *      already there. Permanent from first publish —
+ *      docs/adr/0001-fan-namespace-prefix.md.
  *   3. **The publish stamp comes from the injected clock, at commit time.**
  *      The build still never reads a clock; this is the one place a real time
  *      enters the system, and it enters as committed state.
@@ -100,7 +109,8 @@ const DAY_MS = 24 * HOUR_MS;
  */
 export const DEFAULT_TIMEZONE = 'America/Los_Angeles';
 
-/** Where each kind of file goes. Fan editions only — the root is owner-only. */
+/** Where each kind of file goes. `data/` itself is the owner's; fans write `data/fan/`. */
+export const OWNER_DATA_DIR = 'data';
 export const FAN_DATA_DIR = 'data/fan';
 export const SOURCE_DIR = 'source';
 export const SOURCE_IMAGE_DIR = 'source/images';
@@ -175,6 +185,20 @@ export interface Commit {
   images: ImageWrite[];
 }
 
+/**
+ * A change proposed to the owner rather than made: a branch off `from`
+ * carrying one commit, opened as a pull request against main. Merging it from
+ * the GitHub app is the owner's act; nothing here ever merges one.
+ */
+export interface PullRequest {
+  /** The commit the branch starts from — what `commit()` returned. */
+  from: string;
+  branch: string;
+  title: string;
+  body: string;
+  commit: Commit;
+}
+
 export interface RepositoryPort {
   readPublished(): Promise<PublishedFile>;
   readUploads(): Promise<UploadLedger>;
@@ -182,7 +206,9 @@ export interface RepositoryPort {
   readTranscription(hash: string): Promise<SavedTranscription | null>;
   /** A committed text file on main, or null when there is none. A correction reads the YAML it replaces. */
   readFile(path: string): Promise<string | null>;
-  commit(commit: Commit): Promise<void>;
+  /** Applies the commit to main and returns an id a pull request can branch from. */
+  commit(commit: Commit): Promise<string>;
+  openPullRequest(pr: PullRequest): Promise<void>;
 }
 
 /** What the owner is told. GitHub is the channel; this is the content. */
@@ -211,12 +237,22 @@ export interface RandomPort {
   bytes(n: number): Uint8Array;
 }
 
+/**
+ * Is this the owner's secret? A yes or a no and nothing else: a wrong secret,
+ * a missing one, and a deployment with none set all answer no, and the
+ * publisher treats every no the same way — as a fan.
+ */
+export interface OwnerPort {
+  recognizes(presented: string | undefined): boolean;
+}
+
 export interface PublisherPorts {
   vision: VisionPort;
   repo: RepositoryPort;
   notify: NotifyPort;
   clock: ClockPort;
   random: RandomPort;
+  owner: OwnerPort;
 }
 
 // ---------------------------------------------------------------------------
@@ -295,6 +331,8 @@ export interface UploadIntent {
   image?: SourceImage;
   /** Present when the upload came through an update link. A correction if it holds. */
   update?: UpdateClaim;
+  /** The secret from the owner's bookmarked link, if the page had one. */
+  owner?: string;
 }
 
 /**
@@ -334,6 +372,8 @@ export interface ConfirmIntent {
   unverifiable: number[];
   /** Present when the confirm came through an update link. A correction if it holds. */
   update?: UpdateClaim;
+  /** The secret from the owner's bookmarked link, if the page had one. */
+  owner?: string;
 }
 
 /** The uploader taking their own edition down, from its update link. */
@@ -407,9 +447,9 @@ export interface Review {
   slug: string;
   /** The year the source reads as. */
   year: number;
-  /** Always `fan` for these two intents. The root is owner-only. */
+  /** `owner` when the owner's secret came with the upload, else `fan`. */
   namespace: Namespace;
-  /** Where the feeds would live: `fan/<slug>-<year>`. */
+  /** Where the feeds would live: `<slug>-<year>` for the owner, `fan/<slug>-<year>` otherwise. */
   editionPath: string;
   /**
    * True when the update link held: confirming replaces the sets of the edition
@@ -449,7 +489,7 @@ export interface ConfirmResult {
    * uploader (CONTEXT: update link).
    */
   updateSecret: string | null;
-  /** `fan/<slug>-<year>` — where the feeds live. */
+  /** `fan/<slug>-<year>`, or `<slug>-<year>` for the owner — where the feeds live. */
   editionPath: string | null;
   /** True when this confirm replaced an existing edition's sets through its update link. */
   corrected: boolean;
@@ -457,6 +497,8 @@ export interface ConfirmResult {
   changes: SetChange[];
   commit: Commit | null;
   notifications: Notification[];
+  /** The listing pull request a fan confirm opens. Empty for the owner, who listed by confirming. */
+  pullRequests: PullRequest[];
 }
 
 export interface RemoveResult {
@@ -601,6 +643,7 @@ function rejectedConfirm(rejection: Rejection): ConfirmResult {
     changes: [],
     commit: null,
     notifications: [],
+    pullRequests: [],
   };
 }
 
@@ -623,6 +666,43 @@ export function lowConfidence(observations: string[], artist: string): boolean {
   if (artist.trim().length < 3) return false;
   const needle = artist.toLowerCase();
   return observations.some((o) => o.toLowerCase().includes(needle));
+}
+
+/**
+ * Which namespace an intent publishes into. The owner port's yes is the only
+ * way into the root; every no — wrong, missing, or no secret configured — is a
+ * fan, with nothing in the result to say which kind of no it was.
+ *
+ * A correction has no say in this: the edition its update link names keeps the
+ * namespace it was published in, whatever secret came with the request. An
+ * edition never moves between namespaces (README, the permanence contract;
+ * docs/adr/0001-fan-namespace-prefix.md).
+ */
+function namespaceOf(
+  intent: { owner?: string },
+  ports: PublisherPorts,
+  target: ClaimedEdition | null = null,
+): Namespace {
+  if (target) return target.record.namespace;
+  return ports.owner.recognizes(intent.owner) ? 'owner' : 'fan';
+}
+
+/**
+ * The slug an edition claims in its namespace, or a rejection. A fan slug is
+ * suffixed past any taken one. A root slug is never minted: it is the festival's
+ * own, and an owner edition already there is refused rather than replaced —
+ * replacing one is a correction, and a correction is not this intent.
+ */
+function claimSlug(
+  published: PublishedFile,
+  namespace: Namespace,
+  festival: { name: string; slug: string; year: number },
+): { slug: string } | Rejection {
+  if (namespace === 'fan') return { slug: claimFanSlug(published, festival.slug, festival.year) };
+  if (published.editions[editionPath('owner', `${festival.slug}-${festival.year}`)]) {
+    return reject('details', `${festival.name} ${festival.year} already has a page, and this would replace it. Nothing was published.`);
+  }
+  return { slug: festival.slug };
 }
 
 // ---------------------------------------------------------------------------
@@ -872,11 +952,13 @@ async function finishUpload(
   // the record for the audit trail, and the fix-and-retry is free.
   if (opts.commit) await ports.repo.commit(opts.commit);
 
+  const { target } = opts;
+  const namespace = namespaceOf(intent, ports, target);
   const timezone = intent.timezone ?? DEFAULT_TIMEZONE;
   let transcription: Transcription;
   try {
     transcription = transcribe(modelOutputs(saved), {
-      namespace: 'fan',
+      namespace,
       name: intent.festival.trim(),
       slug: opts.target?.record.slug ?? slugify(intent.festival),
       officialUrl: intent.officialUrl,
@@ -888,11 +970,17 @@ async function finishUpload(
   }
 
   const { festival, stages } = transcription.edition;
-  const { target } = opts;
   if (target && festival.year !== target.record.year) {
     return rejectedUpload(wrongYear(festival.year, target.record.year), opts.commit);
   }
-  const slug = target ? target.record.slug : claimFanSlug(await ports.repo.readPublished(), festival.slug, festival.year);
+  // A correction keeps the slug it has — the UIDs are derived from it. Anything
+  // else claims one: suffixed inside `/fan/`, the festival's own at the root,
+  // and refused where the owner already has that festival-year.
+  const claimed = target
+    ? { slug: target.record.slug }
+    : claimSlug(await ports.repo.readPublished(), namespace, festival);
+  if ('gate' in claimed) return rejectedUpload(claimed, opts.commit);
+  const slug = claimed.slug;
   const stageNames = new Map(stages.map((s) => [s.id, s.name]));
   const hashOf = new Map(saved.map((s) => [storedImageName(s), s.image]));
 
@@ -902,8 +990,8 @@ async function finishUpload(
     festival: festival.name,
     slug,
     year: festival.year,
-    namespace: 'fan',
-    editionPath: editionPath('fan', `${slug}-${festival.year}`),
+    namespace,
+    editionPath: editionPath(namespace, `${slug}-${festival.year}`),
     correcting: target !== null,
     timezone,
     timezoneAssumed: transcription.timezoneAssumed,
@@ -988,6 +1076,7 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
 
   const published = await ports.repo.readPublished();
   const target = claimedEdition(published, intent.update);
+  const namespace = namespaceOf(intent, ports, target);
   if (target?.record.blocked) return rejectedConfirm(reject('removed', GATE_COPY.removed));
 
   // Two passes. The first reads the source to find out what year it is, which
@@ -997,7 +1086,7 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
   let probe: Transcription;
   try {
     probe = transcribe(modelOutputs(saved), {
-      namespace: 'fan',
+      namespace,
       name: intent.festival.trim(),
       slug: target?.record.slug ?? slugify(intent.festival),
       officialUrl: intent.officialUrl,
@@ -1011,12 +1100,14 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
   if (target && probe.edition.festival.year !== target.record.year) {
     return rejectedConfirm(wrongYear(probe.edition.festival.year, target.record.year));
   }
-  const slug = target ? target.record.slug : claimFanSlug(published, probe.edition.festival.slug, probe.edition.festival.year);
+  const claimed = target ? { slug: target.record.slug } : claimSlug(published, namespace, probe.edition.festival);
+  if ('gate' in claimed) return rejectedConfirm(claimed);
+  const slug = claimed.slug;
 
   let transcription: Transcription;
   try {
     transcription = transcribe(modelOutputs(saved), {
-      namespace: 'fan',
+      namespace,
       name: intent.festival.trim(),
       slug,
       officialUrl: intent.officialUrl,
@@ -1035,7 +1126,8 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
   if (target) return correct(intent, ports, { target, published, transcription, saved, images, hashes });
 
   const key = `${doc.festival.slug}-${doc.festival.year}`;
-  const path = editionPath('fan', key);
+  const path = editionPath(namespace, key);
+  const owner = namespace === 'owner';
 
   // The publish stamp: the one real time in the system, taken here and written
   // into committed state so the build never has to read a clock.
@@ -1045,9 +1137,10 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
   const record: PublishedEdition & { uploader: UploaderRecord } = {
     slug: doc.festival.slug,
     year: doc.festival.year,
-    namespace: 'fan',
-    // Never auto-list. Listing is the owner's act, always (CONTEXT: listing).
-    listed: false,
+    namespace,
+    // Never auto-list. Listing is the owner's act, always (CONTEXT: listing) —
+    // and the owner's own confirm is that act, in the same commit.
+    listed: owner,
     blocked: false,
     stages: doc.stages.map((s) => s.id).sort(),
     uploader: {
@@ -1066,10 +1159,12 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
   };
 
   const setCount = doc.sets.length;
+  const size = `${setCount} set${setCount === 1 ? '' : 's'} across ${doc.stages.length} stage${doc.stages.length === 1 ? '' : 's'}`;
+  const pageUrl = `https://stagetimes.app/${path}/`;
   const commit: Commit = {
-    message: `Publish ${doc.festival.name} ${doc.festival.year} (${path})`,
+    message: `${owner ? 'Publish and list' : 'Publish'} ${doc.festival.name} ${doc.festival.year} (${path})`,
     files: [
-      { path: `${FAN_DATA_DIR}/${key}.yaml`, contents: transcription.yaml },
+      { path: `${owner ? OWNER_DATA_DIR : FAN_DATA_DIR}/${key}.yaml`, contents: transcription.yaml },
       { path: `${SOURCE_DIR}/${path}/TRANSCRIPTION.md`, contents: transcription.log },
       { path: PUBLISHED_PATH, contents: json(nextPublished) },
     ],
@@ -1080,19 +1175,49 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
     })),
   };
 
+  const publishCommit = await ports.repo.commit(commit);
+
+  // The owner's confirm was a person tapping: nothing machine-initiated
+  // happened, so nothing lands in the inbox.
+  if (owner) {
+    return {
+      ok: true,
+      rejection: null,
+      updateSecret,
+      editionPath: path,
+      corrected: false,
+      changes: [],
+      commit,
+      notifications: [],
+      pullRequests: [],
+    };
+  }
+
+  // A fan confirm asks the owner to list it. The edition is already live and
+  // the update secret exists nowhere else, so a pull request that will not
+  // open must not fail the confirm — the notification says so instead.
+  const listing = listingPullRequest(publishCommit, nextPublished, path, `${doc.festival.name} ${doc.festival.year}`, size, pageUrl);
+  let opened: PullRequest[] = [];
+  let listingNote = 'Merge the listing pull request to list it.';
+  try {
+    await ports.repo.openPullRequest(listing);
+    opened = [listing];
+  } catch (err) {
+    listingNote = `The listing pull request could not be opened (${(err as Error).message}); list it by hand.`;
+  }
+
   const notification: Notification = {
     kind: 'edition-published',
     editionPath: path,
     title: `Fan edition published: ${doc.festival.name} ${doc.festival.year}`,
     body:
-      `${setCount} set${setCount === 1 ? '' : 's'} across ${doc.stages.length} stage${doc.stages.length === 1 ? '' : 's'}, ` +
+      `${size}, ` +
       `read off ${listed(saved.map((s) => s.filename))} and checked by the uploader` +
       `${transcription.edits.length > 0 ? ` with ${transcription.edits.length} correction${transcription.edits.length === 1 ? '' : 's'}` : ''}. ` +
-      `Unlisted — https://stagetimes.app/${path}/`,
+      `Unlisted — ${pageUrl} ${listingNote}`,
     email: intent.email.trim(),
   };
 
-  await ports.repo.commit(commit);
   await ports.notify.send(notification);
 
   return {
@@ -1104,6 +1229,42 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
     changes: [],
     commit,
     notifications: [notification],
+    pullRequests: opened,
+  };
+}
+
+/**
+ * The pull request that lists a fan edition: a branch off the publish commit
+ * whose one change is `listed` on that edition in committed state. Branching
+ * from the publish commit rather than from wherever main is by then keeps the
+ * diff that one line, whatever lands in between; publishedAt is not bumped,
+ * because a listing moves no feed byte.
+ */
+function listingPullRequest(
+  from: string,
+  published: PublishedFile,
+  path: string,
+  name: string,
+  size: string,
+  pageUrl: string,
+): PullRequest {
+  const listedState: PublishedFile = {
+    ...published,
+    editions: { ...published.editions, [path]: { ...published.editions[path]!, listed: true } },
+  };
+  return {
+    from,
+    branch: `list/${path}`,
+    title: `List ${name}`,
+    body:
+      `${name}: ${size}, checked by the uploader against their own image.\n\n` +
+      `${pageUrl}\n\n` +
+      `Merging lists it on the homepage. The only change is \`listed\` on \`${path}\` in \`${PUBLISHED_PATH}\`.\n`,
+    commit: {
+      message: `List ${name} (${path})`,
+      files: [{ path: PUBLISHED_PATH, contents: json(listedState) }],
+      images: [],
+    },
   };
 }
 
@@ -1209,6 +1370,10 @@ async function correct(
     changes,
     commit,
     notifications,
+    // No listing pull request. That one exists to offer the owner an edition
+    // that has just appeared; a correction changes the times of one already
+    // published and leaves `listed` exactly as it found it.
+    pullRequests: [],
   };
 }
 

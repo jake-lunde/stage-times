@@ -16,6 +16,7 @@ import {
   indexList,
   json,
   optHashList,
+  optOwner,
   optStr,
   optUpdate,
   parseImages,
@@ -41,6 +42,7 @@ export async function handle(request: Request, ports: PublisherPorts): Promise<R
       ...parseImages(body),
       ...(optHashList(body, 'reviewed') !== undefined ? { reviewed: optHashList(body, 'reviewed')! } : {}),
       ...optUpdate(body),
+      ...optOwner(body),
     };
   } catch (err) {
     return badRequest(err);

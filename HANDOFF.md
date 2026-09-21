@@ -35,8 +35,24 @@ several (and saying "Day 2:" on the right one) is screen work, Jake's lane. Owne
 limit of 7, and the worst-day spend it implies (20 uploads × 7 images, against the ~$5 the caps
 were sized for).
 
+**2026-09-21, ticket 10 — the owner path, merged to `main` (`ebb05eb`).** Both intents take
+an optional `owner` secret; the publisher asks a new **owner port** (`envOwner()` over
+`ownerMatches()`) and, on a yes, publishes into the root with `listed: true` in the one commit,
+with no pull request and no notification. Every no is a fan, indistinguishably. A fan confirm
+opens a listing pull request (`list/fan/<key>`, one-line diff, branched off the publish commit —
+`RepositoryPort.commit` now returns the commit id); if it will not open, the confirm still
+succeeds and the notification says to list by hand. The page reads `#owner=` from the fragment,
+clears it from the address bar, and sends it with both posts — no visible change. Runbook with
+rotation: `docs/owner-runbook.md`. Tests: `tests/publisher-owner.test.ts`, `tests/ports.test.ts`,
+the owner cases in `tests/publisher-http.test.ts` and `tests/upload-page.test.ts`. **Owner calls:**
+whether the upload caps should exempt the owner (they apply today; the global 20/day could lock
+you out on a drop day); whether an owner re-upload of an existing root edition should become a
+correction (refused today — left as it stands through the merge). Unprobed live: pull-request
+write on the real token.
+
 **2026-09-21, ticket 09 — correction and self-removal through the update link, on branch
-`ticket/09-correction-and-self-removal-via-the-upda`.** Upload and confirm take an optional
+`ticket/09-correction-and-self-removal-via-the-upda`, with `main` (and so ticket 10) merged
+into it.** Upload and confirm take an optional
 `update: {editionPath, secret}`; when its hash matches the edition's `uploader.secretHash`
 (`claimedEdition()`), confirm replaces that edition's YAML and log in place under the same slug,
 year and stage ids and moves `publishedAt` — the build's ledger then bumps only changed events. A
@@ -49,6 +65,16 @@ and `api/remove.ts`: `blocked: true`, image kept, wrong secret refused. The buil
 self-removal should notify him (it doesn't; the commit says "self-removal"); whether an uploader
 can undo their own removal through the link (they can't — unblocking stays a revert); the update
 page's copy (Jake's lane — shipped as drafted in `screens.md`).
+
+**Where the two paths meet.** The page never sends both secrets: the owner bookmark is
+`#owner=<secret>` on `/upload/` and the update link is a bare `#<secret>` on
+`/update/<edition path>/`, so `ownerFromFragment()` reads nothing on an update page and
+`updateClaim()` is undefined on the upload page. The publisher still decides an intent that
+carried both, and it decides it once: **a held update link wins.** `namespaceOf()` takes the
+claimed edition and returns *its* namespace, because an edition never moves between namespaces
+(the permanence contract, ADR-0001), and the correction path returns no listing pull request —
+it changes the times of an edition already published and leaves `listed` as it found it. Nothing
+else about either ticket changed in the merge. 349 tests pass; CHBP feeds are byte-identical.
 
 Status: **everything from 6 Sep sits on `main` unpushed** — the morning's glossary, ADR, and copy
 review, plus tickets 02, 04, and 15. Nothing user-facing changes until Jake pushes.

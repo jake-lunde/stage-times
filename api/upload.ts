@@ -8,7 +8,7 @@
  */
 
 import { upload, type PublisherPorts, type UploadIntent } from '../src/publisher.js';
-import { badRequest, json, obj, optStr, optUpdate, parseImages, readJsonBody, rejected, str } from '../src/publisher-http.js';
+import { badRequest, json, obj, optOwner, optStr, optUpdate, parseImages, readJsonBody, rejected, str } from '../src/publisher-http.js';
 import { livePorts } from '../src/ports.js';
 
 export async function handle(request: Request, ports: PublisherPorts): Promise<Response> {
@@ -25,6 +25,7 @@ export async function handle(request: Request, ports: PublisherPorts): Promise<R
       ...(optStr(body, 'officialUrl') !== undefined ? { officialUrl: optStr(body, 'officialUrl')! } : {}),
       ...parseImages(body),
       ...optUpdate(body),
+      ...optOwner(body),
     };
   } catch (err) {
     return badRequest(err);

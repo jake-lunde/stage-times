@@ -134,6 +134,24 @@ export function updatePagePath(editionPath: string): string {
 }
 
 /**
+ * The owner's bookmark: this same page, the owner secret in the fragment so it
+ * never reaches a server log. The script reads it, clears it from the address
+ * bar, and sends it as `owner` with both posts; the publisher decides what it
+ * means. The screens are the same screens — only the review's address and the
+ * confirm's namespace differ. Runbook: docs/owner-runbook.md.
+ */
+export function ownerLink(secret: string): string {
+  return `${PROD_ORIGIN}/upload/#owner=${encodeURIComponent(secret)}`;
+}
+
+/** The owner secret in a location fragment, or '' — the page's reading of `ownerLink()`. */
+export function ownerFromFragment(hash: string): string {
+  var m = /(?:^#|&)owner=([^&]*)/.exec(hash);
+  if (!m) return '';
+  try { return decodeURIComponent(m[1] || ''); } catch (e) { return ''; }
+}
+
+/**
  * What the browser checks before it posts, and how it shrinks a photo so the
  * request fits under the platform's body cap (well below the publisher's own
  * 10 MB). A screenshot never needs shrinking; a 12-megapixel photo of a poster
@@ -414,6 +432,13 @@ export function renderUploadPage(edition?: UpdateTarget): string {
   var BUILD_WAIT_MS = 5 * 60 * 1000;
   var POLL_MS = 10 * 1000;
 
+  ${ownerFromFragment.toString()}
+  // The owner's bookmark. Read once, then cleared from the address bar so a
+  // shared screen or a copied link never carries it.
+  var OWNER = ownerFromFragment(location.hash);
+  if (OWNER && history.replaceState) history.replaceState(null, '', location.pathname + location.search);
+  function withOwner(body) { if (OWNER) body.owner = OWNER; return body; }
+
   var state = { details: null, image: null, imageUrl: null, review: null, unreadable: {}, timezoneAssumed: true, published: null, live: false };
 
   function $(sel, root) { return (root || document).querySelector(sel); }
@@ -570,7 +595,7 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     label.textContent = 'Reading\\u2026';
     status.textContent = 'Reading the times off your image. Usually under a minute.';
     status.hidden = false;
-    return post('/api/upload', { festival: d.festival, dates: { first: d.first, last: d.last }, email: d.email, image: imageBody(), update: updateClaim() }).then(function (r) {
+    return post('/api/upload', withOwner({ festival: d.festival, dates: { first: d.first, last: d.last }, email: d.email, image: imageBody(), update: updateClaim() })).then(function (r) {
       btn.classList.remove('is-loading');
       label.textContent = 'Choose image';
       status.hidden = true;
@@ -703,7 +728,7 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     var was = btn.textContent;
     btn.classList.add('is-loading');
     btn.textContent = 'Saving\\u2026';
-    var body = { festival: d.festival, email: d.email, timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: unverifiable, image: imageBody(), update: updateClaim() };
+    var body = withOwner({ festival: d.festival, email: d.email, timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: unverifiable, image: imageBody(), update: updateClaim() });
     // A correction's calendar already answers, so the wait is for it to change:
     // note what it answers with now, before the new times are sent.
     (rv.correcting ? currentTag(rv.editionPath) : Promise.resolve(null)).then(function (before) {

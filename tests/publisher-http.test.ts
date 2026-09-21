@@ -16,7 +16,7 @@ import { handle as handleUpload } from '../api/upload.js';
 import { handle as handleConfirm } from '../api/confirm.js';
 import { handle as handleRemove } from '../api/remove.js';
 import { sha256, type Review, type SourceImage } from '../src/publisher.js';
-import { fakePorts, image, weekendImages, weekendVision, type Fakes } from './publisher-fakes.js';
+import { fakeOwner, fakePorts, image, OWNER_SECRET, weekendImages, weekendVision, type Fakes } from './publisher-fakes.js';
 import { REPO_ROOT } from './helpers.js';
 
 const IMAGE = image();
@@ -208,6 +208,53 @@ test('adapter: an images field that is not a list of images is a 400', async () 
 });
 
 // ---------------------------------------------------------------------------
+// The owner field
+// ---------------------------------------------------------------------------
+
+function confirmBody(review: Review, extra: Record<string, unknown> = {}) {
+  return {
+    festival: 'Low Tide',
+    email: 'sam@example.com',
+    timezone: review.timezone,
+    timezoneAssumed: review.timezoneAssumed,
+    edits: [],
+    unverifiable: [],
+    image: imageBody(),
+    ...extra,
+  };
+}
+
+/** Upload and confirm over HTTP, both bodies carrying `extra`; the two responses. */
+async function throughBoth(extra: Record<string, unknown>, ports: Fakes = fakePorts()) {
+  const up = await handleUpload(post({ ...UPLOAD_BODY, ...extra }), ports);
+  const upBody = (await up.json()) as { review: Review };
+  const done = await handleConfirm(post(confirmBody(upBody.review, extra)), ports);
+  return { up: { status: up.status, body: upBody }, done: { status: done.status, body: await done.json() } };
+}
+
+test('adapter: the owner field reaches the publisher, and the owner confirm publishes at the root', async () => {
+  const { up, done } = await throughBoth({ owner: OWNER_SECRET });
+  assert.equal(up.status, 200);
+  assert.equal(up.body.review.editionPath, 'low-tide-2026');
+  assert.equal(done.status, 200, JSON.stringify(done.body));
+  assert.equal((done.body as { editionPath: string }).editionPath, 'low-tide-2026');
+});
+
+test('adapter: a wrong owner secret answers exactly as no owner secret, status and body', async () => {
+  const none = await throughBoth({});
+  for (const owner of ['not-the-owner-secret', '', 42, null, { secret: OWNER_SECRET }, [OWNER_SECRET]]) {
+    const wrong = await throughBoth({ owner });
+    assert.deepEqual(wrong, none, `owner: ${JSON.stringify(owner)} was told something no secret is not`);
+  }
+});
+
+test('adapter: with no owner secret on the deployment, the owner field is no secret and never an error', async () => {
+  const none = await throughBoth({});
+  const unset = await throughBoth({ owner: OWNER_SECRET }, fakePorts({ owner: fakeOwner(null) }));
+  assert.deepEqual(unset, none);
+});
+
+// ---------------------------------------------------------------------------
 // The adapters hold no rules
 // ---------------------------------------------------------------------------
 
@@ -277,6 +324,9 @@ test('adapter: each file contains only request parsing and the publisher call', 
     'state/',
     'Date.now',
     'randomBytes',
+    'OWNER_SECRET',
+    'ownerMatches',
+    'listed',
   ];
 
   for (const file of ['upload.ts', 'confirm.ts', 'remove.ts']) {

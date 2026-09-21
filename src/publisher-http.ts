@@ -138,6 +138,17 @@ export function parseImages(body: Body): { images: SourceImage[] } | { image: So
   };
 }
 
+/**
+ * The secret from the owner's bookmarked link, spread into an intent. Never
+ * throws: a missing, empty or malformed one is left out — exactly as a wrong one
+ * is treated as no secret by the publisher — so nothing about the response says
+ * whether a secret exists or what shape it has.
+ */
+export function optOwner(body: Body): { owner: string } | Record<string, never> {
+  const value = body['owner'];
+  return typeof value === 'string' && value !== '' ? { owner: value } : {};
+}
+
 /** The review's image hashes, echoed back on confirm. Optional. */
 export function optHashList(body: Body, field: string): string[] | undefined {
   const value = body[field];

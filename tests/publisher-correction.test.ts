@@ -37,7 +37,7 @@ import {
 import { buildSite, type PublishedFile, type SequencesFile } from '../src/build.js';
 import { renderBlockedPage } from '../src/pages.js';
 import { loadFestivalFromString } from '../src/schema.js';
-import { fakeClock, fakePorts, fakeVision, FIXED_NOW, image, recordedReply, type Fakes } from './publisher-fakes.js';
+import { fakeClock, fakePorts, fakeVision, FIXED_NOW, image, OWNER_SECRET, recordedReply, type Fakes } from './publisher-fakes.js';
 
 const UPLOADER = 'sam@example.com';
 const PATH = 'fan/low-tide-2026';
@@ -105,11 +105,17 @@ async function published(p: Fakes): Promise<UpdateClaim> {
 }
 
 /** Upload and confirm the corrected image through an update link, an hour later. */
-async function correctWith(p: Fakes, update: UpdateClaim | undefined, email = UPLOADER): Promise<ConfirmResult> {
+async function correctWith(
+  p: Fakes,
+  update: UpdateClaim | undefined,
+  email = UPLOADER,
+  owner?: string,
+): Promise<ConfirmResult> {
   p.clock.set(FIXED_NOW + 60 * 60 * 1000);
-  const up = await upload(uploadIntent({ image: corrected(), email, ...(update ? { update } : {}) }), p);
+  const carried = { image: corrected(), email, ...(update ? { update } : {}), ...(owner ? { owner } : {}) };
+  const up = await upload(uploadIntent(carried), p);
   assert.ok(up.ok, `correction upload was rejected: ${up.rejection?.reason}`);
-  return confirm(confirmIntent({ image: corrected(), email, ...(update ? { update } : {}) }), p);
+  return confirm(confirmIntent(carried), p);
 }
 
 /** Build the committed edition the way the deploy does, from committed state. */
@@ -436,4 +442,42 @@ test('seam: publish() dispatches a remove intent', async () => {
   const result = await publish({ kind: 'remove', update: link }, p);
   assert.ok(result.ok);
   assert.equal(result.editionPath, PATH);
+});
+
+// ---------------------------------------------------------------------------
+// Where ticket 09 meets ticket 10 — the owner secret alongside an update link
+// ---------------------------------------------------------------------------
+
+test('correction: an owner secret alongside a link that holds still corrects in place, and lists nothing', async () => {
+  const p = ports();
+  const link = await published(p);
+  const listing = p.repo.pullRequests.length;
+
+  const result = await correctWith(p, link, UPLOADER, OWNER_SECRET);
+  assert.ok(result.ok, result.rejection?.reason);
+  assert.equal(result.corrected, true);
+  assert.equal(result.editionPath, PATH, 'the edition stays where its subscribers found it');
+
+  const after = JSON.parse(p.repo.file('state/published.json')!) as PublishedFile;
+  assert.deepEqual(Object.keys(after.editions), [PATH], 'no root edition appeared');
+  assert.equal(after.editions[PATH]!.namespace, 'fan', 'an edition never moves between namespaces');
+  assert.equal(after.editions[PATH]!.listed, false, 'a correction never lists');
+  assert.deepEqual(result.pullRequests, [], 'nothing is proposed for an edition already published');
+  assert.equal(p.repo.pullRequests.length, listing, 'and none was opened');
+  assert.equal(p.repo.file('data/low-tide-2026.yaml'), undefined, 'the root YAML is untouched');
+});
+
+test('correction: the owner secret without a link that holds is the owner path, unchanged', async () => {
+  const p = ports();
+  const link = await published(p);
+
+  const result = await correctWith(p, { editionPath: PATH, secret: 'not-the-secret' }, UPLOADER, OWNER_SECRET);
+  assert.ok(result.ok, result.rejection?.reason);
+  assert.equal(result.corrected, false);
+  assert.equal(result.editionPath, 'low-tide-2026', 'a wrong link is no link, so the owner secret decides');
+
+  const after = JSON.parse(p.repo.file('state/published.json')!) as PublishedFile;
+  assert.equal(after.editions['low-tide-2026']!.listed, true, 'the owner tapping is the approval');
+  assert.equal(after.editions[PATH]!.uploader!.correctedAt, undefined, 'the fan edition was never touched');
+  assert.equal(link.secret.length > 0, true);
 });
