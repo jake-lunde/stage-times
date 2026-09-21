@@ -7,7 +7,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { envOwner, githubNotifier, githubRepository, livePages, liveReddit, REDDIT_REQUEST_SPACING_MS, REDDIT_USER_AGENT } from '../src/ports.js';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { gzipSync } from 'node:zlib';
+
+import { envOwner, githubNotifier, githubRepository, livePages, liveReddit, liveWeb, REDDIT_REQUEST_SPACING_MS, REDDIT_USER_AGENT } from '../src/ports.js';
 import type { PullRequest } from '../src/publisher.js';
 
 interface Call {
@@ -217,4 +221,84 @@ test('ports: the Reddit port answers nothing for a block page, an error, or a th
     throw new Error('ECONNRESET');
   }, async () => {});
   assert.equal(await broken.listing('a1'), null);
+});
+
+// ---------------------------------------------------------------------------
+// The web port, against a real server on this machine
+// ---------------------------------------------------------------------------
+
+/**
+ * A server on loopback — which is exactly what the web port must never reach
+ * unless a test widens what it allows. Records every path it was asked for.
+ */
+async function localSite(): Promise<{ server: Server; port: number; asked: string[] }> {
+  const asked: string[] = [];
+  const server = createServer((req, res) => {
+    asked.push(req.url ?? '');
+    const port = (server.address() as AddressInfo).port;
+    if (req.url === '/moved') {
+      res.writeHead(302, { Location: '/schedule' }).end();
+    } else if (req.url === '/to-internal') {
+      res.writeHead(302, { Location: `http://internal.test:${port}/secret` }).end();
+    } else if (req.url === '/schedule') {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Encoding': 'gzip' }).end(gzipSync('<img src="/day.png">'));
+    } else if (req.url === '/day.png') {
+      res.writeHead(200, { 'Content-Type': 'image/png' }).end(Buffer.from('png bytes'));
+    } else {
+      res.writeHead(404, { 'Content-Type': 'text/html' }).end('Not found');
+    }
+  });
+  await new Promise<void>((ready) => server.listen(0, '127.0.0.1', ready));
+  return { server, port: (server.address() as AddressInfo).port, asked };
+}
+
+test('ports: the web port will not connect to a loopback address, however it is reached', async () => {
+  const site = await localSite();
+  try {
+    const web = liveWeb({ resolve: async (host) => (host === 'loopback.test' ? ['127.0.0.1'] : []) });
+    assert.equal(await web.page(`http://127.0.0.1:${site.port}/schedule`), null, 'an IP typed straight in');
+    assert.equal(await web.page(`http://loopback.test:${site.port}/schedule`), null, 'a name that resolves to loopback');
+    assert.equal(await web.image(`http://127.0.0.1:${site.port}/day.png`), null, 'an image');
+    assert.deepEqual(site.asked, [], 'the server was never asked for anything');
+  } finally {
+    site.server.close();
+  }
+});
+
+test('ports: the web port checks every redirect at connect time, so a public page cannot bounce it somewhere private', async () => {
+  const site = await localSite();
+  try {
+    // Loopback stands in for the public internet here; internal.test is the private network.
+    const web = liveWeb({
+      resolve: async (host) => (host === 'public.test' ? ['127.0.0.1'] : host === 'internal.test' ? ['10.0.0.1'] : []),
+      allow: (address) => address === '127.0.0.1',
+    });
+    assert.equal(await web.page(`http://public.test:${site.port}/to-internal`), null, 'the redirect to a private address goes nowhere');
+    assert.deepEqual(site.asked, ['/to-internal'], 'only the public page was asked for');
+  } finally {
+    site.server.close();
+  }
+});
+
+test('ports: the web port follows redirects, decompresses, and answers with the status, the final address and the body', async () => {
+  const site = await localSite();
+  try {
+    const web = liveWeb({ resolve: async () => ['127.0.0.1'], allow: () => true });
+    const page = await web.page(`http://site.test:${site.port}/moved`);
+    assert.deepEqual(page, {
+      status: 200,
+      url: `http://site.test:${site.port}/schedule`,
+      contentType: 'text/html; charset=utf-8',
+      html: '<img src="/day.png">',
+    });
+    const missing = await web.page(`http://site.test:${site.port}/nothing`);
+    assert.equal(missing?.status, 404, 'a 404 is an answer, for the publisher to read');
+
+    const image = await web.image(`http://site.test:${site.port}/day.png`);
+    assert.deepEqual(image, { bytes: new Uint8Array(Buffer.from('png bytes')), contentType: 'image/png' });
+    assert.equal(await web.image(`http://site.test:${site.port}/nothing.png`), null, 'a missing image is nothing');
+    assert.deepEqual(await web.resolve('site.test'), ['127.0.0.1'], 'resolve is the resolver');
+  } finally {
+    site.server.close();
+  }
 });

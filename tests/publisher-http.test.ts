@@ -15,8 +15,20 @@ import { join } from 'node:path';
 import { handle as handleUpload } from '../api/upload.js';
 import { handle as handleConfirm } from '../api/confirm.js';
 import { handle as handleRemove } from '../api/remove.js';
+import { handle as handleLink } from '../api/link.js';
 import { sha256, type Review, type SourceImage } from '../src/publisher.js';
-import { fakeOwner, fakePorts, image, OWNER_SECRET, weekendImages, weekendVision, type Fakes } from './publisher-fakes.js';
+import {
+  fakeLinkPorts,
+  fakeOwner,
+  fakePorts,
+  fakeWeb,
+  image,
+  OWNER_SECRET,
+  pngBytes,
+  weekendImages,
+  weekendVision,
+  type Fakes,
+} from './publisher-fakes.js';
 import { REPO_ROOT } from './helpers.js';
 
 const IMAGE = image();
@@ -307,6 +319,69 @@ test('adapter: remove takes the edition down with the right link and answers 403
   assert.equal(bad.status, 400, 'no link, nothing to go on');
 });
 
+// ---------------------------------------------------------------------------
+// Link
+// ---------------------------------------------------------------------------
+
+const SCHEDULE = 'https://lowtide.example/schedule';
+
+/** The weekend on a festival's page, as the link adapter's web sees it. */
+function weekendPage() {
+  const posters = {
+    'https://lowtide.example/img/friday.webp': pngBytes(1080, 1920, 'friday'),
+    'https://lowtide.example/img/saturday.png': pngBytes(1080, 1920, 'saturday'),
+    'https://lowtide.example/img/sunday.jpg': pngBytes(1080, 1920, 'sunday'),
+  };
+  return fakeWeb({
+    pages: { [SCHEDULE]: Object.keys(posters).map((u) => `<img src="${u}">`).join('\n') },
+    images: Object.fromEntries(Object.entries(posters).map(([u, bytes]) => [u, { bytes, contentType: 'image/png' }])),
+  });
+}
+
+test('adapter: a link returns the review, the days and the link as read, and the images, which confirm takes back', async () => {
+  const ports = fakeLinkPorts({ vision: weekendVision(), web: weekendPage() });
+  const res = await handleLink(post({ url: SCHEDULE, email: 'sam@example.com' }), ports);
+  assert.equal(res.status, 200, await res.clone().text());
+  const body = (await res.json()) as { review: Review; officialUrl: string; days: string[]; images: Record<string, unknown>[] };
+  assert.equal(body.officialUrl, SCHEDULE);
+  assert.deepEqual(body.days, ['2026-10-09', '2026-10-10', '2026-10-11']);
+  assert.equal(body.images.length, 3);
+  assert.deepEqual(Object.keys(body.images[0]!).sort(), ['contentType', 'data', 'filename', 'height', 'width']);
+
+  const confirmed = await handleConfirm(
+    post({
+      images: body.images,
+      reviewed: body.review.images,
+      festival: body.review.festival,
+      email: 'sam@example.com',
+      timezone: body.review.timezone,
+      timezoneAssumed: body.review.timezoneAssumed,
+      officialUrl: body.officialUrl,
+    }),
+    ports,
+  );
+  assert.equal(confirmed.status, 200, await confirmed.clone().text());
+  assert.equal(((await confirmed.json()) as { editionPath: string }).editionPath, 'fan/low-tide-2026');
+});
+
+test('adapter: a link the publisher cannot read comes back as its sentence, with a status for each reason', async () => {
+  const ports = fakeLinkPorts({ web: fakeWeb() });
+  const cases: [Record<string, unknown>, number, string][] = [
+    [{ url: 'http://127.0.0.1/', email: 'sam@example.com' }, 400, 'address'],
+    [{ url: SCHEDULE, email: 'sam@example.com' }, 502, 'unreachable'],
+  ];
+  for (const [body, status, gate] of cases) {
+    const res = await handleLink(post(body), ports);
+    assert.equal(res.status, status, `${gate}: ${await res.clone().text()}`);
+    const answer = (await res.json()) as { gate: string; reason: string };
+    assert.equal(answer.gate, gate);
+    assert.match(answer.reason, /screenshots/);
+  }
+
+  const unreadable = await handleLink(post({ email: 'sam@example.com' }), ports);
+  assert.equal(unreadable.status, 400, 'no link, nothing to go on');
+});
+
 test('adapter: each file contains only request parsing and the publisher call', () => {
   const allowed = new Set(['../src/publisher.js', '../src/publisher-http.js', '../src/ports.js']);
   // Anything that decides rather than parses. If one of these ever appears in
@@ -329,7 +404,7 @@ test('adapter: each file contains only request parsing and the publisher call', 
     'listed',
   ];
 
-  for (const file of ['upload.ts', 'confirm.ts', 'remove.ts']) {
+  for (const file of ['upload.ts', 'link.ts', 'confirm.ts', 'remove.ts']) {
     const source = readFileSync(join(REPO_ROOT, 'api', file), 'utf8');
     const code = source.replace(/\/\*\*[\s\S]*?\*\//g, ''); // the header comment explains; it does not run
     const imports = [...code.matchAll(/from '([^']+)'/g)].map((m) => m[1]!);

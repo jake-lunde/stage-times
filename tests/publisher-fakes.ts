@@ -31,10 +31,12 @@ import {
   type UploadLedger,
   type UploadRecord,
   type VisionPort,
+  type WebPort,
   sha256,
 } from '../src/publisher.js';
 import type { PublishedFile } from '../src/build.js';
 import type { FetchedImage, PagePort } from '../src/watcher.js';
+import type { WebPage } from '../src/web.js';
 import type { RedditPort } from '../src/signal.js';
 import { REPO_ROOT } from './helpers.js';
 
@@ -409,6 +411,64 @@ export interface WatcherFakes extends Fakes {
 
 export function fakeWatcherPorts(overrides: Partial<WatcherFakes> = {}): WatcherFakes {
   return { ...fakePorts(overrides), pages: overrides.pages ?? fakePages() };
+}
+
+// ---------------------------------------------------------------------------
+// The web, for the link intent
+// ---------------------------------------------------------------------------
+
+/** Where every name resolves unless a test says otherwise: a documentation-free public address. */
+export const PUBLIC_ADDRESS = '93.184.216.34';
+
+export interface FakeWeb extends WebPort {
+  /** Every host name resolved, in order. */
+  resolved: string[];
+  /** Every page URL asked for, in order. */
+  pageFetches: string[];
+  /** Every image URL asked for, in order. */
+  imageFetches: string[];
+  /** A page URL answers with its HTML (a 200) or a whole answer; anything else with nothing. */
+  pages: Record<string, string | WebPage | null>;
+  images: Record<string, FetchedImage | null>;
+  /** What a host name resolves to. Anything not named resolves to `PUBLIC_ADDRESS`. */
+  dns: Record<string, string[]>;
+}
+
+/** Recorded schedule pages, as the link intent's web port answers them. */
+export function fakeWeb(
+  initial: { pages?: FakeWeb['pages']; images?: FakeWeb['images']; dns?: FakeWeb['dns'] } = {},
+): FakeWeb {
+  const web: FakeWeb = {
+    resolved: [],
+    pageFetches: [],
+    imageFetches: [],
+    pages: { ...initial.pages },
+    images: { ...initial.images },
+    dns: { ...initial.dns },
+    async resolve(hostname) {
+      web.resolved.push(hostname);
+      return web.dns[hostname] ?? [PUBLIC_ADDRESS];
+    },
+    async page(url) {
+      web.pageFetches.push(url);
+      const answer = web.pages[url];
+      if (answer === undefined || answer === null) return null;
+      return typeof answer === 'string' ? { status: 200, url, contentType: 'text/html; charset=utf-8', html: answer } : answer;
+    },
+    async image(url) {
+      web.imageFetches.push(url);
+      return web.images[url] ?? null;
+    },
+  };
+  return web;
+}
+
+export interface LinkFakes extends Fakes {
+  web: FakeWeb;
+}
+
+export function fakeLinkPorts(overrides: Partial<LinkFakes> = {}): LinkFakes {
+  return { ...fakePorts(overrides), web: overrides.web ?? fakeWeb() };
 }
 
 // ---------------------------------------------------------------------------

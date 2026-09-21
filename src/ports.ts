@@ -3,10 +3,13 @@
  *
  * `src/publisher.ts` holds the rules and never touches the outside world; this
  * module is the outside world, and holds no rules. Everything here is one of
- * seven things: the vision model (through `src/vision.ts`, still the only
+ * eight things: the vision model (through `src/vision.ts`, still the only
  * module that calls a model), the repository, notifications, the clock,
- * randomness, the schedule pages the watcher reads, and the subreddit
- * listings the signal reads. Nothing here decides anything.
+ * randomness, the schedule pages the watcher reads, the web a stranger's link
+ * points at, and the subreddit listings the signal reads. Nothing here decides
+ * anything — the one exception is that the web port will not connect to an
+ * address the publisher would refuse, because only the port sees where a name
+ * resolves at the moment it connects.
  *
  * The repository port commits through GitHub's Git Data API rather than the
  * Contents API, one blob per file and one tree per intent, because an edition
@@ -25,6 +28,11 @@
  */
 
 import { randomBytes } from 'node:crypto';
+import { lookup as dnsLookup } from 'node:dns/promises';
+import { request as httpRequest, type IncomingMessage } from 'node:http';
+import { request as httpsRequest } from 'node:https';
+import { isIP, type LookupFunction } from 'node:net';
+import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib';
 import { loadVisionConfig, withModelFallback } from './models.js';
 import {
   PUBLISHED_PATH,
@@ -44,12 +52,15 @@ import {
   type SourceImage,
   type UploadLedger,
   type VisionPort,
+  type LinkPorts,
+  type WebPort,
 } from './publisher.js';
 import { ownerMatches, PUBLISHER_REPO, type Env } from './secrets.js';
 import { requireSdkBackend, screenForSchedule, transcribeBytes } from './vision.js';
 import type { PublishedFile } from './build.js';
 import type { FetchedImage, PagePort, WatcherPorts } from './watcher.js';
 import type { RedditPort, SignalPorts } from './signal.js';
+import { hostOf, isPublicAddress, type WebPage } from './web.js';
 
 const API = 'https://api.github.com';
 const BRANCH = 'main';
@@ -343,6 +354,165 @@ export function livePages(fetchFn: FetchLike = fetch): PagePort {
 }
 
 // ---------------------------------------------------------------------------
+// The web, for a stranger's link
+// ---------------------------------------------------------------------------
+
+/** The most of a page read in. A schedule page is a fraction of this. */
+const MAX_PAGE_BYTES = 5 * 1024 * 1024;
+/** Redirects followed before a link counts as not answering. */
+const MAX_REDIRECTS = 5;
+const REDIRECTS = new Set([301, 302, 303, 307, 308]);
+
+export interface LiveWebOptions {
+  /** Every address a name resolves to. The system resolver by default. */
+  resolve?: (hostname: string) => Promise<string[]>;
+  /** Which addresses a request may connect to. Public ones only by default; a test may widen it. */
+  allow?: (address: string) => boolean;
+}
+
+/** An answer as it came off the wire, before anyone decided what it means. */
+interface Answer {
+  status: number;
+  url: string;
+  contentType: string;
+  body: Buffer;
+}
+
+async function systemResolve(hostname: string): Promise<string[]> {
+  try {
+    return (await dnsLookup(hostname, { all: true, verbatim: true })).map((a) => a.address);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The link intent's read of the web: the page a stranger typed, and the
+ * images on it. Redirects are followed by hand, and every connection — the
+ * first and each redirect's — goes through a resolver that refuses the whole
+ * name if any address it gives is not public, so a name that resolved to a
+ * public address for the publisher's check and a private one a moment later
+ * still connects nowhere. An address typed as an IP never passes through a
+ * resolver, so it is checked here directly. Anything that goes wrong is null
+ * — a page that did not answer — and the publisher says so in words.
+ */
+export function liveWeb(options: LiveWebOptions = {}): WebPort {
+  const resolve = options.resolve ?? systemResolve;
+  const allow = options.allow ?? isPublicAddress;
+  const agent = 'stage-times/1.0 (+https://stagetimes.app)';
+
+  const lookup: LookupFunction = (hostname, opts, callback) => {
+    resolve(hostname).then(
+      (addresses) => {
+        if (addresses.length === 0 || !addresses.every(allow)) {
+          callback(Object.assign(new Error(`${hostname} does not resolve to a public address`), { code: 'ENOTFOUND' }), '', 0);
+          return;
+        }
+        const all = addresses.map((address) => ({ address, family: isIP(address) }));
+        if (opts.all) (callback as unknown as (err: null, list: typeof all) => void)(null, all);
+        else callback(null, all[0]!.address, all[0]!.family);
+      },
+      (err: Error) => callback(err as NodeJS.ErrnoException, '', 0),
+    );
+  };
+
+  function once(target: URL, accept: string, maxBytes: number): Promise<(Answer & { location: string | null }) | null> {
+    return new Promise((resolveAnswer) => {
+      // One deadline for the whole answer, not just a quiet socket: a server
+      // that drips a byte at a time does not get to hold the function open.
+      const deadline = setTimeout(() => req.destroy(), PAGE_TIMEOUT_MS);
+      const done = (answer: (Answer & { location: string | null }) | null) => {
+        clearTimeout(deadline);
+        resolveAnswer(answer);
+      };
+      const send = target.protocol === 'https:' ? httpsRequest : httpRequest;
+      const req = send(
+        target,
+        {
+          method: 'GET',
+          headers: { 'User-Agent': agent, Accept: accept, 'Accept-Encoding': 'gzip, deflate, br' },
+          lookup,
+        },
+        (res: IncomingMessage) => {
+          const status = res.statusCode ?? 0;
+          const location = typeof res.headers.location === 'string' ? res.headers.location : null;
+          const contentType = String(res.headers['content-type'] ?? '');
+          if (REDIRECTS.has(status)) {
+            res.resume();
+            done({ status, url: target.href, contentType, body: Buffer.alloc(0), location });
+            return;
+          }
+          const encoding = String(res.headers['content-encoding'] ?? '').toLowerCase();
+          const stream =
+            encoding === 'gzip' || encoding === 'x-gzip'
+              ? res.pipe(createGunzip())
+              : encoding === 'deflate'
+                ? res.pipe(createInflate())
+                : encoding === 'br'
+                  ? res.pipe(createBrotliDecompress())
+                  : res;
+          const chunks: Buffer[] = [];
+          let size = 0;
+          stream.on('data', (chunk: Buffer) => {
+            size += chunk.length;
+            if (size > maxBytes) {
+              req.destroy();
+              done(null);
+              return;
+            }
+            chunks.push(chunk);
+          });
+          stream.on('end', () => done({ status, url: target.href, contentType, body: Buffer.concat(chunks), location: null }));
+          stream.on('error', () => done(null));
+        },
+      );
+      req.on('error', () => done(null));
+      req.end();
+    });
+  }
+
+  async function get(url: string, accept: string, maxBytes: number): Promise<Answer | null> {
+    let current: URL;
+    try {
+      current = new URL(url);
+    } catch {
+      return null;
+    }
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+      if (current.protocol !== 'http:' && current.protocol !== 'https:') return null;
+      if (current.username !== '' || current.password !== '') return null;
+      const host = hostOf(current);
+      if (isIP(host) && !allow(host)) return null;
+      const answer = await once(current, accept, maxBytes);
+      if (!answer) return null;
+      if (!REDIRECTS.has(answer.status) || !answer.location) return answer;
+      try {
+        current = new URL(answer.location, current);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  return {
+    resolve,
+    async page(url): Promise<WebPage | null> {
+      const answer = await get(url, 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5', MAX_PAGE_BYTES);
+      if (!answer) return null;
+      return { status: answer.status, url: answer.url, contentType: answer.contentType, html: answer.body.toString('utf8') };
+    },
+    async image(url): Promise<FetchedImage | null> {
+      const answer = await get(url, 'image/*,*/*;q=0.5', MAX_FETCHED_IMAGE_BYTES);
+      if (!answer || answer.status < 200 || answer.status > 299) return null;
+      const bytes = new Uint8Array(answer.body);
+      const type = answer.contentType.split(';')[0]?.trim();
+      return type ? { bytes, contentType: type } : { bytes };
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Subreddit listings
 // ---------------------------------------------------------------------------
 
@@ -415,6 +585,11 @@ export function livePorts(env: Env = process.env): PublisherPorts {
 /** The publisher's ports plus the pages. What the scheduled entrypoint hands the watcher. */
 export function watcherPorts(env: Env = process.env): WatcherPorts {
   return { ...livePorts(env), pages: livePages() };
+}
+
+/** The publisher's ports plus the web. What the link adapter hands the publisher. */
+export function linkPorts(env: Env = process.env): LinkPorts {
+  return { ...livePorts(env), web: liveWeb() };
 }
 
 /** The publisher's ports plus Reddit. What the scheduled entrypoint hands the signal. */

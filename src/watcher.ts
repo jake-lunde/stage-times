@@ -75,6 +75,10 @@ import { isValidTimeZone, loadFestivalFromString } from './schema.js';
 import { PUBLISHER_REPO } from './secrets.js';
 import { slugify } from './transcribe.js';
 import { transcribe, type Transcription } from './transcription.js';
+import { filenameOf, imageDimensions, imageUrlsIn, type FetchedImage } from './web.js';
+
+// Reading a schedule page moved to src/web.ts, which the link intent shares.
+export { imageDimensions, imageUrlsIn, type FetchedImage, type ImageHeader } from './web.js';
 
 // ---------------------------------------------------------------------------
 // The watch list
@@ -226,142 +230,8 @@ function isoDate(value: unknown): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// Reading a schedule page
-// ---------------------------------------------------------------------------
-
-const IMAGE_HREF_RE = /\.(jpe?g|png|webp|gif)([?#]|$)/i;
-
-/** One attribute's value off a tag's text, whichever way it was quoted. */
-function attr(tag: string, name: string): string | undefined {
-  const m = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i').exec(tag);
-  if (!m) return undefined;
-  return (m[1] ?? m[2] ?? m[3] ?? '').replace(/&amp;/g, '&').trim();
-}
-
-/** The candidate a `srcset` names largest — by width, or by density. */
-function largestOf(srcset: string): string | undefined {
-  let best: { url: string; size: number } | undefined;
-  for (const candidate of srcset.split(',')) {
-    const [url, descriptor] = candidate.trim().split(/\s+/);
-    if (!url) continue;
-    const size = descriptor ? parseFloat(descriptor) || 0 : 0;
-    if (!best || size > best.size) best = { url, size };
-  }
-  return best?.url;
-}
-
-/**
- * Every image a page shows, as absolute URLs in page order, each once: the
- * share image, CSS backgrounds, `img` and `source` (the largest `srcset`
- * candidate first, then `src`, then a lazy `data-src`), and links straight to
- * an image file. Inline `data:` images are not images anyone posted.
- */
-export function imageUrlsIn(html: string, base: string): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  const add = (candidate: string | undefined) => {
-    if (!candidate || candidate.startsWith('data:')) return;
-    let url: URL;
-    try {
-      url = new URL(candidate, base);
-    } catch {
-      return;
-    }
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
-    url.hash = '';
-    if (seen.has(url.href)) return;
-    seen.add(url.href);
-    out.push(url.href);
-  };
-
-  const token = /<meta\b[^>]*>|<img\b[^>]*>|<source\b[^>]*>|<a\b[^>]*>|url\(\s*(?:"([^"]*)"|'([^']*)'|([^\s"')]+))\s*\)/gi;
-  for (const m of html.matchAll(token)) {
-    const tag = m[0];
-    if (tag.startsWith('<meta')) {
-      const property = attr(tag, 'property') ?? attr(tag, 'name');
-      if (property?.toLowerCase() === 'og:image') add(attr(tag, 'content'));
-    } else if (tag.startsWith('<img') || tag.startsWith('<source')) {
-      const srcset = attr(tag, 'srcset') ?? attr(tag, 'data-srcset');
-      if (srcset) add(largestOf(srcset));
-      add(attr(tag, 'src'));
-      add(attr(tag, 'data-src'));
-    } else if (tag.startsWith('<a')) {
-      const href = attr(tag, 'href');
-      if (href && IMAGE_HREF_RE.test(href.split(/[?#]/)[0] ?? href)) add(href);
-    } else {
-      add((m[1] ?? m[2] ?? m[3] ?? '').replace(/&amp;/g, '&'));
-    }
-  }
-  return out;
-}
-
-export interface ImageHeader {
-  width: number;
-  height: number;
-  contentType: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
-}
-
-/**
- * What the first bytes of an image say it is and how big it is — enough for
- * the publisher's free gates without decoding a pixel. Null for anything that
- * is not one of the four formats a browser would have uploaded.
- */
-export function imageDimensions(bytes: Uint8Array): ImageHeader | null {
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const ascii = (at: number, n: number) => String.fromCharCode(...bytes.subarray(at, at + n));
-
-  if (bytes.length >= 24 && ascii(1, 3) === 'PNG' && bytes[0] === 0x89 && ascii(12, 4) === 'IHDR') {
-    return { width: view.getUint32(16), height: view.getUint32(20), contentType: 'image/png' };
-  }
-  if (bytes.length >= 10 && ascii(0, 4) === 'GIF8') {
-    return { width: view.getUint16(6, true), height: view.getUint16(8, true), contentType: 'image/gif' };
-  }
-  if (bytes.length >= 30 && ascii(0, 4) === 'RIFF' && ascii(8, 4) === 'WEBP') {
-    const chunk = ascii(12, 4);
-    if (chunk === 'VP8X') {
-      const w = bytes[24]! | (bytes[25]! << 8) | (bytes[26]! << 16);
-      const h = bytes[27]! | (bytes[28]! << 8) | (bytes[29]! << 16);
-      return { width: w + 1, height: h + 1, contentType: 'image/webp' };
-    }
-    if (chunk === 'VP8L' && bytes[20] === 0x2f) {
-      const b = view.getUint32(21, true);
-      return { width: (b & 0x3fff) + 1, height: ((b >> 14) & 0x3fff) + 1, contentType: 'image/webp' };
-    }
-    if (chunk === 'VP8 ' && bytes[23] === 0x9d && bytes[24] === 0x01 && bytes[25] === 0x2a) {
-      return { width: view.getUint16(26, true) & 0x3fff, height: view.getUint16(28, true) & 0x3fff, contentType: 'image/webp' };
-    }
-    return null;
-  }
-  if (bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
-    let at = 2;
-    while (at + 9 < bytes.length) {
-      if (bytes[at] !== 0xff) return null;
-      const marker = bytes[at + 1]!;
-      if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) {
-        at += 2;
-        continue;
-      }
-      const length = view.getUint16(at + 2);
-      const isSof = marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
-      if (isSof) return { height: view.getUint16(at + 5), width: view.getUint16(at + 7), contentType: 'image/jpeg' };
-      if (marker === 0xda || marker === 0xd9) return null;
-      at += 2 + length;
-    }
-    return null;
-  }
-  return null;
-}
-
-// ---------------------------------------------------------------------------
 // Ports
 // ---------------------------------------------------------------------------
-
-/** A fetched image, as the page served it. */
-export interface FetchedImage {
-  bytes: Uint8Array;
-  /** The `Content-Type` the server sent, if any. The bytes have the last word. */
-  contentType?: string;
-}
 
 /** The outside world the watcher reads: pages and the images on them. */
 export interface PagePort {
@@ -647,16 +517,6 @@ async function poll(
     if (verdict.schedule) found.push({ hash, url, image });
   }
   return { found, recorded };
-}
-
-/** The last path segment of an image's URL, for the log. Never a path. */
-function filenameOf(url: string): string {
-  try {
-    const last = decodeURIComponent(new URL(url).pathname.split('/').filter(Boolean).at(-1) ?? '');
-    return last || 'image';
-  } catch {
-    return 'image';
-  }
 }
 
 // ---------------------------------------------------------------------------
