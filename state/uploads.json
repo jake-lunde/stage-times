@@ -1,0 +1,21 @@
+{
+  "$comment": [
+    "COMMITTED STATE — what the upload caps count. Not a log; entries older than 24 hours are dropped.",
+    "`address` is a SHA-256 of the lowercased contact address: the caps need to recognize a repeat",
+    "address, not to read it. The address itself reaches the owner through the notification only.",
+    "`at` is epoch milliseconds from the publisher clock, and the only real time in committed state",
+    "besides publishedAt. Nothing in the build reads this file."
+  ],
+  "uploads": [
+    {
+      "address": "a983ed2ac372e2ab91a1c6316213056dbe3666661258e5ce1570d92467e429e1",
+      "at": 1790026237210,
+      "image": "a0077579c70ffd911a8e26af3305d6ecf60ae6ed28172ec5cbf78ef93b7bd9ee",
+      "images": [
+        "a0077579c70ffd911a8e26af3305d6ecf60ae6ed28172ec5cbf78ef93b7bd9ee",
+        "2f59cb68855475c265b5b9cf64fe9a7805ef6308fc7b69ff8a3719fe0ed56c8c",
+        "ae64837ba4ef45622147f6dcb11b8fd44cdcc7aea2514742a7c1f96c84423e4c"
+      ]
+    }
+  ]
+}
