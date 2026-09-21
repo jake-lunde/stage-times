@@ -47,7 +47,7 @@ import {
 } from './build.js';
 import { isValidTimeZone, SchemaError, type FestivalDoc, type Namespace } from './schema.js';
 import { slugify, TranscribeError, type SetEdit } from './transcribe.js';
-import { transcribe, type Transcription } from './transcription.js';
+import { transcribe, type ModelOutput, type Transcription } from './transcription.js';
 
 export type { SetEdit };
 
@@ -63,6 +63,12 @@ export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 export const MIN_IMAGE_EDGE = 400;
 /** Above this on the long side no vision model reads it whole. */
 export const MAX_IMAGE_EDGE = 8000;
+
+/**
+ * The most images one upload can carry — one per day of the festival, and no
+ * festival this is for runs longer than a week. Refused before anything is read.
+ */
+export const MAX_UPLOAD_IMAGES = 7;
 
 /** Three uploads per address per hour, twenty per day across everyone. */
 export const UPLOADS_PER_ADDRESS_PER_HOUR = 3;
@@ -117,7 +123,7 @@ export interface ScheduleCheck {
 
 export interface VisionPort {
   /**
-   * A small model, a yes or a no. Runs before the expensive call so garbage
+   * A small model, a yes or a no, about one image. Runs before the expensive call so garbage
    * costs pennies (spec: "every upload's cost gated by a cheap check").
    */
   looksLikeSchedule(image: SourceImage): Promise<ScheduleCheck>;
@@ -207,8 +213,10 @@ export interface UploadRecord {
   address: string;
   /** Epoch ms, from the injected clock. */
   at: number;
-  /** Content hash of the image that was transcribed. */
+  /** Content hash of the (first) image that was transcribed. */
   image: string;
+  /** Every image this upload paid to read, when it was more than one. */
+  images?: string[];
 }
 
 export interface UploadLedger {
@@ -223,7 +231,7 @@ export interface SavedTranscription {
   /** The name the image was uploaded under, for the log. */
   filename: string;
   contentType: string;
-  /** The model's reply, verbatim — exactly what `transcribe()` takes. */
+  /** The model's reply for this one image, verbatim — what `transcribe()` takes. */
   output: string;
   /** When it was read, as a UTC iCalendar stamp. */
   transcribedAt: string;
@@ -260,13 +268,29 @@ export interface UploadIntent {
   timezone?: string;
   /** The link to the official schedule, when the image carries none. */
   officialUrl?: string;
-  image: SourceImage;
+  /**
+   * The source images, one per day, in day order. `image` is the same thing
+   * for one image — a list of one — and is what an intent with no `images`
+   * is read as.
+   */
+  images?: SourceImage[];
+  image?: SourceImage;
 }
 
 export interface ConfirmIntent {
   kind: 'confirm';
-  /** The same image the review was built from — hashed and checked. */
-  image: SourceImage;
+  /**
+   * The same images the review was built from, in the same order — hashed and
+   * checked. `image` for one, as on upload.
+   */
+  images?: SourceImage[];
+  image?: SourceImage;
+  /**
+   * The review's `images`, echoed back: the hashes the uploader checked the sets
+   * against. Required for more than one image, so a confirm cannot quietly
+   * publish a subset or a reordering of what was reviewed.
+   */
+  reviewed?: string[];
   festival: string;
   email: string;
   /** The zone as it stood on review, changed or not. */
@@ -285,6 +309,7 @@ export type Intent = UploadIntent | ConfirmIntent;
 /** Which gate stopped it. The screen picks its shape from this. */
 export type Gate =
   | 'details'
+  | 'images'
   | 'type'
   | 'size'
   | 'dimensions'
@@ -301,6 +326,8 @@ export interface Rejection {
   reason: string;
   /** The schema's own problems, when the schema is what refused. */
   problems?: string[];
+  /** Which image it is about, by position in the intent's list, from 0. */
+  image?: number;
 }
 
 /** One set as the review screen shows it, beside the uploader's own image. */
@@ -320,11 +347,15 @@ export interface ReviewSet {
   /** The time exactly as printed on the source. */
   printedTime: string;
   notes: string;
+  /** Content hash of the image this set was read from — one of `Review.images`. */
+  image: string;
 }
 
 export interface Review {
-  /** SHA-256 of the image these sets were read from. Confirm echoes it back. */
+  /** SHA-256 of the first image these sets were read from. */
   image: string;
+  /** SHA-256 of every image, in the order given. Confirm echoes it back. */
+  images: string[];
   festival: string;
   /** The slug this edition would claim, suffixed if one is already taken. */
   slug: string;
@@ -343,7 +374,7 @@ export interface Review {
   sets: ReviewSet[];
   /** The model's own notes, verbatim. */
   observations: string[];
-  /** True when this image had been read before and this cost nothing. */
+  /** True when every image had been read before and this cost nothing. */
   reused: boolean;
 }
 
@@ -501,6 +532,49 @@ function checkImage(image: SourceImage): Rejection | null {
   return null;
 }
 
+/** The intent's images as a list: `images`, or `image` as a list of one. */
+function imagesOf(intent: { images?: SourceImage[]; image?: SourceImage }): SourceImage[] {
+  return intent.images ?? (intent.image ? [intent.image] : []);
+}
+
+/**
+ * A rejection about one image of several says which, as the uploader counts
+ * them: images come in day order, so the second one is day 2. With one image
+ * the sentence is left exactly as it was.
+ */
+function aboutImage(rejection: Rejection, index: number, total: number): Rejection {
+  return {
+    ...rejection,
+    reason: total > 1 ? `Day ${index + 1}: ${rejection.reason}` : rejection.reason,
+    image: index,
+  };
+}
+
+/**
+ * The free checks on the list and on every image in it, before anything is
+ * read: how many, each one's type, size and dimensions, and no image twice.
+ */
+function checkImages(images: SourceImage[], hashes: string[]): Rejection | null {
+  if (images.length === 0) return reject('images', 'Add an image of the schedule first.');
+  if (images.length > MAX_UPLOAD_IMAGES) {
+    return reject(
+      'images',
+      `That's ${images.length} images. ${MAX_UPLOAD_IMAGES} is the most one upload can take — one per day.`,
+    );
+  }
+  for (const [i, image] of images.entries()) {
+    const problem = checkImage(image);
+    if (problem) return aboutImage(problem, i, images.length);
+  }
+  for (const [i, hash] of hashes.entries()) {
+    const first = hashes.indexOf(hash);
+    if (first < i) {
+      return { ...reject('images', `Day ${i + 1} is the same image as day ${first + 1}. Each day needs its own.`), image: i };
+    }
+  }
+  return null;
+}
+
 /** The festival name, dates, zone and address the uploader typed. */
 function checkDetails(intent: UploadIntent): Rejection | null {
   const named = checkWhoAndWhat(intent.festival, intent.email);
@@ -558,83 +632,112 @@ function pruneUploads(ledger: UploadLedger, now: number): UploadRecord[] {
 // ---------------------------------------------------------------------------
 
 /**
- * An image plus what the uploader typed, through the gates, into a review.
+ * The images plus what the uploader typed, through the gates, into a review.
  *
- * The gates run cheapest first and stop at the first one that fails, so a
- * rejection never costs a model call it did not have to make:
+ * Most festivals post one image per day, so an upload is a list of images in
+ * day order; one image is a list of one. The gates run cheapest first and stop
+ * at the first one that fails, so a rejection never costs a model call it did
+ * not have to make:
  *
- *   1. what the uploader typed  (free)
- *   2. type, size, dimensions   (free)
- *   3. content-hash lookup      (free — and a hit costs nothing at all)
- *   4. the caps                 (free)
- *   5. is this a schedule       (a small model)
- *   6. transcribe               (the real cost)
+ *   1. what the uploader typed                  (free)
+ *   2. how many images; each one's type, size,
+ *      dimensions; no image twice               (free)
+ *   3. content-hash lookup, per image           (free — a hit costs nothing at all)
+ *   4. the caps, once for the whole upload      (free)
+ *   5. is this a schedule, per unread image     (a small model)
+ *   6. transcribe, per unread image             (the real cost)
+ *
+ * Every image clears 5 before any image reaches 6. A rejection about one image
+ * names it, and none of the others is paid for until it is fixed.
  */
 export async function upload(intent: UploadIntent, ports: PublisherPorts): Promise<UploadResult> {
   const details = checkDetails(intent);
   if (details) return rejectedUpload(details);
 
-  const imageProblem = checkImage(intent.image);
+  const images = imagesOf(intent);
+  const hashes = images.map((image) => sha256(image.bytes));
+  const imageProblem = checkImages(images, hashes);
   if (imageProblem) return rejectedUpload(imageProblem);
 
   const now = ports.clock.now();
   const stamp = icalStamp(now);
-  const hash = sha256(intent.image.bytes);
   const address = addressHash(intent.email);
 
-  // A retry of an image already paid for costs nothing and counts against
-  // nothing — that is the whole point of storing the reply (story 31).
-  const saved = await ports.repo.readTranscription(hash);
-  if (saved) {
-    return finishUpload(intent, ports, saved, { reused: true, commit: null });
+  // Each image is looked up on its own. A retry of images already paid for
+  // costs nothing and counts against nothing — that is the whole point of
+  // storing the reply (story 31) — and a retry that adds a day pays for that
+  // day alone.
+  const saved = await Promise.all(hashes.map((hash) => ports.repo.readTranscription(hash)));
+  const unread = images.flatMap((image, i) => (saved[i] ? [] : [i]));
+  if (unread.length === 0) {
+    return finishUpload(intent, ports, saved as SavedTranscription[], { reused: true, commit: null });
   }
 
+  // The caps count the upload, not its images: one request is one upload.
   const ledger = await ports.repo.readUploads();
   const capped = checkCaps(ledger, address, now);
   if (capped) return rejectedUpload(capped);
 
-  const check = await ports.vision.looksLikeSchedule(intent.image);
-  if (!check.isSchedule) {
-    return rejectedUpload(
-      reject(
-        'schedule',
-        "I can't find set times on that image. It needs the schedule with the times on it, not the lineup.",
-      ),
-    );
+  // Every cheap check before any expensive call, so an image that is not a
+  // schedule stops the upload before any of the others is paid for.
+  for (const i of unread) {
+    const check = await ports.vision.looksLikeSchedule(images[i]!);
+    if (!check.isSchedule) {
+      return rejectedUpload(
+        aboutImage(
+          reject(
+            'schedule',
+            "I can't find set times on that image. It needs the schedule with the times on it, not the lineup.",
+          ),
+          i,
+          images.length,
+        ),
+      );
+    }
   }
 
-  const output = await ports.vision.transcribe(intent.image);
-  const fresh: SavedTranscription = {
-    image: hash,
-    filename: intent.image.filename,
-    contentType: intent.image.contentType,
-    output,
-    transcribedAt: stamp,
-  };
+  const fresh: SavedTranscription[] = [];
+  for (const i of unread) {
+    const image = images[i]!;
+    const output = await ports.vision.transcribe(image);
+    const reading: SavedTranscription = {
+      image: hashes[i]!,
+      filename: image.filename,
+      contentType: image.contentType,
+      output,
+      transcribedAt: stamp,
+    };
+    fresh.push(reading);
+    saved[i] = reading;
+  }
 
+  const paidFor = fresh.map((f) => f.image);
   const commit: Commit = {
-    message: `Transcribe an upload for ${intent.festival.trim()} (${hash.slice(0, 12)})`,
+    message: `Transcribe an upload for ${intent.festival.trim()} (${paidFor.map((h) => h.slice(0, 12)).join(', ')})`,
     files: [
-      { path: `${TRANSCRIPTION_STORE_DIR}/${hash}.json`, contents: json(fresh) },
+      ...fresh.map((f) => ({ path: `${TRANSCRIPTION_STORE_DIR}/${f.image}.json`, contents: json(f) })),
       {
         path: UPLOADS_PATH,
         contents: json({
           $comment: ledger.$comment ?? UPLOADS_COMMENT,
-          uploads: [...pruneUploads(ledger, now), { address, at: now, image: hash }],
+          uploads: [
+            ...pruneUploads(ledger, now),
+            { address, at: now, image: paidFor[0]!, ...(paidFor.length > 1 ? { images: paidFor } : {}) },
+          ],
         }),
       },
     ],
     images: [],
   };
 
-  return finishUpload(intent, ports, fresh, { reused: false, commit });
+  return finishUpload(intent, ports, saved as SavedTranscription[], { reused: false, commit });
 }
 
-/** Read the saved reply into a review payload. Shared by the cached path. */
+/** Read the saved replies into one review payload. Shared by the cached path. */
 async function finishUpload(
   intent: UploadIntent,
   ports: PublisherPorts,
-  saved: SavedTranscription,
+  saved: SavedTranscription[],
   opts: { reused: boolean; commit: Commit | null },
 ): Promise<UploadResult> {
   // Recorded before it is read. A reply the library then refuses is still on
@@ -644,7 +747,7 @@ async function finishUpload(
   const timezone = intent.timezone ?? DEFAULT_TIMEZONE;
   let transcription: Transcription;
   try {
-    transcription = transcribe([{ source: storedImageName(saved), output: saved.output }], {
+    transcription = transcribe(modelOutputs(saved), {
       namespace: 'fan',
       name: intent.festival.trim(),
       slug: slugify(intent.festival),
@@ -660,9 +763,11 @@ async function finishUpload(
   const { festival, stages } = transcription.edition;
   const slug = claimFanSlug(published, festival.slug, festival.year);
   const stageNames = new Map(stages.map((s) => [s.id, s.name]));
+  const hashOf = new Map(saved.map((s) => [storedImageName(s), s.image]));
 
   const review: Review = {
-    image: saved.image,
+    image: saved[0]!.image,
+    images: saved.map((s) => s.image),
     festival: festival.name,
     slug,
     year: festival.year,
@@ -683,6 +788,7 @@ async function finishUpload(
       lowConfidence: lowConfidence(transcription.observations, set.artist),
       printedTime: set.printedTime,
       notes: set.notes,
+      image: hashOf.get(set.source)!,
     })),
     observations: transcription.observations,
     reused: opts.reused,
@@ -708,15 +814,33 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
   const named = checkWhoAndWhat(intent.festival, intent.email);
   if (named) return rejectedConfirm(named);
 
-  const imageProblem = checkImage(intent.image);
+  const images = imagesOf(intent);
+  const hashes = images.map((image) => sha256(image.bytes));
+  const imageProblem = checkImages(images, hashes);
   if (imageProblem) return rejectedConfirm(imageProblem);
 
-  const hash = sha256(intent.image.bytes);
-  const saved = await ports.repo.readTranscription(hash);
-  if (!saved) {
+  // The list has to be the one the sets were checked against: the same images
+  // in the same order. A day left out would publish without it, unnoticed.
+  const reviewed = intent.reviewed ?? (images.length === 1 ? hashes : []);
+  if (reviewed.length !== hashes.length || reviewed.some((h, i) => h !== hashes[i])) {
     return rejectedConfirm(
-      reject('expired', "I don't have that image any more. Upload it again and check the times."),
+      reject('expired', "Those aren't the images you checked. Upload them again and check the times."),
     );
+  }
+
+  const saved: SavedTranscription[] = [];
+  for (const [i, hash] of hashes.entries()) {
+    const reading = await ports.repo.readTranscription(hash);
+    if (!reading) {
+      return rejectedConfirm(
+        aboutImage(
+          reject('expired', "I don't have that image any more. Upload it again and check the times."),
+          i,
+          images.length,
+        ),
+      );
+    }
+    saved.push(reading);
   }
 
   if (intent.unverifiable.length > 0) {
@@ -737,7 +861,7 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
   // read gives it. Both are deterministic over the same saved reply.
   let probe: Transcription;
   try {
-    probe = transcribe([{ source: storedImageName(saved), output: saved.output }], {
+    probe = transcribe(modelOutputs(saved), {
       namespace: 'fan',
       name: intent.festival.trim(),
       slug: slugify(intent.festival),
@@ -753,7 +877,7 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
 
   let transcription: Transcription;
   try {
-    transcription = transcribe([{ source: storedImageName(saved), output: saved.output }], {
+    transcription = transcribe(modelOutputs(saved), {
       namespace: 'fan',
       name: intent.festival.trim(),
       slug,
@@ -790,7 +914,8 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
       secretHash: sha256(updateSecret),
       addressHash: addressHash(intent.email),
       verifiedAt: stamp,
-      image: hash,
+      image: hashes[0]!,
+      ...(hashes.length > 1 ? { images: hashes } : {}),
     },
   };
 
@@ -808,13 +933,11 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
       { path: `${SOURCE_DIR}/${path}/TRANSCRIPTION.md`, contents: transcription.log },
       { path: PUBLISHED_PATH, contents: json(nextPublished) },
     ],
-    images: [
-      {
-        path: `${SOURCE_IMAGE_DIR}/${storedImageName(saved)}`,
-        contentType: saved.contentType,
-        bytes: intent.image.bytes,
-      },
-    ],
+    images: saved.map((reading, i) => ({
+      path: `${SOURCE_IMAGE_DIR}/${storedImageName(reading)}`,
+      contentType: reading.contentType,
+      bytes: images[i]!.bytes,
+    })),
   };
 
   const notification: Notification = {
@@ -823,7 +946,7 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
     title: `Fan edition published: ${doc.festival.name} ${doc.festival.year}`,
     body:
       `${setCount} set${setCount === 1 ? '' : 's'} across ${doc.stages.length} stage${doc.stages.length === 1 ? '' : 's'}, ` +
-      `read off ${saved.filename} and checked by the uploader` +
+      `read off ${listed(saved.map((s) => s.filename))} and checked by the uploader` +
       `${transcription.edits.length > 0 ? ` with ${transcription.edits.length} correction${transcription.edits.length === 1 ? '' : 's'}` : ''}. ` +
       `Unlisted — https://stagetimes.app/${path}/`,
     email: intent.email.trim(),
@@ -861,6 +984,16 @@ export async function publish(intent: Intent, ports: PublisherPorts): Promise<Up
 /** The stored name of a source image: its content hash plus a real extension. */
 function storedImageName(saved: SavedTranscription): string {
   return `${saved.image}${EXTENSIONS[saved.contentType] ?? '.bin'}`;
+}
+
+/** The saved replies as the library takes them, one source per image, in order. */
+function modelOutputs(saved: SavedTranscription[]): ModelOutput[] {
+  return saved.map((s) => ({ source: storedImageName(s), output: s.output }));
+}
+
+/** `a`, `a and b`, `a, b and c` — for a sentence the owner reads. */
+function listed(items: string[]): string {
+  return items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
 }
 
 /**

@@ -174,30 +174,38 @@ with fakes and no API key (`tests/publisher.test.ts`).
 Two intents exist today. Correction, self-removal, the owner path, the watcher and the signal are
 the same shape and land in the same module.
 
-**`upload`** — an image plus a festival name, dates and a contact address. The gates run cheapest
-first and stop at the first failure, so a rejection never costs a call it did not have to make:
+**`upload`** — the source images, one per day in day order, plus a festival name, dates and a
+contact address. One image is a list of one. The gates run cheapest first and stop at the first
+failure, so a rejection never costs a call it did not have to make:
 
 | # | Gate | Costs |
 |---|---|---|
 | 1 | what the uploader typed: name, dates, address, zone | nothing |
-| 2 | type, size (10 MB), dimensions (400–8000 px) | nothing |
-| 3 | content-hash lookup — the same image is never read twice | nothing |
-| 4 | caps: 3 per address per hour, 20 per day across everyone | nothing |
-| 5 | "is this a schedule with times on it" | the `screen` model |
-| 6 | transcription | the `default` model |
+| 2 | at most 7 images, none twice; each one's type, size (10 MB), dimensions (400–8000 px) | nothing |
+| 3 | content-hash lookup per image — the same image is never read twice | nothing |
+| 4 | caps: 3 uploads per address per hour, 20 per day across everyone — an upload is one request, however many images | nothing |
+| 5 | "is this a schedule with times on it", for each image not read before | the `screen` model |
+| 6 | transcription, for each image not read before | the `default` model |
+
+Every image clears gate 5 before any image reaches gate 6, so a retry that adds day three to two
+days already read costs one check and one transcription. A rejection about one image of several
+starts `Day 2:` and carries the image's position; the others are not read until it is fixed.
 
 The caps sit ahead of the schedule check rather than behind it: that check is a model call, and a
 gate whose job is to bound spend cannot spend to run. Every rejection is one or two plain
 sentences, written under the copy rules and passed to the screen untouched. What comes back is a
-**review payload** — every set with its inferred-end flag, a low-confidence flag where the model
-singled the read out, the printed time, and the time zone marked as assumed.
+**review payload** — one set list across every day, every set with its inferred-end flag, a
+low-confidence flag where the model singled the read out, the printed time, and the image it was
+read from, and the time zone marked as assumed.
 
-**`confirm`** — the review with the uploader's corrections. A set they could not verify blocks it.
+**`confirm`** — the review with the uploader's corrections, and the same images echoed back with
+the review's list of image hashes; a list that differs in any image or in order is refused. A set
+they could not verify blocks it.
 The edition is rebuilt from the saved model reply (never from anything the browser sends back),
 the corrections are applied and recorded in the transcription log, and the result goes through the
 real schema loader on its way out: if it would not build, it is not committed. One commit to
-`main` carries the edition YAML, its log, the stored source image named by content hash, and the
-state update. **The publish stamp is the injected clock** — the one place a real time enters the
+`main` carries the edition YAML, its log (which names every source image), every stored source
+image named by content hash, and the state update. **The publish stamp is the injected clock** — the one place a real time enters the
 system, and it enters as committed state, so the build still never reads a wall clock.
 
 A fan intent writes `data/fan/` and `fan/<key>` and nothing else; the root namespace is
@@ -212,9 +220,9 @@ this repository is public — and reaches the owner through the notification ins
 
 | File | What it is |
 |---|---|
-| `state/published.json` | gains an `uploader` record per fan edition: secret hash, address hash, the confirm's stamp, the source image hash. Its presence is what *uploader-verified* means. The build carries it forward and never writes it. |
+| `state/published.json` | gains an `uploader` record per fan edition: secret hash, address hash, the confirm's stamp, the first source image hash (and `images`, every one in order, when there was more than one). Its presence is what *uploader-verified* means. The build carries it forward and never writes it. |
 | `state/uploads.json` | what the caps count. Not a log — entries older than 24 hours are dropped on every write. |
-| `state/transcriptions/<hash>.json` | the model's reply, verbatim, under the image's content hash. This is what makes a retry free. |
+| `state/transcriptions/<hash>.json` | the model's reply for one image, verbatim, under that image's content hash. This is what makes a retry free. |
 | `source/images/<hash>.<ext>` | the stored source image. Never served. |
 | `source/fan/<key>/TRANSCRIPTION.md` | the edition's log, with every correction made on review. |
 
@@ -225,7 +233,9 @@ return what it said. `src/publisher-http.ts` holds what they share (field reader
 image, the gate-to-status-code map) and `src/ports.ts` holds the live ports — GitHub's Git Data
 API for the commit (one tree per intent, because a half-applied publish is an edition whose feeds
 exist and whose state does not), a GitHub issue for the notification, and `src/vision.ts` for both
-model calls. A test asserts the adapters import nothing but those three modules.
+model calls. A test asserts the adapters import nothing but those three modules. Both adapters
+take an `images` list or a single `image`; confirm takes the review's hashes back as `reviewed`,
+and a rejection about one image carries its position as `image`.
 
 ### The screens
 

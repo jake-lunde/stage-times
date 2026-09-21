@@ -110,8 +110,10 @@ export interface UploaderRecord {
   addressHash: string;
   /** The publish stamp of the confirm that created the edition. */
   verifiedAt: string;
-  /** Content hash of the stored source image the edition was read from. */
+  /** Content hash of the (first) stored source image the edition was read from. */
   image: string;
+  /** Every stored source image, in the order given, when there was more than one. */
+  images?: string[];
 }
 
 export interface PublishedEdition {

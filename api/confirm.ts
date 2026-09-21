@@ -1,5 +1,5 @@
 /**
- * POST /api/confirm — the reviewed image, the uploader's corrections, and
+ * POST /api/confirm — the reviewed images, the uploader's corrections, and
  * which sets they could not verify, in; the edition, published, out.
  *
  * Read the fields, call the publisher, return what it said. The update-link
@@ -14,8 +14,9 @@ import {
   editList,
   indexList,
   json,
+  optHashList,
   optStr,
-  parseImage,
+  parseImages,
   readJsonBody,
   rejected,
   str,
@@ -35,7 +36,8 @@ export async function handle(request: Request, ports: PublisherPorts): Promise<R
       ...(optStr(body, 'officialUrl') !== undefined ? { officialUrl: optStr(body, 'officialUrl')! } : {}),
       edits: editList(body, 'edits'),
       unverifiable: indexList(body, 'unverifiable'),
-      image: parseImage(body),
+      ...parseImages(body),
+      ...(optHashList(body, 'reviewed') !== undefined ? { reviewed: optHashList(body, 'reviewed')! } : {}),
     };
   } catch (err) {
     return badRequest(err);

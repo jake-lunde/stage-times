@@ -14,8 +14,8 @@ import { join } from 'node:path';
 
 import { handle as handleUpload } from '../api/upload.js';
 import { handle as handleConfirm } from '../api/confirm.js';
-import { sha256, type Review } from '../src/publisher.js';
-import { fakePorts, image, type Fakes } from './publisher-fakes.js';
+import { sha256, type Review, type SourceImage } from '../src/publisher.js';
+import { fakePorts, image, weekendImages, weekendVision, type Fakes } from './publisher-fakes.js';
 import { REPO_ROOT } from './helpers.js';
 
 const IMAGE = image();
@@ -149,6 +149,61 @@ test('adapter: an unverifiable set answers 409 and publishes nothing', async () 
   assert.equal(res.status, 409);
   assert.equal(((await res.json()) as { gate: string }).gate, 'review');
   assert.equal(ports.repo.file('data/fan/low-tide-2026.yaml'), undefined);
+});
+
+// ---------------------------------------------------------------------------
+// More than one image
+// ---------------------------------------------------------------------------
+
+function dayBody(img: SourceImage) {
+  return { filename: img.filename, contentType: img.contentType, width: img.width, height: img.height, data: Buffer.from(img.bytes).toString('base64') };
+}
+
+test('adapter: an images list goes through as one upload and one confirm, with the review echoed back', async () => {
+  const ports = fakePorts({ vision: weekendVision() });
+  const images = weekendImages().map(dayBody);
+  const up = await handleUpload(post({ ...UPLOAD_BODY, image: undefined, dates: { first: '2026-10-09', last: '2026-10-11' }, images }), ports);
+  assert.equal(up.status, 200, await up.clone().text());
+  const review = ((await up.json()) as { review: Review }).review;
+  assert.equal(review.images.length, 3);
+  assert.equal(review.sets.length, 11);
+
+  const res = await handleConfirm(
+    post({
+      festival: 'Low Tide',
+      email: 'sam@example.com',
+      timezone: review.timezone,
+      timezoneAssumed: review.timezoneAssumed,
+      edits: [],
+      unverifiable: [],
+      images,
+      reviewed: review.images,
+    }),
+    ports,
+  );
+  assert.equal(res.status, 200, await res.clone().text());
+  assert.equal(ports.repo.commits.at(-1)!.images.length, 3);
+});
+
+test('adapter: a rejection about one image says which, by position', async () => {
+  const ports = fakePorts({ vision: weekendVision({ notSchedules: ['saturday.png'] }) });
+  const res = await handleUpload(post({ ...UPLOAD_BODY, image: undefined, images: weekendImages().map(dayBody) }), ports);
+  assert.equal(res.status, 422);
+  const body = (await res.json()) as { gate: string; reason: string; image: number };
+  assert.equal(body.gate, 'schedule');
+  assert.equal(body.image, 1);
+  assert.match(body.reason, /^Day 2: /);
+});
+
+test('adapter: an images field that is not a list of images is a 400', async () => {
+  const ports = fakePorts();
+  for (const images of ['three', [null], [{ filename: 'x' }]]) {
+    const res = await handleUpload(post({ ...UPLOAD_BODY, image: undefined, images }), ports);
+    assert.equal(res.status, 400, JSON.stringify(images));
+  }
+  const tooMany = await handleUpload(post({ ...UPLOAD_BODY, images: Array.from({ length: 9 }, () => imageBody()) }), ports);
+  assert.equal(tooMany.status, 400);
+  assert.equal(((await tooMany.json()) as { gate: string }).gate, 'images');
 });
 
 // ---------------------------------------------------------------------------

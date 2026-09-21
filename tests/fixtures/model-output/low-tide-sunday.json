@@ -1,0 +1,26 @@
+{
+  "festival_name": "LOW TIDE",
+  "official_url": "LOWTIDE.EXAMPLE",
+  "days": [
+    {
+      "date": "2026-10-11",
+      "header": "SUNDAY OCTOBER 11, 2026",
+      "stages": [
+        {
+          "name": "MAIN STAGE",
+          "sets": [
+            { "artist": "BLEACHERS", "time": "9:00-10:30PM", "afters": false, "annotations": [] }
+          ]
+        },
+        {
+          "name": "HARBOR STAGE",
+          "sets": [
+            { "artist": "PALEHOUND", "time": "6:00-6:45PM", "afters": false, "annotations": [] },
+            { "artist": "WAXAHATCHEE", "time": "7:15-8:15PM", "afters": false, "annotations": [] }
+          ]
+        }
+      ]
+    }
+  ],
+  "observations": ["The HARBOR STAGE column is new on Sunday."]
+}

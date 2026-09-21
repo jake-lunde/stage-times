@@ -341,6 +341,8 @@ export interface BuiltSet {
   notes: string;
   /** Poster day this set was printed under (for per-day reporting). */
   posterDate: string;
+  /** Label of the source this set was read from — its entry in `sources`. */
+  source: string;
   /** Printed time string, for the log. */
   printedTime: string;
   /** Crossed midnight relative to the poster day. */
@@ -471,6 +473,11 @@ export function buildTranscription(
     .flatMap((t) => t.days)
     .slice()
     .sort((a, b) => a.date.localeCompare(b.date));
+  // Dates are unique across sources (checked next), so a date names its source.
+  const sourceOfDate = new Map<string, string>();
+  transcriptions.forEach((t, i) => {
+    for (const day of t.days) sourceOfDate.set(day.date, sources[i] ?? '');
+  });
   const seenDates = new Set<string>();
   for (const day of days) {
     if (seenDates.has(day.date)) {
@@ -537,6 +544,7 @@ export function buildTranscription(
           end_inferred: isClose,
           notes: buildNotes(rawSet, isClose),
           posterDate: day.date,
+          source: sourceOfDate.get(day.date)!,
           printedTime: rawSet.time,
           crossesMidnight: absEnd >= 1440,
         });

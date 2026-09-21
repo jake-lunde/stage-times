@@ -187,6 +187,16 @@ test('transcribe: the log and YAML name every source', () => {
 // transcribe — the rules, seen through the seam
 // ---------------------------------------------------------------------------
 
+test('transcribe: every set names the source it was read from, whatever order the sources came in', () => {
+  const [friday, saturday] = outputs();
+  for (const given of [[friday!, saturday!], [saturday!, friday!]]) {
+    const t = transcribe(given, OPTS);
+    for (const set of t.sets) {
+      assert.equal(set.source, set.posterDate === '2026-08-07' ? 'friday.webp' : 'saturday.webp', `${set.artist} on ${set.posterDate}`);
+    }
+  }
+});
+
 test('transcribe: ordinary set resolves start meridiem from the printed end', () => {
   const t = transcribe(outputs(), OPTS);
   const avery = t.sets.find((s) => s.artist === 'AVERY COCHRANE')!;
