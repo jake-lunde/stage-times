@@ -74,7 +74,7 @@ carried both, and it decides it once: **a held update link wins.** `namespaceOf(
 claimed edition and returns *its* namespace, because an edition never moves between namespaces
 (the permanence contract, ADR-0001), and the correction path returns no listing pull request —
 it changes the times of an edition already published and leaves `listed` as it found it. Nothing
-else about either ticket changed in the merge. 349 tests pass; CHBP feeds are byte-identical.
+else about either ticket changed in the merge. 351 tests pass; CHBP feeds are byte-identical.
 
 Status: **everything from 6 Sep sits on `main` unpushed** — the morning's glossary, ADR, and copy
 review, plus tickets 02, 04, and 15. Nothing user-facing changes until Jake pushes.
