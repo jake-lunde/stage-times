@@ -11,6 +11,16 @@
  *               and the update link is handed over now rather than after
  *   success     the share link and the update link, explained in one line
  *
+ * The update link opens the same flow for one edition (ticket 09), rendered
+ * once per fan edition at `/update/<edition path>/`: the header names the
+ * festival and the details screen says what a new screenshot will replace
+ * before anything is uploaded; the secret rides in the fragment and goes out
+ * with upload and confirm, and a correction replaces the times in place. Two
+ * more screens hang off it:
+ *
+ *   remove      take it down — one destructive button, one way back
+ *   removed     what happens next, in one line
+ *
  * Rendered by `renderSitePages` in src/pages.ts, sharing its shell (tokens,
  * fonts, analytics snippet, footer voice). Everything the flow *decides* lives
  * in src/publisher.ts and reaches the page as JSON through the two adapters in
@@ -30,7 +40,7 @@
 import { ACCEPTED_IMAGE_TYPES, EMAIL_RE, GATE_COPY, MAX_IMAGE_EDGE, MIN_IMAGE_EDGE, fill, type Gate } from './publisher.js';
 import { esc, ICON_BACK, ICON_CHECK, ICON_LINK, page, PROD_ORIGIN } from './pages.js';
 
-export type Screen = 'details' | 'upload' | 'review' | 'publishing' | 'success' | 'remove';
+export type Screen = 'details' | 'upload' | 'review' | 'publishing' | 'success' | 'remove' | 'removed';
 
 /**
  * Where each gate's rejection lands. A typo in the form goes back to the form;
@@ -118,6 +128,11 @@ export function updateLink(editionPath: string, secret: string): string {
   return `${PROD_ORIGIN}/update/${editionPath}/#${secret}`;
 }
 
+/** Where the update-link page for an edition is written under dist/: `update/<edition path>`. */
+export function updatePagePath(editionPath: string): string {
+  return `update/${editionPath}`;
+}
+
 /**
  * What the browser checks before it posts, and how it shrinks a photo so the
  * request fits under the platform's body cap (well below the publisher's own
@@ -198,6 +213,7 @@ button.text-btn{background:none; border:0; padding:0; font-family:inherit}
 /* links on the way out */
 .link-row{display:flex; align-items:center; gap:var(--gap-1); margin-top:var(--gap-1)}
 .link-row code.url{flex:1; margin-top:0}
+.btn--danger{color:var(--red-deep)}
 .vh{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
 @media (max-width:359px){
   .field-pair{grid-template-columns:1fr}
@@ -208,32 +224,110 @@ button.text-btn{background:none; border:0; padding:0; font-family:inherit}
 // The page
 // ---------------------------------------------------------------------------
 
-export function renderUploadPage(): string {
+/** What the update-link page needs of an edition's manifest. */
+export interface UpdateTarget {
+  festival: { name: string; year: number; basePath: string };
+  blocked: boolean;
+  all: { dayspan: { first: string; last: string } };
+}
+
+/**
+ * The upload flow. With no edition it is `/upload/`, adding a new festival.
+ * With one it is that edition's update-link page: the same screens, but it
+ * names the festival up front, says what a new screenshot replaces before
+ * anything is uploaded, and offers taking it down. A taken-down edition's page
+ * says so and offers nothing.
+ */
+export function renderUploadPage(edition?: UpdateTarget): string {
+  if (edition?.blocked) return renderRemovedUpdatePage(edition);
   const zones = REVIEW_ZONES.map((z) => `<option value="${esc(z.id)}">${esc(z.label)}</option>`).join('');
+  const f = edition?.festival;
+  const pageAddress = f ? `${PROD_ORIGIN.replace(/^https:\/\//, '')}${f.basePath}/` : '';
+  const value = (v: string | undefined) => (v ? ` value="${esc(v)}"` : '');
+
+  const header = f
+    ? `<header>
+    <p class="lockup">Stage&nbsp;Times</p>
+    <h2>${esc(f.name)} <span style="color:var(--ink-soft)">${f.year}</span></h2>
+    <p class="title-meta mono-cap">Fix a time or take it down</p>
+  </header>`
+    : `<header>
+    <p class="lockup">Stage&nbsp;Times</p>
+    <h2>Add a festival</h2>
+    <p class="title-meta mono-cap">From one screenshot of the set times</p>
+  </header>`;
+
+  const changing = f
+    ? `
+    <p class="lead" data-changing>A new screenshot replaces every time on <a href="${esc(f.basePath)}/">${esc(pageAddress)}</a>. Anyone who added a stage gets the new times the next time their calendar app checks.</p>`
+    : '';
+
+  const removeAction = f
+    ? `
+    <button class="text-btn" type="button" data-back="remove">Take it down</button>`
+    : '';
+
+  const removeScreens = f
+    ? `
+
+  <section class="screen" data-screen="remove" hidden>
+    <h3>Take it down</h3>
+    <p class="lead">Its calendars go empty and the page says it was taken down. Anyone who added a stage sees it come up blank the next time their calendar app checks.</p>
+    <p class="problem" role="alert" hidden></p>
+    <button class="btn btn--tonal btn--danger" type="button" data-remove>Take it down</button>
+    <button class="text-btn" type="button" data-back="details">Keep it</button>
+  </section>
+
+  <section class="screen" data-screen="removed" hidden>
+    <h3>Taken down</h3>
+    <p class="lead">The page and its calendars empty out in a couple of minutes.</p>
+  </section>`
+    : '';
+
+  const publishingLead = f
+    ? 'Your new times are saved. The page takes a couple of minutes to rebuild, and this waits for it.'
+    : 'Your times are saved. The page and its calendars take a couple of minutes to build, and this waits for them.';
+
+  const publishingLink = f
+    ? ''
+    : `
+    <p class="eyebrow" style="margin-top:var(--gap-5)">Your update link</p>
+    <div class="link-row"><code class="url" data-update></code><button class="icon-btn" data-copy aria-label="Copy update link">${ICON_LINK}${ICON_CHECK}</button></div>
+    <p class="small">Keep this one now, while it builds. It's the only way to fix a time or take the page down later, and it's shown once.</p>`;
+
+  const successLive = f
+    ? `<h3>It's live</h3>
+      <p class="lead">The new times are on your page. Calendars pick them up the next time they check.</p>`
+    : `<h3>It's live</h3>
+      <p class="lead">Add a stage from your page like anyone would, and send the link around.</p>`;
+
+  const successLinks = f
+    ? ''
+    : `
+    <p class="eyebrow" style="margin-top:var(--gap-4)">Your update link</p>
+    <div class="link-row"><code class="url" data-update></code><button class="icon-btn" data-copy aria-label="Copy update link">${ICON_LINK}${ICON_CHECK}</button></div>
+    <p class="small">Keep this one. It's the only way to fix a time or take the page down later, and it's shown once.</p>
+    <p class="small">Not on the homepage yet. I list festivals by hand.</p>`;
 
   const body = `<main class="wrap">
   <nav class="topbar">
     <a class="icon-btn" href="/" aria-label="Stage Times home">${ICON_BACK}</a>
   </nav>
 
-  <header>
-    <p class="lockup">Stage&nbsp;Times</p>
-    <h2>Add a festival</h2>
-    <p class="title-meta mono-cap">From one screenshot of the set times</p>
-  </header>
+  ${header}
 
-  <section class="screen" data-screen="details">
+  <section class="screen" data-screen="details">${changing}
     <form id="details" novalidate>
-      <label class="field"><span>Festival</span><input name="festival" type="text" autocomplete="off" autocapitalize="words" required></label>
+      <label class="field"><span>Festival</span><input name="festival" type="text" autocomplete="off" autocapitalize="words" required${value(f?.name)}></label>
       <div class="field-pair">
-        <label class="field"><span>First day</span><input name="first" type="date" required></label>
-        <label class="field"><span>Last day</span><input name="last" type="date" required></label>
+        <label class="field"><span>First day</span><input name="first" type="date" required${value(edition?.all.dayspan.first)}></label>
+        <label class="field"><span>Last day</span><input name="last" type="date" required${value(edition?.all.dayspan.last)}></label>
       </div>
       <label class="field"><span>Email</span><input name="email" type="email" inputmode="email" autocomplete="email" required>
         <span class="hint">Only so I can reach you about a wrong time. No account, and nothing gets sent to it.</span></label>
       <p class="problem" role="alert" hidden></p>
       <button class="btn btn--primary" type="submit">Next</button>
-    </form>
+    </form>${removeAction}
   </section>
 
   <section class="screen" data-screen="upload" hidden>
@@ -278,30 +372,22 @@ export function renderUploadPage(): string {
 
   <section class="screen" data-screen="publishing" hidden>
     <h3>Building your page</h3>
-    <p class="lead">Your times are saved. The page and its calendars take a couple of minutes to build, and this waits for them.</p>
-    <p class="status" aria-live="polite" data-publish-status>Checking again every ten seconds.</p>
-    <p class="eyebrow" style="margin-top:var(--gap-5)">Your update link</p>
-    <div class="link-row"><code class="url" data-update></code><button class="icon-btn" data-copy aria-label="Copy update link">${ICON_LINK}${ICON_CHECK}</button></div>
-    <p class="small">Keep this one now, while it builds. It's the only way to fix a time or take the page down later, and it's shown once.</p>
+    <p class="lead">${publishingLead}</p>
+    <p class="status" aria-live="polite" data-publish-status>Checking again every ten seconds.</p>${publishingLink}
   </section>
 
   <section class="screen" data-screen="success" hidden>
     <div data-live>
-      <h3>It's live</h3>
-      <p class="lead">Add a stage from your page like anyone would, and send the link around.</p>
+      ${successLive}
     </div>
     <div data-late hidden>
       <h3>Nearly there</h3>
       <p class="lead">Still building after five minutes, which is longer than usual. The links don't change, and they'll work once it's done.</p>
     </div>
     <p class="eyebrow" style="margin-top:var(--gap-5)">Your page</p>
-    <div class="link-row"><code class="url" data-share></code><button class="icon-btn" data-copy aria-label="Copy page link">${ICON_LINK}${ICON_CHECK}</button></div>
-    <p class="eyebrow" style="margin-top:var(--gap-4)">Your update link</p>
-    <div class="link-row"><code class="url" data-update></code><button class="icon-btn" data-copy aria-label="Copy update link">${ICON_LINK}${ICON_CHECK}</button></div>
-    <p class="small">Keep this one. It's the only way to fix a time or take the page down later, and it's shown once.</p>
-    <p class="small">Not on the homepage yet. I list festivals by hand.</p>
+    <div class="link-row"><code class="url" data-share></code><button class="icon-btn" data-copy aria-label="Copy page link">${ICON_LINK}${ICON_CHECK}</button></div>${successLinks}
     <a class="btn btn--primary" data-open>Open your page</a>
-  </section>
+  </section>${removeScreens}
 
   <footer>
     <p>Anything put on here is checked by the person who put it there, against their own image, before it goes live.</p>
@@ -320,6 +406,10 @@ export function renderUploadPage(): string {
   ${fill.toString()}
   var ORIGIN = '${PROD_ORIGIN}';
   var UPDATE_LINK = ${JSON.stringify(updateLink('{path}', '{secret}'))};
+  // The edition this page changes, or null on /upload/. The secret is the link's
+  // fragment: it never reaches a server log, and it goes out only in a body.
+  var UPDATE = ${JSON.stringify(f ? { editionPath: f.basePath.replace(/^\//, '') } : null)};
+  function updateClaim() { return UPDATE ? { editionPath: UPDATE.editionPath, secret: location.hash.slice(1) } : undefined; }
   var WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
   var BUILD_WAIT_MS = 5 * 60 * 1000;
   var POLL_MS = 10 * 1000;
@@ -480,7 +570,7 @@ export function renderUploadPage(): string {
     label.textContent = 'Reading\\u2026';
     status.textContent = 'Reading the times off your image. Usually under a minute.';
     status.hidden = false;
-    return post('/api/upload', { festival: d.festival, dates: { first: d.first, last: d.last }, email: d.email, image: imageBody() }).then(function (r) {
+    return post('/api/upload', { festival: d.festival, dates: { first: d.first, last: d.last }, email: d.email, image: imageBody(), update: updateClaim() }).then(function (r) {
       btn.classList.remove('is-loading');
       label.textContent = 'Choose image';
       status.hidden = true;
@@ -527,7 +617,10 @@ export function renderUploadPage(): string {
     zone.value = rv.timezone;
     zoneHint();
     problem('review', '');
-    $('[data-address]').textContent = 'Your page will be ' + ORIGIN.replace(/^https:\\/\\//, '') + '/' + rv.editionPath + '/';
+    var address = ORIGIN.replace(/^https:\\/\\//, '') + '/' + rv.editionPath + '/';
+    $('[data-address]').textContent = !UPDATE ? 'Your page will be ' + address
+      : rv.correcting ? 'This replaces the times on ' + address
+      : 'That update link didn\\'t match, so this will be a new page: ' + address;
     var year = $('[data-year]');
     year.textContent = rv.yearMismatch ? 'The image reads as ' + rv.year + ', not the year you typed. Check your dates against it.' : '';
     year.hidden = !rv.yearMismatch;
@@ -610,7 +703,13 @@ export function renderUploadPage(): string {
     var was = btn.textContent;
     btn.classList.add('is-loading');
     btn.textContent = 'Saving\\u2026';
-    post('/api/confirm', { festival: d.festival, email: d.email, timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: unverifiable, image: imageBody() }).then(function (r) {
+    var body = { festival: d.festival, email: d.email, timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: unverifiable, image: imageBody(), update: updateClaim() };
+    // A correction's calendar already answers, so the wait is for it to change:
+    // note what it answers with now, before the new times are sent.
+    (rv.correcting ? currentTag(rv.editionPath) : Promise.resolve(null)).then(function (before) {
+      return post('/api/confirm', body).then(function (r) { return { r: r, before: before }; });
+    }).then(function (x) {
+      var r = x.r;
       btn.classList.remove('is-loading');
       btn.textContent = was;
       if (!r.ok) {
@@ -623,7 +722,22 @@ export function renderUploadPage(): string {
       var update = UPDATE_LINK.replace('{path}', r.body.editionPath).replace('{secret}', r.body.updateSecret);
       $$('[data-update]').forEach(function (el) { el.textContent = update; $('[data-copy]', el.parentNode).setAttribute('data-copy', update); });
       show('publishing');
-      waitForBuild(r.body.editionPath).then(showSuccess);
+      waitForBuild(r.body.editionPath, r.body.corrected ? x.before : null).then(showSuccess);
+    });
+  });
+
+  // ── remove ───────────────────────────────────────────────────────────────
+  var removeBtn = $('[data-remove]');
+  if (removeBtn) removeBtn.addEventListener('click', function () {
+    var btn = this, was = btn.textContent;
+    problem('remove', '');
+    btn.classList.add('is-loading');
+    btn.textContent = 'Taking it down\\u2026';
+    post('/api/remove', { update: updateClaim() }).then(function (r) {
+      btn.classList.remove('is-loading');
+      btn.textContent = was;
+      if (!r.ok) { fail('remove', r.body); return; }
+      show('removed');
     });
   });
 
@@ -636,14 +750,22 @@ export function renderUploadPage(): string {
   // on the production site that is the real thing; anywhere else it times out
   // honestly.
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
-  function waitForBuild(editionPath) {
+  // A correction is live when that calendar answers with something other than
+  // what it answered before, the ETag taken just ahead of confirm.
+  function currentTag(editionPath) {
+    return fetch('/' + editionPath + '/all.ics', { method: 'HEAD', cache: 'no-store' }).then(function (res) {
+      return res.ok ? res.headers.get('etag') : null;
+    }, function () { return null; });
+  }
+  function waitForBuild(editionPath, before) {
     var status = $('[data-publish-status]');
     var url = '/' + editionPath + '/all.ics';
     var started = Date.now(), tries = 0;
     function check() {
       tries += 1;
       return fetch(url, { method: 'HEAD', cache: 'no-store' }).then(function (res) {
-        return res.ok && (res.headers.get('content-type') || '').indexOf('text/calendar') === 0;
+        return res.ok && (res.headers.get('content-type') || '').indexOf('text/calendar') === 0 &&
+          (!before || res.headers.get('etag') !== before);
       }, function () { return false; }).then(function (live) {
         if (live) { state.live = true; return; }
         var elapsed = Date.now() - started;
@@ -686,10 +808,42 @@ export function renderUploadPage(): string {
 })();
 </script>`;
 
-  return page(
-    'Stage Times — add a festival',
-    'Turn a screenshot of a festival’s set times into calendars, one per stage, from your phone.',
-    body,
-    CSS,
-  );
+  return f
+    ? page(
+        `${f.name} ${f.year} — fix a time`,
+        `Fix a time on the ${f.name} ${f.year} set times, or take the page down.`,
+        body,
+        CSS,
+      )
+    : page(
+        'Stage Times — add a festival',
+        'Turn a screenshot of a festival’s set times into calendars, one per stage, from your phone.',
+        body,
+        CSS,
+      );
+}
+
+/** The update link of an edition already taken down: it says so, and offers nothing to change. */
+function renderRemovedUpdatePage(edition: UpdateTarget): string {
+  const f = edition.festival;
+  const body = `<main class="wrap">
+  <nav class="topbar">
+    <a class="icon-btn" href="/" aria-label="Stage Times home">${ICON_BACK}</a>
+  </nav>
+
+  <header>
+    <p class="lockup">Stage&nbsp;Times</p>
+    <h2>${esc(f.name)} <span style="color:var(--ink-soft)">${f.year}</span></h2>
+  </header>
+
+  <section class="screen" data-screen="removed">
+    <h3>Taken down</h3>
+    <p class="lead">This page was taken down, so there's nothing left to change here.</p>
+  </section>
+
+  <footer>
+    <p>Unofficial. Not affiliated with ${esc(f.name)}.</p>
+  </footer>
+</main>`;
+  return page(`${f.name} ${f.year} — taken down`, `The ${f.name} ${f.year} set times were taken down.`, body, CSS);
 }
