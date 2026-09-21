@@ -15,6 +15,7 @@ import assert from 'node:assert/strict';
 
 import { buildFeeds } from '../src/build.js';
 import { renderLandingPage, renderSubscribePage } from '../src/pages.js';
+import { renderUploadPage } from '../src/upload-pages.js';
 import { buildDst, buildFixtureSite, emptyState, harborDoc } from './helpers.js';
 
 const INSIGHTS_SRC = '/_vercel/insights/script.js';
@@ -25,6 +26,7 @@ const dstBuild = buildDst();
 
 const landing = renderLandingPage(buildFixtureSite([harborDoc()], { 'harbor-lights-2026': { listed: true } }).site);
 const subscribe = renderSubscribePage(harborBuild.manifest);
+const upload = renderUploadPage();
 
 // ===========================================================================
 // Present on every HTML page
@@ -34,6 +36,7 @@ test('analytics: every rendered HTML page carries the insights script and its va
   for (const [name, html] of [
     ['landing', landing],
     ['subscribe', subscribe],
+    ['upload', upload],
   ] as const) {
     assert.ok(html.includes(`<script defer src="${INSIGHTS_SRC}"></script>`), `${name}: insights script tag`);
     assert.ok(html.includes(VA_STUB), `${name}: window.va queue stub`);
@@ -90,8 +93,9 @@ test('analytics: the click handler sends exactly one custom event, named "subscr
   );
 });
 
-test('analytics: the landing page fires no custom events (pageviews only)', () => {
+test('analytics: the landing and upload pages fire no custom events (pageviews only)', () => {
   assert.equal(landing.includes("va('event'"), false);
+  assert.equal(upload.includes("va('event'"), false);
 });
 
 // ===========================================================================

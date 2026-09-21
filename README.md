@@ -227,6 +227,19 @@ API for the commit (one tree per intent, because a half-applied publish is an ed
 exist and whose state does not), a GitHub issue for the notification, and `src/vision.ts` for both
 model calls. A test asserts the adapters import nothing but those three modules.
 
+### The screens
+
+`/upload/` is one static page rendered by `src/upload-pages.ts` (ticket 08): details, one file
+action, review, the wait, success. The script reads fields, checks type and dimensions with the
+publisher's own limits before posting, shrinks a photo to fit the platform's body cap, posts to
+the two adapters, and shows one screen at a time; every rejection is the publisher's sentence,
+landed on the screen that can fix it (`GATE_SCREENS`). The update link is
+`https://stagetimes.app/update/<edition path>/#<secret>` — decided in `updateLink()` there, built
+by ticket 09. After confirm the page waits for the edition's own `all.ics` to answer, and after
+five minutes says so instead of pretending. `tests/upload-page.test.ts` pins the static markup;
+the smoke test checks the page on a live deployment (set `VERCEL_AUTOMATION_BYPASS_SECRET` to
+smoke a protected preview).
+
 ---
 
 ## Pushing a schedule change

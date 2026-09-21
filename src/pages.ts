@@ -30,6 +30,7 @@
 import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { renderUploadPage } from './upload-pages.js';
 
 // ---------------------------------------------------------------------------
 // Manifest shape (structurally typed — build.ts owns the real type)
@@ -113,7 +114,7 @@ const STAGE_COLORS = [
 // ---------------------------------------------------------------------------
 
 /** HTML text/attribute escape. Artist and stage names are festival-controlled data. */
-function esc(s: string): string {
+export function esc(s: string): string {
   return s
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -421,9 +422,9 @@ function popKeyframes(): string {
 // Icons — single glyphs for icon buttons; never mixed with a label
 // ---------------------------------------------------------------------------
 
-const ICON_BACK = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>`;
-const ICON_LINK = `<svg class="ic-link" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 13.5a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4L12 5.6"/><path d="M13.5 10.5a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4L12 18.4"/></svg>`;
-const ICON_CHECK = `<svg class="ic-check" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5 10-11"/></svg>`;
+export const ICON_BACK = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>`;
+export const ICON_LINK = `<svg class="ic-link" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 13.5a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4L12 5.6"/><path d="M13.5 10.5a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4L12 18.4"/></svg>`;
+export const ICON_CHECK = `<svg class="ic-check" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5 10-11"/></svg>`;
 
 // ---------------------------------------------------------------------------
 // CSS — tokens from the design skill, verbatim
@@ -752,7 +753,8 @@ const ANALYTICS_SNIPPET = `<script>window.va = window.va || function () { (windo
 const FONT_PRELOADS = `<link rel="preload" href="/assets/fonts/archivo-var-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/assets/fonts/fragment-mono-latin.woff2" as="font" type="font/woff2" crossorigin>`;
 
-function page(title: string, description: string, body: string): string {
+/** The shell every page shares. `extraCss` is a screen's own rules, appended after the tokens. */
+export function page(title: string, description: string, body: string, extraCss = ''): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -763,7 +765,7 @@ function page(title: string, description: string, body: string): string {
 <meta name="color-scheme" content="light dark">
 <meta name="robots" content="index,follow">
 ${FONT_PRELOADS}
-<style>${CSS}</style>
+<style>${CSS}${extraCss}</style>
 ${ANALYTICS_SNIPPET}
 </head>
 <body>
@@ -1219,6 +1221,11 @@ export function renderSitePages(site: SiteManifest, outDir: string): string[] {
     writeFileSync(join(dir, 'index.html'), m.blocked ? renderBlockedPage(m) : renderSubscribePage(m), 'utf8');
     written.push(`${rel}/index.html`);
   }
+
+  // The upload flow (ticket 08): one static page, four screens, talking to /api/upload and /api/confirm.
+  mkdirSync(join(outDir, 'upload'), { recursive: true });
+  writeFileSync(join(outDir, 'upload', 'index.html'), renderUploadPage(), 'utf8');
+  written.push('upload/index.html');
 
   return written;
 }

@@ -9,6 +9,15 @@
 `Efforts/Notes/Stage Times/`. See `docs/agents/issue-tracker.md`. The vault, not this file, is
 the source of truth for what is next; this file is the orientation.
 
+**2026-09-20, ticket 08 (branch `feat/upload-screens`, worktree `.claude/worktrees/ticket-08`):** the
+upload flow is built — `/upload/`, one static page, five screens (`src/upload-pages.ts`), tests in
+`tests/upload-page.test.ts`, the smoke test extended. Built alongside ticket 06 in a separate worktree;
+merge after 06 lands (both touch `src/pages.ts`, `tests/smoke.ts`, `references/screens.md`). Two
+things for whoever picks up 09 and 10: the update link shape is `updateLink()` in
+`src/upload-pages.ts` (`/update/<edition path>/#<secret>`), and nothing links to `/upload/` yet — the
+homepage (06) or the footer is the owner's call. The upload page has not been driven on a real phone
+against a real deploy; that is the smoke test on the first preview.
+
 Status: **everything from 6 Sep sits on `main` unpushed** — the morning's glossary, ADR, and copy
 review, plus tickets 02, 04, and 15. Nothing user-facing changes until Jake pushes.
 

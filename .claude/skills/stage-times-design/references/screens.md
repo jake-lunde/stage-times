@@ -144,3 +144,71 @@ prompt. No countdown timer.
 
 A festival-goer opens this page once, taps two or three times, and never returns. Every feature
 that assumes a second visit is dead weight.
+
+## 3. Upload — `/upload/`
+
+The third page type (ticket 08, 2026-09-20). One static page, five screens shown one at a time
+by a small script, so the image never leaves the phone's memory between screens. Everything the
+flow *decides* is in `src/publisher.ts`; the page repeats the publisher's own sentence for every
+rejection and holds no rule of its own. Markup and copy in `src/upload-pages.ts`.
+
+```
+┌──────────────────────────────┐
+│  (◀)                         │  the same top bar and lockup as the subscribe page
+│  STAGE TIMES                 │
+│  Add a festival              │  40pt / 630 expanded — the title stays across screens
+│  FROM ONE SCREENSHOT OF …    │  mono caption
+│                              │
+│  Festival                    │  1. DETAILS — four fields (festival, first day,
+│  [                    ]      │     last day, email), 52pt / 8pt radius, sunk fill:
+│  First day     Last day      │     the one non-capsule control. Email hint says it
+│  [        ]    [        ]    │     is a contact, not an account.
+│  Email                       │
+│  [                    ]      │
+│  [        Next        ]      │  one primary pill
+│                              │
+│  Your screenshot             │  2. UPLOAD — one line saying what to pick, one
+│  [    Choose image    ]      │     file pill. "Reading…" + a mono status line while
+│                              │     the model reads; a yellow line for any rejection.
+│                              │
+│  Check every set             │  3. REVIEW — the uploader's image in a card, then
+│  ┌────────────────────────┐  │     the time zone as a guess (select, spoken names),
+│  │   their image          │  │     then a row list per stage: artist field, day +
+│  └────────────────────────┘  │     two time fields, the printed time in mono,
+│  Time zone [Pacific      ▾]  │     yellow chips for "End is a guess" and "Look
+│  MAIN STAGE                  │     closer", and a tonal "Can't read it" toggle.
+│  [ MUNA               ]      │     No dividers. Confirm is disabled with a plain
+│  FRI [10:40 PM]–[11:40 PM]   │     reason while any set is marked.
+│  FRI · Printed 10:40-CLOSE   │
+│  (End is a guess)            │
+│  [ Can't read it ]           │
+│  [       Confirm      ]      │
+│                              │
+│  Building your page          │  4. PUBLISHING — the honest wait: times are saved,
+│  Checking every few seconds. │     the page is building. The update link is handed
+│  YOUR UPDATE LINK            │     over here, not after, with a copy icon button.
+│  [https://…/update/…] (⧉)    │
+│                              │
+│  It's live                   │  5. SUCCESS — share link, update link, one line
+│  YOUR PAGE                   │     saying which to keep, one pill: Open your page.
+│  [https://…/fan/…/   ] (⧉)   │     After five minutes without an answer the heading
+│  YOUR UPDATE LINK            │     is "Nearly there" and the links are still shown.
+│  [https://…/update/…] (⧉)    │
+│  [    Open your page   ]     │
+└──────────────────────────────┘
+```
+
+Rules that came out of building it:
+
+- **A rejection lands on the screen that can fix it.** A typo goes back to the form; anything
+  about the image, and the caps, go back to the file pill; a review that will not build stays on
+  review. `GATE_SCREENS` in `src/upload-pages.ts` is the map, and the script carries it verbatim.
+- **The browser checks what it can before it posts** — type and the short edge — with the
+  publisher's own numbers, and shrinks a photo to fit the platform's body cap. A screenshot never
+  needs shrinking. The same bytes go to upload and to confirm.
+- **The update link is shown while the page builds**, not only on success. Once confirm answers,
+  the secret exists nowhere but this tab; a two-minute wait is the wrong place to hold it.
+- **The wait is real.** The script asks for the edition's own calendar until it answers, and says
+  so in a sentence when it stops trying. Nothing on this page says "done" before it is.
+- **Glossary words stay off the page.** Screens say "your page", "your update link", "the times",
+  "a guess" — never edition, feed, transcription, verified, or a zone id.

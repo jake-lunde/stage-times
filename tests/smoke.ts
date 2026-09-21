@@ -27,6 +27,10 @@
  * links on it. The landing page must carry exactly one card per listed edition,
  * each linking to that edition's page in its namespace, and none for anything
  * unlisted or blocked.
+ * The upload page (/upload/) must carry all of its screens.
+ *
+ * A preview behind Vercel Deployment Protection can be smoke-tested by setting
+ * VERCEL_AUTOMATION_BYPASS_SECRET: every request then carries the bypass header.
  *
  * The body checks exist because of Vercel Deployment Protection: a protected
  * preview returns 200 with an HTML login page, which a header-only check happily
@@ -41,6 +45,10 @@ import { listedEditions, type Manifest as PageManifest } from '../src/pages.js';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const EXPECTED_CONTENT_TYPE = 'text/calendar; charset=utf-8';
+
+/** Vercel's protection bypass, when a preview is behind it. Sent on every request; harmless elsewhere. */
+const BYPASS = process.env['VERCEL_AUTOMATION_BYPASS_SECRET'];
+const HEADERS: Record<string, string> = BYPASS ? { 'x-vercel-protection-bypass': BYPASS } : {};
 
 interface Failure {
   url: string;
@@ -71,7 +79,7 @@ async function checkFeed(url: string, blocked: boolean): Promise<Failure[]> {
   let res: Response;
   try {
     // HEAD mirrors `curl -I`. Any TLS problem throws here rather than returning.
-    res = await fetch(url, { method: 'HEAD', redirect: 'manual' });
+    res = await fetch(url, { method: 'HEAD', redirect: 'manual', headers: HEADERS });
   } catch (err) {
     add(`request failed (TLS or DNS?): ${(err as Error).message}`);
     return failures;
@@ -97,7 +105,7 @@ async function checkFeed(url: string, blocked: boolean): Promise<Failure[]> {
   // Body check: a Deployment-Protection login page is a 200 with HTML in it.
   if (res.status === 200) {
     try {
-      const body = await (await fetch(url, { redirect: 'manual' })).text();
+      const body = await (await fetch(url, { redirect: 'manual', headers: HEADERS })).text();
       if (!body.startsWith('BEGIN:VCALENDAR')) {
         const head = body.slice(0, 80).replace(/\s+/g, ' ');
         add(
@@ -128,16 +136,18 @@ interface PageCheck {
   blocked?: boolean;
   /** For the landing page: the editions whose cards must be there, and only those. */
   listed?: PageManifest[];
+  /** For /upload/: every screen of the flow must be in the markup. */
+  upload?: boolean;
 }
 
 /** HTML pages must carry the analytics snippet — the positive half of the check. */
-async function checkPage(url: string, { blocked = false, listed }: PageCheck = {}): Promise<Failure[]> {
+async function checkPage(url: string, { blocked = false, listed, upload = false }: PageCheck = {}): Promise<Failure[]> {
   const failures: Failure[] = [];
   const add = (problem: string) => failures.push({ url, problem });
 
   let res: Response;
   try {
-    res = await fetch(url, { redirect: 'manual' });
+    res = await fetch(url, { redirect: 'manual', headers: HEADERS });
   } catch (err) {
     add(`request failed (TLS or DNS?): ${(err as Error).message}`);
     return failures;
@@ -165,6 +175,12 @@ async function checkPage(url: string, { blocked = false, listed }: PageCheck = {
     for (const m of listed) {
       if (!body.includes(`href="${m.festival.basePath}/"`)) add(`homepage has no card linking to ${m.festival.basePath}/`);
     }
+  }
+  if (upload) {
+    for (const screen of ['details', 'upload', 'review', 'publishing', 'success']) {
+      if (!body.includes(`data-screen="${screen}"`)) add(`upload page is missing its "${screen}" screen`);
+    }
+    if (!body.includes('/api/upload') || !body.includes('/api/confirm')) add('upload page does not talk to both adapters');
   }
   return failures;
 }
@@ -196,6 +212,7 @@ async function main(): Promise<void> {
   const pages: { path: string; check: PageCheck }[] = [
     { path: '/', check: { listed } },
     ...site.editions.map((m) => ({ path: `${m.festival.basePath}/`, check: { blocked: m.blocked } })),
+    { path: '/upload/', check: { upload: true } },
   ];
   const blockedCount = site.editions.filter((m) => m.blocked).length;
 
@@ -216,7 +233,7 @@ async function main(): Promise<void> {
     const url = new URL(p.path.replace(/^\//, ''), base).toString();
     const failures = await checkPage(url, p.check);
     allFailures.push(...failures);
-    const note = p.check.blocked ? '  (blocked: removed page)' : p.check.listed ? `  (${p.check.listed.length} listed card(s))` : '';
+    const note = p.check.blocked ? '  (blocked: removed page)' : p.check.listed ? `  (${p.check.listed.length} listed card(s))` : p.check.upload ? '  (the upload flow)' : '';
     process.stdout.write(`  ${failures.length === 0 ? 'ok  ' : 'FAIL'}  ${url}${note}\n`);
     for (const x of failures) process.stdout.write(`          ${x.problem}\n`);
   }
