@@ -598,7 +598,7 @@ export function claimedEdition(published: PublishedFile, claim: UpdateClaim | un
   return { path: claim.editionPath, record: record as ClaimedEdition['record'] };
 }
 
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+export const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 /**
  * Deliberately loose. This is a contact address, not a credential: the only
  * failure that matters is a typo the uploader can see in their own sentence.
@@ -927,10 +927,10 @@ export async function upload(intent: UploadIntent, ports: PublisherPorts): Promi
   const commit: Commit = {
     message: `Transcribe an upload for ${intent.festival.trim()} (${paidFor.map((h) => h.slice(0, 12)).join(', ')})`,
     files: [
-      ...fresh.map((f) => ({ path: `${TRANSCRIPTION_STORE_DIR}/${f.image}.json`, contents: json(f) })),
+      ...fresh.map((f) => ({ path: `${TRANSCRIPTION_STORE_DIR}/${f.image}.json`, contents: committedJson(f) })),
       {
         path: UPLOADS_PATH,
-        contents: json({
+        contents: committedJson({
           $comment: ledger.$comment ?? UPLOADS_COMMENT,
           uploads: [
             ...pruneUploads(ledger, now),
@@ -1170,7 +1170,7 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
     files: [
       { path: `${owner ? OWNER_DATA_DIR : FAN_DATA_DIR}/${key}.yaml`, contents: transcription.yaml },
       { path: `${SOURCE_DIR}/${path}/TRANSCRIPTION.md`, contents: transcription.log },
-      { path: PUBLISHED_PATH, contents: json(nextPublished) },
+      { path: PUBLISHED_PATH, contents: committedJson(nextPublished) },
     ],
     images: saved.map((reading, i) => ({
       path: `${SOURCE_IMAGE_DIR}/${storedImageName(reading)}`,
@@ -1266,7 +1266,7 @@ function listingPullRequest(
       `Merging lists it on the homepage. The only change is \`listed\` on \`${path}\` in \`${PUBLISHED_PATH}\`.\n`,
     commit: {
       message: `List ${name} (${path})`,
-      files: [{ path: PUBLISHED_PATH, contents: json(listedState) }],
+      files: [{ path: PUBLISHED_PATH, contents: committedJson(listedState) }],
       images: [],
     },
   };
@@ -1339,7 +1339,7 @@ async function correct(
     files: [
       { path: yamlPath, contents: transcription.yaml },
       { path: `${SOURCE_DIR}/${path}/TRANSCRIPTION.md`, contents: transcription.log },
-      { path: PUBLISHED_PATH, contents: json(nextPublished) },
+      { path: PUBLISHED_PATH, contents: committedJson(nextPublished) },
     ],
     images: saved.map((reading, i) => ({
       path: `${SOURCE_IMAGE_DIR}/${storedImageName(reading)}`,
@@ -1476,7 +1476,7 @@ export async function remove(intent: RemoveIntent, ports: PublisherPorts): Promi
     message:
       `Block ${target.path}: self-removal through its update link\n\n` +
       'The stored source image is kept; a self-removal is not a rights claim (docs/takedown-runbook.md).',
-    files: [{ path: PUBLISHED_PATH, contents: json(nextPublished) }],
+    files: [{ path: PUBLISHED_PATH, contents: committedJson(nextPublished) }],
     images: [],
   };
   await ports.repo.commit(commit);
@@ -1556,10 +1556,6 @@ export function readingProblem(err: unknown): Rejection {
 
 /** JSON as committed state is written: 2-space indent, trailing newline. */
 export function committedJson(value: unknown): string {
-  return json(value);
-}
-
-function json(value: unknown): string {
   return JSON.stringify(value, null, 2) + '\n';
 }
 

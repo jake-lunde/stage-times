@@ -90,7 +90,7 @@ test('ports: the owner port recognizes OWNER_SECRET and nothing else, set or uns
 });
 
 // ---------------------------------------------------------------------------
-// Pages and notices, for the watcher
+// Pages and issues, for the watcher
 // ---------------------------------------------------------------------------
 
 /** A site that answers each URL as told, and records how it was asked. */
@@ -136,7 +136,7 @@ test('ports: the page port answers with bytes and the served type for an image, 
   assert.equal(await pages.image('https://cdn.example/nope.png'), null);
 });
 
-test('ports: a notice with nobody behind it carries no uploader line', async () => {
+test('ports: an issue with nobody behind it carries no uploader line', async () => {
   const gh = fakeGitHub();
   const notify = githubNotifier({ GITHUB_TOKEN: 't' }, gh.fetch, 'o/r');
   await notify.send({ kind: 'watch-failed', editionPath: 'low-tide-2026', title: 'Watcher: Low Tide 2026 could not be read', body: 'The images read as 2025.' });

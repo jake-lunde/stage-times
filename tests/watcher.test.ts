@@ -461,7 +461,7 @@ test('watcher: two entries in one run share one state commit, and each review br
   assert.equal(ports.repo.commits.length, 1);
   assert.equal(result.commit!.message, 'Watch: Low Tide 2026: drop; Other Tide 2026: drop');
   assert.equal(result.pullRequests.length, 2);
-  assert.ok(result.pullRequests.every((pr) => pr.from === 'commit-1'));
+  assert.ok(result.pullRequests.every((pr) => pr.from === 'commit-1'), 'both reviews branch off the one state commit');
   assert.notEqual(result.pullRequests[0]!.branch, result.pullRequests[1]!.branch);
 });
 

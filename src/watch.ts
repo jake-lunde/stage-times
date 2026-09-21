@@ -13,8 +13,8 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { watcherPorts } from './ports.js';
-import { cadenceOf, isDue, loadWatchList, watch, type WatchReport } from './watcher.js';
+import { systemClock, watcherPorts } from './ports.js';
+import { cadenceOf, isDue, keyOf, loadWatchList, watch, type WatchReport } from './watcher.js';
 
 export const WATCH_LIST_PATH = 'config/watch.yaml';
 
@@ -29,9 +29,9 @@ async function main(argv: string[]): Promise<void> {
   const force = argv.includes('--force');
 
   if (argv.includes('--due')) {
-    const now = Date.now();
+    const now = systemClock().now();
     for (const entry of list) {
-      const key = `${entry.slug}-${entry.year}`;
+      const key = keyOf(entry);
       const cadence = cadenceOf(entry, now);
       console.log(`${key.padEnd(28)} ${cadence.padEnd(8)} ${isDue(entry, now) ? 'due now' : cadence === 'dormant' ? 'over' : 'not on this run'}`);
     }

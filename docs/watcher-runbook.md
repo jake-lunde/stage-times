@@ -57,7 +57,7 @@ and only the events that moved advance for subscribers. If the first review was 
 the new one replaces it — the whole schedule again, with what moved since the earlier reading —
 and the earlier pull request is left for you to close.
 
-**A notice** — an issue labeled `watch-failed` when something stopped a review: the images read
+**An issue** labeled `watch-failed` when something stopped a review: the images read
 as another year than the entry watches; the reply would not read into a schedule (the problem is
 named); the new images would drop a stage the live edition already has; or the pull request
 could not be opened (the issue carries what it would have said). The image links are in the
@@ -65,6 +65,14 @@ issue. Upload them through your bookmark, or fix the entry.
 
 Nothing else lands. An unchanged page, an unreachable page, and a page with no schedule on it yet
 are silent.
+
+**Offering it again.** The watcher records the images it has offered, so the same ones are never
+offered twice — including after a pull request it could not open, or one you closed by mistake,
+or one that will not merge because `state/published.json` moved under it (two reviews opened in
+the same run, or a fan edition published in between: git refuses loudly rather than merging
+wrong). To have an edition offered again, delete its entry from `state/watch.json` on `main`
+and push, or run the workflow by hand after; the replies are stored by image hash, so the second
+offer costs no model call.
 
 ## Running it by hand
 

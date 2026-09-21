@@ -50,6 +50,7 @@ import {
   committedJson,
   diffSets,
   icalStamp,
+  ISO_DATE_RE,
   listed,
   modelOutputs,
   OWNER_DATA_DIR,
@@ -70,7 +71,7 @@ import {
   type SetChange,
   type SourceImage,
 } from './publisher.js';
-import { isValidTimeZone, loadFestivalFromString, type FestivalDoc } from './schema.js';
+import { isValidTimeZone, loadFestivalFromString } from './schema.js';
 import { PUBLISHER_REPO } from './secrets.js';
 import { slugify } from './transcribe.js';
 import { transcribe, type Transcription } from './transcription.js';
@@ -102,10 +103,13 @@ export type WatchList = WatchEntry[];
 
 export type Cadence = 'hourly' | 'daily' | 'dormant';
 
+/** The edition an entry watches: `<slug>-<year>`, its key in committed state and its path at the root. */
+export function keyOf(entry: Pick<WatchEntry, 'slug' | 'year'>): string {
+  return `${entry.slug}-${entry.year}`;
+}
+
 /** The one hourly run a day that also polls the daily entries: 15:00 UTC, morning in the US. */
 export const DAILY_POLL_HOUR_UTC = 15;
-
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** The UTC calendar date `now` falls on. */
 function dateOf(now: number): string {
@@ -151,7 +155,7 @@ export function loadWatchList(text: string): WatchList {
   const seen = new Set<string>();
   raw.forEach((item, i) => {
     const entry = watchEntry(item, i + 1);
-    const key = `${entry.slug}-${entry.year}`;
+    const key = keyOf(entry);
     if (seen.has(key)) throw new WatchListError(`entry ${i + 1} (${entry.festival}): ${key} is watched twice`);
     seen.add(key);
     list.push(entry);
@@ -480,7 +484,7 @@ export async function watch(intent: WatchIntent, ports: WatcherPorts): Promise<W
   let stateMoved = false;
 
   for (const entry of intent.list) {
-    const key = `${entry.slug}-${entry.year}`;
+    const key = keyOf(entry);
     const cadence = cadenceOf(entry, now);
     const report: WatchReport = { key, festival: entry.festival, cadence, outcome: 'nothing', images: [], pullRequest: null, changes: [], problem: null };
     reports.push(report);
@@ -517,10 +521,7 @@ export async function watch(intent: WatchIntent, ports: WatcherPorts): Promise<W
     report.changes = review.changes;
     report.problem = review.problem;
     if (review.notification) notifications.push(review.notification);
-    if (review.pullRequest) {
-      report.outcome = report.outcome; // a drop or a change, as the page said
-      drafts.push({ report, pullRequest: review.pullRequest });
-    }
+    if (review.pullRequest) drafts.push({ report, pullRequest: review.pullRequest });
     if (review.failed) report.outcome = 'failed';
   }
 
@@ -564,7 +565,9 @@ async function readState(ports: WatcherPorts): Promise<WatchState> {
 }
 
 function sameSet(a: string[], b: string[]): boolean {
-  return a.length === b.length && [...a].sort().every((h, i) => h === [...b].sort()[i]);
+  if (a.length !== b.length) return false;
+  const sorted = [...b].sort();
+  return [...a].sort().every((h, i) => h === sorted[i]);
 }
 
 /** One line per entry that did something, for the state commit. */
@@ -647,7 +650,7 @@ function filenameOf(url: string): string {
 // The read: transcribe, diff against what is live, draft the review
 // ---------------------------------------------------------------------------
 
-interface Read {
+interface Reading {
   /** New replies to store on main. */
   files: FileWrite[];
   pullRequest: PullRequest | null;
@@ -666,12 +669,12 @@ interface Read {
  * the whole schedule, with what moved since the earlier reading when there
  * was one.
  */
-async function read(entry: WatchEntry, ports: WatcherPorts, found: Found[], previous: string[], stamp: string): Promise<Read> {
-  const key = `${entry.slug}-${entry.year}`;
+async function read(entry: WatchEntry, ports: WatcherPorts, found: Found[], previous: string[], stamp: string): Promise<Reading> {
+  const key = keyOf(entry);
   const name = `${entry.festival} ${entry.year}`;
   const files: FileWrite[] = [];
-  const nothing = (problem: string | null, extra: Partial<Read> = {}): Read => ({ files, pullRequest: null, changes: [], problem, notification: null, failed: false, ...extra });
-  const failed = (problem: string, detail: string[] = []): Read =>
+  const nothing = (problem: string | null, extra: Partial<Reading> = {}): Reading => ({ files, pullRequest: null, changes: [], problem, notification: null, failed: false, ...extra });
+  const failed = (problem: string, detail: string[] = []): Reading =>
     nothing(problem, {
       failed: true,
       notification: {
@@ -742,22 +745,24 @@ async function read(entry: WatchEntry, ports: WatcherPorts, found: Found[], prev
         branch,
         title: `${name}: ${whatMoved(changes)}`,
         body: changeBody(entry, key, found, changes, branch),
-        commit: { message: `Update ${name} (${key}) from the watched schedule page`, files: editionFiles(record, { ...published, publishedAt: stamp }), images },
+        commit: { message: `Correct ${name} (${key}) from the watched schedule page`, files: editionFiles(record, { ...published, publishedAt: stamp }), images },
       },
     };
   }
 
-  // Not live. What moved since the earlier reading, if there was one and it still reads.
+  // Not live. What moved since the earlier reading, if there was one and it
+  // still reads; an earlier reading that is gone or will not read is no
+  // baseline, and the review is offered as the first one was.
   let changes: SetChange[] = [];
   if (previous.length > 0) {
     const earlier = await Promise.all(previous.map((h) => ports.repo.readTranscription(h)));
     if (earlier.every((r) => r !== null)) {
       try {
         changes = diffSets(transcribe(modelOutputs(earlier as SavedTranscription[]), options).edition, doc);
+        if (changes.length === 0) return nothing('The new images read the same as the earlier ones; the earlier review stands.');
       } catch {
         changes = [];
       }
-      if (changes.length === 0) return nothing('The new images read the same as the earlier ones; the earlier review stands.');
     }
   }
   const record: PublishedEdition = { slug: doc.festival.slug, year: doc.festival.year, namespace: 'owner', listed: true, blocked: false, stages: doc.stages.map((s) => s.id).sort() };
@@ -770,7 +775,7 @@ async function read(entry: WatchEntry, ports: WatcherPorts, found: Found[], prev
     pullRequest: {
       from: '',
       branch,
-      title: previous.length > 0 ? `${name}: ${whatMoved(changes)}` : `Set times dropped: ${name}`,
+      title: changes.length > 0 ? `${name}: ${whatMoved(changes)}` : `Set times dropped: ${name}`,
       body: reviewBody(entry, key, found, transcription, changes, branch),
       commit: { message: `Publish and list ${name} (${key}) from the watched schedule page`, files: editionFiles(record, { ...published, publishedAt: stamp }), images },
     },
@@ -797,13 +802,13 @@ export function whatMoved(changes: SetChange[]): string {
 const RAW = `https://raw.githubusercontent.com/${PUBLISHER_REPO}`;
 const BLOB = `https://github.com/${PUBLISHER_REPO}/blob`;
 
-function imagesSection(found: Found[], saved: { image: string; contentType: string }[], branch: string): string[] {
+function imagesSection(found: Found[], branch: string): string[] {
   return [
     '## Images',
     ...found.flatMap((f, i) => [
       `Day ${i + 1} — ${f.image.filename}, from ${f.url}`,
       '',
-      `![${f.image.filename}](${RAW}/${branch}/${SOURCE_IMAGE_DIR}/${storedImageName(saved[i]!)})`,
+      `![${f.image.filename}](${RAW}/${branch}/${SOURCE_IMAGE_DIR}/${storedImageName({ image: f.hash, contentType: f.image.contentType })})`,
       '',
     ]),
   ];
@@ -866,7 +871,7 @@ function reviewBody(entry: WatchEntry, key: string, found: Found[], transcriptio
   if (transcription.observations.length > 0) {
     lines.push("## The model's notes", ...transcription.observations.map((o) => `- ${o}`), '');
   }
-  lines.push(...imagesSection(found, found.map((f) => ({ image: f.hash, contentType: f.image.contentType })), branch), logLine(key, branch), '');
+  lines.push(...imagesSection(found, branch), logLine(key, branch), '');
   return lines.join('\n');
 }
 
@@ -881,13 +886,8 @@ function changeBody(entry: WatchEntry, key: string, found: Found[], changes: Set
     '',
     `Merging publishes the new times; anyone who added a stage gets them at their next refresh, and only the events that moved advance. To decline, close this.`,
     '',
-    ...imagesSection(found, found.map((f) => ({ image: f.hash, contentType: f.image.contentType })), branch),
+    ...imagesSection(found, branch),
     logLine(key, branch),
     '',
   ].join('\n');
-}
-
-/** What the changed doc's stages are called, for a line the owner reads. Unused stages fall back to their id. */
-export function stageNameOf(doc: FestivalDoc, id: string): string {
-  return doc.stages.find((s) => s.id === id)?.name ?? id;
 }

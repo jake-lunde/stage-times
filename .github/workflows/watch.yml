@@ -5,6 +5,10 @@
 # change commits the reply and the watcher's state to main and opens a review
 # pull request for the owner to merge from his phone.
 #
+# Minute 7, not the top of the hour: scheduled runs start late under load, and
+# the daily entries are due on the run whose hour is 15:00 UTC, so an early
+# minute leaves most of the hour for the delay.
+#
 # Secrets: ANTHROPIC_API_KEY (a repository secret, set by
 # scripts/provision-secrets.sh) pays for the two model calls; GITHUB_TOKEN is
 # the workflow's own, with the write permissions below.
@@ -13,7 +17,7 @@ name: Watch
 
 on:
   schedule:
-    - cron: '23 * * * *'
+    - cron: '7 * * * *'
   workflow_dispatch:
     inputs:
       force:
