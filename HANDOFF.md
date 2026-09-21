@@ -22,6 +22,26 @@ owner's call; the build wait polls the page's own origin, so on a preview it alw
 Left for later, deliberately: the day-rolling for time edits is a browser-side reading of a time picker
 (the publisher's `SetEdit` takes wall time); moving it into the publisher means changing 07's seam.
 
+**2026-09-21, ticket 11 — the drop watcher, on branch `ticket/11-drop-watcher`.** `src/watcher.ts`
+is the publisher seam from the other side: `watch({kind: 'watch', list}, ports)` over the publisher's
+ports plus a page port. Per due entry it reads every image on the schedule page, decides each new one
+once (free gates, then the cheap check; verdicts committed to `state/watch.json`), and compares the
+schedule images as a set with last time: same is nothing, first is a drop, different is a change. A
+drop or a change is transcribed through the same library and schema as an upload (`namespace: owner`,
+`verified: true`), diffed against what is live (`diffSets()`), and opened as a review pull request off
+the run's one state commit; **merging is the check** and publishes and lists through the owner path.
+Cadence: hourly inside the entry's drop window, daily (15:00 UTC run) before it, never after the last
+day; the job is `.github/workflows/watch.yml` on an hourly cron with no server. Watch list:
+`config/watch.yaml` — ACL 2026 (weekend two, `match: Wk2`; the images are already posted, so the first
+run will open that review), III Points 2026 (the lineup page; no schedule page exists yet) and Camp Flog
+Gnaw 2026 (same). Verified against the live ACL page without spend: the extractor finds exactly the
+three Wk2 images and the header parser reads their sizes. Runbook: `docs/watcher-runbook.md`. Tests:
+`tests/watcher.test.ts`, the page-port and notice cases in `tests/ports.test.ts`. **Before it runs:**
+`ANTHROPIC_API_KEY` must exist as a GitHub Actions repository secret (the wizard now sets it, or
+`gh secret set`), and the workflow only exists once `main` is pushed. **Owner calls:** the daily slot
+(15:00 UTC); whether a page unreachable for days should notify (it is silent); whether a self-superseded
+review should be closed by the watcher (it is left open); the ACL weekend choice.
+
 **2026-09-21, ticket 17 — multi-day uploads through the publisher, on branch
 `ticket/17-multi-day-uploads-through-the-publisher`.** Both intents take `images` (day order; the
 old `image` is a list of one and reads exactly as before). Each image is gated, hashed and cached
@@ -175,7 +195,8 @@ All from the 6 Sep grilling; recorded on the vault effort page and, where perman
 ## The frontier (read the vault for the full tickets)
 
 - **Ready now:** 14 (sponsor card and the festival footer link), 16 (stage subtitle line and
-  poster colors), 08 (upload, review and success screens — Jake's lane). 06 and 07 are done.
+  poster colors), 18 (multi-day upload screens — Jake's lane), 12 (Reddit signal) and 13 (monthly
+  helper) once 11 is merged. 06, 07, 08, 09, 10, 11 and 17 are done.
 - **Waiting on Jake:** 03 (provision secrets: vision API key, GitHub token, owner secret). It
   gates 05 (pick the transcription model on evidence) and 08 (upload, review, success screens).
 - **Owner calls outstanding:** the rights-holder takedown email address (G2 — the footer line
