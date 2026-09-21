@@ -1,0 +1,35 @@
+{
+  "$comment": [
+    "COMMITTED STATE — what the watcher has seen on each watched schedule page (config/watch.yaml).",
+    "Per edition: every image by content hash with the one-time verdict of the cheap \"is this a",
+    "schedule\" check, and the schedule images as of the last drop or change. A poll that finds nothing",
+    "new writes nothing. Nothing in the build reads this file."
+  ],
+  "entries": {
+    "austin-city-limits-2026": {
+      "images": {
+        "1393eab849860378263657bae1362226059cf0eddbb66979a657a26e09d513e2": {
+          "url": "https://cdn.prod.website-files.com/67456b422d0e4219d58ef713/6a907b31751443f86fda80c3_ACL26-Schedule-Wk2-1003-V2-Sat-20260826-Draft3.png",
+          "schedule": true,
+          "seenAt": "20260921T215552Z"
+        },
+        "74085829f9a3ab9e8e3896753c49b0942b34428406a9d76783b96cf73673f7d3": {
+          "url": "https://cdn.prod.website-files.com/67456b422d0e4219d58ef713/6a907b08dc2908570803c143_ACL26-Schedule-Wk2-1002-V2-Fri-20260826-Draft3.png",
+          "schedule": true,
+          "seenAt": "20260921T215552Z"
+        },
+        "01edeabfdd8da54bbd8f0822d3486c40b3f504a5bbff03dcc68f4943fb3bab4b": {
+          "url": "https://cdn.prod.website-files.com/67456b422d0e4219d58ef713/6a905f68fd30e82920a65757_ACL26-Schedule-Wk2-1004-V2-Sun-20260826-Draft3.webp",
+          "schedule": true,
+          "seenAt": "20260921T215552Z"
+        }
+      },
+      "schedule": [
+        "1393eab849860378263657bae1362226059cf0eddbb66979a657a26e09d513e2",
+        "74085829f9a3ab9e8e3896753c49b0942b34428406a9d76783b96cf73673f7d3",
+        "01edeabfdd8da54bbd8f0822d3486c40b3f504a5bbff03dcc68f4943fb3bab4b"
+      ],
+      "at": "20260921T215552Z"
+    }
+  }
+}
