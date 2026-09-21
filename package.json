@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "tsx src/build.ts",
+    "dev": "npm run build && npx --yes serve dist -l 4173 --no-clipboard",
     "ingest": "tsx src/ingest.ts",
     "ingest:eval": "tsx tests/ingest-eval.ts",
     "test": "tsx --test tests/*.test.ts",
