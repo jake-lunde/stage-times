@@ -423,12 +423,12 @@ function isoAt(baseDate: string, absMinutes: number): string {
  * bare (often uppercase) domains in the footer. Normalize deterministically;
  * the log flags the URL as unverified either way.
  */
+export const NO_OFFICIAL_URL = 'no official URL found on the poster — pass --official-url (the schema requires one)';
+
 export function normalizeOfficialUrl(url: string): string {
   const trimmed = url.trim();
   if (trimmed === '') {
-    throw new TranscribeError(
-      'no official URL found on the poster — pass --official-url (the schema requires one)',
-    );
+    throw new TranscribeError(NO_OFFICIAL_URL);
   }
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return `https://${trimmed.toLowerCase()}`;

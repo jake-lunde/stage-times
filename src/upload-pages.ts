@@ -45,7 +45,7 @@
  */
 
 import { ACCEPTED_IMAGE_TYPES, EMAIL_RE, GATE_COPY, MAX_IMAGE_EDGE, MAX_UPLOAD_IMAGES, MIN_IMAGE_EDGE, fill, type Gate } from './publisher.js';
-import { esc, ICON_BACK, ICON_CHECK, ICON_LINK, page, PROD_ORIGIN } from './pages.js';
+import { artGround, esc, ICON_BACK, ICON_CHECK, ICON_LINK, page, PROD_ORIGIN } from './pages.js';
 
 export type Screen = 'details' | 'upload' | 'review' | 'publishing' | 'success' | 'remove' | 'removed';
 
@@ -67,6 +67,7 @@ export const GATE_SCREENS: Record<Gate, Screen> = {
   expired: 'upload',
   review: 'review',
   schema: 'review',
+  link: 'details',
   year: 'upload',
   stages: 'upload',
   removed: 'details',
@@ -161,6 +162,37 @@ export function daysLabel(first: string, last: string): string {
   var a = dayLabel(first, true), b = dayLabel(last, true);
   if (first === last) return a;
   return (a.slice(-3) === b.slice(-3) ? a.slice(0, -4) : a) + ' – ' + b;
+}
+
+/**
+ * The wait, drawn: the beads of a stage card (SKILL.md, Card art) with no
+ * sets yet — a ring per festival day, the beads filling in around each ring
+ * and dissolving again while the model reads, the rings drifting at their
+ * own speeds. Same geometry as `beadsArt()` in src/pages.ts: dial from 2 PM
+ * to 2 AM, rings from 86 to 176 on a 400×240 slice, cream marks on the
+ * light ground. Nothing here is random, so the same wait draws the same
+ * picture; under reduced motion it is the finished ring.
+ */
+export function loadingArt(days: number, ground: string): string {
+  var W = 400, H = 240, CX = 200, CY = 120, INNER = 86, OUTER = 176, SPINS = [300, 220, 380];
+  var cream = '#FCF9F4';
+  var nd = Math.max(1, Math.min(7, days));
+  var beads = 14, cycle = 12;
+  var rings = '';
+  for (var d = 0; d < nd; d++) {
+    var r = Math.round(nd === 1 ? OUTER : INNER + (d * (OUTER - INNER)) / (nd - 1));
+    var spin = SPINS[d % 3]! * (d >= 3 ? 1.3 : 1);
+    var parts = '<circle cx="' + CX + '" cy="' + CY + '" r="' + r + '" fill="none" stroke="' + cream + '" stroke-opacity=".12" stroke-width="1"/>';
+    for (var k = 0; k < beads; k++) {
+      var a = -Math.PI / 2 + (k / beads) * 2 * Math.PI;
+      var x = Math.round(CX + Math.cos(a) * r), y = Math.round(CY + Math.sin(a) * r);
+      var rad = 4 + ((k * 7 + d * 3) % 5);
+      var delay = ((k / beads) * cycle + d * 0.7).toFixed(2);
+      parts += '<circle class="bead" cx="' + x + '" cy="' + y + '" r="' + rad + '" fill="' + cream + '" fill-opacity=".95" style="animation-delay:' + delay + 's"/>';
+    }
+    rings += '<g class="rot" style="--spin:' + spin + 's">' + parts + '</g>';
+  }
+  return '<svg class="art-svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="background:' + ground + '">' + rings + '</svg>';
 }
 
 /**
@@ -273,6 +305,12 @@ button.text-btn{background:none; border:0; padding:0; font-family:inherit}
 .day>.problem{margin:0 0 var(--gap-2)}
 .fewer{margin:var(--gap-2) 0 0}
 
+/* the wait, drawn: the beads with no sets yet, in the art slot of a card */
+.loading{position:relative; margin:var(--gap-4) 0 0; aspect-ratio:400/240; border-radius:var(--r-card); overflow:hidden}
+.loading .bead{opacity:0; animation:bead-in 12s ease-in-out infinite}
+@keyframes bead-in{0%{opacity:0}6%{opacity:1}70%{opacity:1}82%{opacity:0}100%{opacity:0}}
+.screen>.loading+.status{margin-top:var(--gap-2)}
+
 /* the uploader's own image, in a card, tall enough to read a poster off */
 .source{margin:var(--gap-4) 0 0; background:var(--paper-sunk); border-radius:var(--r-card); overflow:hidden}
 .source img{display:block; width:100%; height:auto; max-height:70vh; object-fit:contain}
@@ -314,6 +352,7 @@ button.text-btn{background:none; border:0; padding:0; font-family:inherit}
 .vh{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
 @media (prefers-reduced-motion: reduce){
   .day-row:active{transform:none}
+  .loading .bead{opacity:1}
 }
 @media (max-width:359px){
   .field-pair{grid-template-columns:1fr}
@@ -425,6 +464,8 @@ export function renderUploadPage(edition?: UpdateTarget): string {
       </div>
       <label class="field"><span>Email</span><input name="email" type="email" inputmode="email" autocomplete="email" required>
         <span class="hint">Only so I can reach you about a wrong time. No account, and nothing gets sent to it.</span></label>
+      <label class="field" data-link hidden><span>Schedule link</span><input name="link" type="url" inputmode="url" autocomplete="off" placeholder="https://">
+        <span class="hint">Where the festival posted the times, since the image doesn't say.</span></label>
       <p class="problem" role="alert" hidden></p>
       <button class="btn btn--primary" type="submit">Next</button>
     </form>${removeAction}
@@ -434,6 +475,7 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     <h3 data-title>Your screenshot</h3>
     <p class="lead">The schedule with the times on it, not the lineup. A screenshot from the app or a photo of the poster both work.</p>
     <p class="problem" role="alert" hidden></p>
+    <figure class="loading" data-loading hidden></figure>
     <p class="status" aria-live="polite" hidden></p>
     <div data-one>
       <label class="btn btn--primary file-btn"><span>Choose image</span><input type="file" accept="image/*" name="image"></label>
@@ -486,6 +528,8 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     </details>
     <button class="btn btn--primary" type="button" data-confirm>Confirm</button>
     <p class="small blocked" data-blocked hidden></p>
+    <figure class="loading" data-loading hidden></figure>
+    <p class="status" aria-live="polite" data-save-status hidden></p>
     <button class="text-btn" type="button" data-back="upload" data-swap>Different image</button>
   </section>
 
@@ -531,6 +575,30 @@ export function renderUploadPage(edition?: UpdateTarget): string {
   function updateClaim() { return UPDATE ? { editionPath: UPDATE.editionPath, secret: location.hash.slice(1) } : undefined; }
   var BUILD_WAIT_MS = 5 * 60 * 1000;
   var POLL_MS = 10 * 1000;
+  var ART_GROUND = '${artGround('#EC300C')}';
+  ${loadingArt.toString()}
+
+  // The wait, said and drawn. The status line says what is happening and,
+  // past the first stretch, how long it has been — the one thing the browser
+  // can be sure of. Nothing here says a step is done that might not be.
+  function startWork(screen, first, still, days) {
+    var status = $('[data-loading] + .status', screens[screen]), art = $('[data-loading]', screens[screen]);
+    art.innerHTML = loadingArt(days, ART_GROUND);
+    art.hidden = false;
+    status.textContent = first;
+    status.hidden = false;
+    var started = Date.now();
+    var timer = setInterval(function () {
+      var s = Math.round((Date.now() - started) / 1000);
+      if (s >= 15) status.textContent = still + ' ' + s + ' seconds so far.';
+    }, 5000);
+    return function stop() {
+      clearInterval(timer);
+      art.hidden = true;
+      art.innerHTML = '';
+      status.hidden = true;
+    };
+  }
 
   ${ownerFromFragment.toString()}
   // The owner's bookmark. Read once, then cleared from the address bar so a
@@ -576,6 +644,10 @@ export function renderUploadPage(edition?: UpdateTarget): string {
   // image of several lands under that day's row, in the publisher's own words.
   function land(body, fallback) {
     var to = screenFor(body.gate, fallback);
+    // A review that will not build stays on review — but only if there is one.
+    if (to === 'review' && !state.review) to = 'upload';
+    // A source with no web address on it: the form grows the one field for it.
+    if (body.gate === 'link') $('[data-link]').hidden = false;
     if (to === 'upload' && multiDay() && typeof body.image === 'number' && slotOf(body.image)) {
       problem('upload', '');
       slotProblem(body.image, body.reason);
@@ -605,10 +677,11 @@ export function renderUploadPage(edition?: UpdateTarget): string {
   $('#details').addEventListener('submit', function (e) {
     e.preventDefault();
     var f = e.target;
-    var d = { festival: f.festival.value.trim(), first: f.first.value, last: f.last.value, email: f.email.value.trim() };
+    var d = { festival: f.festival.value.trim(), first: f.first.value, last: f.last.value, email: f.email.value.trim(), link: f.link.value.trim() };
     if (!d.festival) return problem('details', COPY.festival);
     if (!d.first || !d.last || d.last < d.first) return problem('details', COPY.dates);
     if (!EMAIL_RE.test(d.email)) return problem('details', COPY.email);
+    if (d.link && !/^https?:\\/\\/\\S+$/.test(d.link)) return problem('details', 'That link doesn\\'t look right. It starts with https://');
     problem('details', '');
     state.details = d;
     var days = festivalDays(d.first, d.last, LIMITS.maxImages);
@@ -619,7 +692,17 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     }
     renderSlots();
     show('upload');
+    // Back here from a rejection with the one image already chosen: read it again.
+    if (!multiDay() && state.images[0]) sendUpload();
   });
+  // What the form typed, as both adapters read it. The link only when there is one.
+  function typed(body) {
+    var d = state.details;
+    body.festival = d.festival;
+    body.email = d.email;
+    if (d.link) body.officialUrl = d.link;
+    return body;
+  }
 
   // ── upload ───────────────────────────────────────────────────────────────
   ${festivalDays.toString()}
@@ -649,7 +732,8 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     $('[data-one]', screens.upload).hidden = multi;
     $('[data-many]', screens.upload).hidden = !multi;
     if (!multi) return;
-    var offered = Math.min(chosen().length + 1, state.days.length);
+    // Every day at once, so the shape of the upload is clear before the first image.
+    var offered = state.days.length;
     var problems = {};
     $$('[data-slot]', dayList).forEach(function (li) { var p = $('.problem', li); if (!p.hidden) problems[li.getAttribute('data-slot')] = p.textContent; });
     dayList.textContent = '';
@@ -785,7 +869,7 @@ export function renderUploadPage(edition?: UpdateTarget): string {
 
   function sendUpload() {
     var multi = multiDay();
-    var btn = multi ? readBtn : $('.file-btn'), label = multi ? readBtn : $('span', btn), status = $('.status', screens.upload);
+    var btn = multi ? readBtn : $('.file-btn'), label = multi ? readBtn : $('span', btn);
     var d = state.details, n = chosen().length;
     var total = chosen().reduce(function (sum, im) { return sum + im.blob.size; }, 0);
     if (total > LIMITS.postBytes) {
@@ -794,14 +878,15 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     problem('upload', '');
     btn.classList.add('is-loading');
     label.textContent = 'Reading\\u2026';
-    status.textContent = n === 1
-      ? 'Reading the times off your image. Usually under a minute.'
-      : 'Reading the times off your ' + n + ' images. Usually a minute or two.';
-    status.hidden = false;
-    return post('/api/upload', withOwner(withImages({ festival: d.festival, dates: { first: d.first, last: d.last }, email: d.email, update: updateClaim() }))).then(function (r) {
+    var stop = startWork('upload',
+      n === 1
+        ? 'Reading the artist names and times off your image. Usually about a minute.'
+        : 'Reading the artist names and times off your ' + n + ' images, one after the other. Usually about a minute each.',
+      'Still reading.', state.days.length);
+    return post('/api/upload', withOwner(withImages(typed({ dates: { first: d.first, last: d.last }, update: updateClaim() })))).then(function (r) {
+      stop();
       btn.classList.remove('is-loading');
       label.textContent = multi ? 'Read the times' : 'Choose image';
-      status.hidden = true;
       if (!r.ok) return land(r.body, 'upload');
       state.review = r.body.review;
       state.unreadable = {};
@@ -933,7 +1018,8 @@ export function renderUploadPage(edition?: UpdateTarget): string {
   });
 
   $('[data-confirm]').addEventListener('click', function () {
-    var btn = this, rv = state.review, d = state.details;
+    var btn = this, rv = state.review;
+    if (!rv) return show('upload');
     var edits = [], unverifiable = [];
     $$('#sets [data-index]').forEach(function (li) {
       var i = Number(li.getAttribute('data-index'));
@@ -954,16 +1040,20 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     var was = btn.textContent;
     btn.classList.add('is-loading');
     btn.textContent = 'Saving\\u2026';
+    var stop = startWork('review', 'Checking the times hold together and saving them. Usually under a minute.', 'Still saving.', rv.images.length);
     // Every image goes back, and with more than one, the review's own list of
     // them — so what is published is exactly what was checked.
-    var body = withOwner(withImages({ festival: d.festival, email: d.email, timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: unverifiable, update: updateClaim() }));
+    var body = withOwner(withImages(typed({ timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: unverifiable, update: updateClaim() })));
     if (rv.images.length > 1) body.reviewed = rv.images;
     // A correction's calendar already answers, so the wait is for it to change:
     // note what it answers with now, before the new times are sent.
     (rv.correcting ? currentTag(rv.editionPath) : Promise.resolve(null)).then(function (before) {
       return post('/api/confirm', body).then(function (r) { return { r: r, before: before }; });
+    }).catch(function () {
+      return { r: { ok: false, body: { reason: 'Something went wrong on my end. Try again in a minute.' } }, before: null };
     }).then(function (x) {
       var r = x.r;
+      stop();
       btn.classList.remove('is-loading');
       btn.textContent = was;
       if (!r.ok) return land(r.body, 'review');

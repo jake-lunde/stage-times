@@ -174,12 +174,19 @@ rejection and holds no rule of its own. Markup and copy in `src/upload-pages.ts`
 │                              │     "Reading…" + a mono status line while the model
 │  Your screenshots            │     reads; a yellow line for any rejection.
 │  (▣) FRI 9 OCT               │     More days (ticket 18): a row per day — 56pt tile,
-│      Swap image              │     the day in caption caps, "Choose image" — offered
-│  (▣) SAT 10 OCT              │     one at a time as the one above fills, tap again
-│      Swap image              │     to swap; one pill reads whatever is chosen, and a
-│  ( ) SUN 11 OCT              │     mono line says a day with no times can be left
-│      Choose image            │     out. A rejection about one image is a yellow line
-│  [   Read the times   ]      │     under that day's row, in the publisher's words.
+│      Swap image              │     the day in caption caps, "Choose image" — every
+│  (▣) SAT 10 OCT              │     day shown from the start so the shape is clear,
+│      Swap image              │     tap a filled row to swap; one pill reads whatever
+│  ( ) SUN 11 OCT              │     is chosen, and a mono line says a day with no
+│      Choose image            │     times can be left out. A rejection about one
+│  [   Read the times   ]      │     image is a yellow line under that day's row, in
+│  ┌────────────────────────┐  │     the publisher's words.
+│  │ · ·  the beads  · ·    │  │     While it reads: the beads with no sets yet (a
+│  │   ·  filling in   ·    │  │     ring per day, beads filling in and dissolving,
+│  └────────────────────────┘  │     rings drifting) on the light red ground, in the
+│  READING THE ARTIST NAMES …  │     art slot of a card, over a mono status line —
+│                              │     what is being read and how many; after fifteen
+│                              │     seconds, how long it has been. Same while saving.
 │                              │
 │  Check every set             │  3. REVIEW — the time zone as a guess (select, spoken
 │  Time zone [Pacific      ▾]  │     names), then one section per image: its day as an
@@ -224,6 +231,17 @@ Rules that came out of building it:
 - **One day is one tap fewer.** With one day between the dates there is no row and no read pill:
   choosing the image is the read, exactly as before ticket 18. The rows only appear when there
   is more than one day to give an image to.
+- **The wait says what it is doing and how long it has been, and draws itself.** The browser
+  cannot see the model's progress, so the status line names the step in the reader's words
+  ("Reading the artist names and times off your 3 images, one after the other") and, after
+  fifteen seconds, counts the seconds — the one thing it knows. The art is the stage card's
+  beads with no sets yet (`loadingArt()`): a ring per day, beads filling in and dissolving,
+  under reduced motion the finished ring. Nothing on it is random.
+- **A rejection never strands the reader.** A review-gate rejection with nothing reviewed lands
+  on the images, not on an empty review; Confirm with nothing to confirm goes back. A source
+  with no web address printed on it (the schema needs one) lands on the form as the `link`
+  gate, revealing a single "Schedule link" field that is otherwise hidden — the form stays four
+  fields for everyone whose poster prints its address.
 - **The update link is shown while the page builds**, not only on success. Once confirm answers,
   the secret exists nowhere but this tab; a two-minute wait is the wrong place to hold it.
 - **The wait is real.** The script asks for the edition's own calendar until it answers, and says

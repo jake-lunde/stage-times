@@ -196,6 +196,7 @@ const STATUS: Record<Gate, number> = {
   expired: 410,
   review: 409,
   schema: 422,
+  link: 422,
   year: 422,
   stages: 422,
   removed: 410,
