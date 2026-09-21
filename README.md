@@ -46,7 +46,11 @@ and leave the stale event behind — the most common failure in published feeds.
 > **Known limitation.** Because UID excludes start time, one artist playing the *same stage* twice
 > collapses into a single event. The build hard-fails on duplicate UIDs rather than silently
 > dropping a set. Fixing it properly requires adding a discriminator to the UID — which is itself a
-> permanent decision, so do it before first publish or not at all.
+> permanent decision, so do it before first publish or not at all. The transcription library
+> works around it in the data instead (`disambiguateRepeats()`, 21 Sep 2026, when ACL's nightly
+> silent disco and repeating kids' acts refused to publish): a repeat on one stage gets the day
+> in its name, `SILENT DISCO (Friday)`, or the day and printed start when two fall on one day.
+> The name is what the calendar shows; the log and the review say it happened.
 
 ---
 

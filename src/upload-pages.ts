@@ -885,8 +885,8 @@ export function renderUploadPage(edition?: UpdateTarget): string {
     label.textContent = 'Reading\\u2026';
     var stop = startWork('upload',
       n === 1
-        ? 'Reading the artist names and times off your image. Usually about a minute.'
-        : 'Reading the artist names and times off your ' + n + ' images, one after the other. Usually about a minute each.',
+        ? 'Reading the times off your image. This could take about a minute.'
+        : 'Reading the times off your ' + n + ' images. This could take about a minute per image.',
       'Still reading.', state.days.length);
     return post('/api/upload', withOwner(withImages(typed({ dates: { first: d.first, last: d.last }, update: updateClaim() })))).then(function (r) {
       stop();

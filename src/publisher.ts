@@ -1154,7 +1154,7 @@ async function readReview(
       start: set.start,
       end: set.end,
       endInferred: set.end_inferred,
-      lowConfidence: lowConfidence(transcription.observations, set.artist),
+      lowConfidence: lowConfidence(transcription.observations, set.printedArtist ?? set.artist),
       printedTime: set.printedTime,
       notes: set.notes,
       image: hashOf.get(set.source)!,
