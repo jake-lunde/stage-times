@@ -201,6 +201,10 @@ const STATUS: Record<Gate, number> = {
   stages: 422,
   removed: 410,
   'update-link': 403,
+  address: 400,
+  unreachable: 502,
+  login: 422,
+  'no-schedule': 422,
 };
 
 export function json(body: unknown, status: number): Response {

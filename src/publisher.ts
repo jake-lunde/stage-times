@@ -8,11 +8,14 @@
  * reads a file, calls a model, opens a socket, or looks at the wall clock, so
  * every rule below is testable with fakes and no API key (`tests/publisher.test.ts`).
  *
- * Three intents live here:
+ * Four intents live here:
  *
  *   upload   an image plus a festival name, dates and an address, through the
  *            pre-spend gates, into a review payload the uploader can check
  *            against their own image.
+ *   link     the festival's schedule page plus an address, and nothing else:
+ *            the page's images, fetched and put through the same gates, into
+ *            the same review (ticket 19).
  *   confirm  that review, with the uploader's corrections, validated through
  *            the real schema and committed to main as an edition.
  *   remove   the uploader's self-removal: the edition is blocked, its stored
@@ -75,6 +78,18 @@ import {
 } from './schema.js';
 import { NO_OFFICIAL_URL, slugify, TranscribeError, type SetEdit } from './transcribe.js';
 import { transcribe, type ModelOutput, type Transcription } from './transcription.js';
+import {
+  filenameOf,
+  hostOf,
+  imageDimensions,
+  imageUrlsIn,
+  isHtml,
+  isLoginWall,
+  isPublicAddress,
+  publicLink,
+  type FetchedImage,
+  type WebPage,
+} from './web.js';
 
 export type { SetEdit };
 
@@ -119,6 +134,18 @@ export const SOURCE_IMAGE_DIR = 'source/images';
 export const UPLOADS_PATH = 'state/uploads.json';
 export const TRANSCRIPTION_STORE_DIR = 'state/transcriptions';
 export const PUBLISHED_PATH = 'state/published.json';
+/** The images a link's schedule check said no to, so the same page never pays to ask twice. */
+export const SCREENED_PATH = 'state/screened.json';
+
+/**
+ * The most images a link reads off one page, in page order, before any is
+ * looked at. A schedule page shows a handful; this bounds the fetching a
+ * stranger's link can cause, not the reading — the reading is bounded by the
+ * upload image limit.
+ */
+export const MAX_LINK_IMAGES_FETCHED = 60;
+/** How many of a page's images are fetched at once. */
+const LINK_FETCH_BATCH = 6;
 
 const EXTENSIONS: Record<string, string> = {
   'image/jpeg': '.jpg',
@@ -260,6 +287,27 @@ export interface PublisherPorts {
   owner: OwnerPort;
 }
 
+/**
+ * The web, as the link intent reads it. Nothing here decides anything: the
+ * publisher checks every address before it asks for it, and reads the answer.
+ * The live port refuses a non-public address again at connect time, on every
+ * redirect (src/ports.ts), because a name can resolve one way for the check
+ * and another for the request.
+ */
+export interface WebPort {
+  /** Every address a host name resolves to; empty when it resolves to none. */
+  resolve(hostname: string): Promise<string[]>;
+  /** One page, redirects followed, whatever its status. Null when nothing answered at all. */
+  page(url: string): Promise<WebPage | null>;
+  /** One image's bytes, or null when it did not answer with one. */
+  image(url: string): Promise<FetchedImage | null>;
+}
+
+/** The publisher's ports plus the web. What the link intent is handed. */
+export interface LinkPorts extends PublisherPorts {
+  web: WebPort;
+}
+
 // ---------------------------------------------------------------------------
 // Committed state the publisher owns
 // ---------------------------------------------------------------------------
@@ -381,13 +429,28 @@ export interface ConfirmIntent {
   owner?: string;
 }
 
+/**
+ * The festival's schedule page instead of screenshots: the link and the
+ * contact address, and nothing else typed. The name, the year and the days
+ * are read off the page's images, and the link is the official schedule.
+ */
+export interface LinkIntent {
+  kind: 'link';
+  /** The schedule page, as typed. A bare `festival.com/schedule` is read as https. */
+  url: string;
+  /** Contact address. Never an account (CONTEXT: uploader). */
+  email: string;
+  /** The secret from the owner's bookmarked link, if the page had one. */
+  owner?: string;
+}
+
 /** The uploader taking their own edition down, from its update link. */
 export interface RemoveIntent {
   kind: 'remove';
   update: UpdateClaim;
 }
 
-export type Intent = UploadIntent | ConfirmIntent | RemoveIntent;
+export type Intent = UploadIntent | LinkIntent | ConfirmIntent | RemoveIntent;
 
 /** Which gate stopped it. The screen picks its shape from this. */
 export type Gate =
@@ -411,7 +474,15 @@ export type Gate =
   /** An update link for an edition that has been taken down. */
   | 'removed'
   /** A self-removal whose secret does not match the edition. */
-  | 'update-link';
+  | 'update-link'
+  /** A link that is not a public http(s) web page — refused before any request. */
+  | 'address'
+  /** A link whose page did not answer. */
+  | 'unreachable'
+  /** A link whose page wants a login first. */
+  | 'login'
+  /** A link whose page shows no image that reads as a schedule. */
+  | 'no-schedule';
 
 export interface Rejection {
   gate: Gate;
@@ -485,6 +556,21 @@ export interface UploadResult {
   notifications: Notification[];
   /** True when an earlier upload of the same image paid for the transcription. */
   reused: boolean;
+}
+
+/**
+ * A link's answer: the review an upload of the same images would give, plus
+ * what an upload's uploader typed and a link's did not — read off the page
+ * instead — and the images themselves, which the uploader never had. Confirm
+ * takes those images back exactly as an upload's confirm does.
+ */
+export interface LinkResult extends UploadResult {
+  /** The link, as the edition's official schedule. Confirm sends it back as `officialUrl`. */
+  officialUrl: string | null;
+  /** Every day the sets were read as, ISO, in order — a night past midnight counts as the day it started. */
+  days: string[];
+  /** The images the review was read off, in the review's order, as fetched. */
+  images: SourceImage[];
 }
 
 export interface ConfirmResult {
@@ -626,6 +712,20 @@ export const GATE_COPY = {
   noLink: "The image doesn't say where the times are posted. Add the link to the festival's schedule and try again.",
   removed: "This page was taken down, so it can't be changed from here.",
   wrongLink: "That update link doesn't match this page. Check you copied all of it.",
+} as const;
+
+/**
+ * What a link that cannot be read says. Every one names the way forward that
+ * always works: screenshots. A private address gets the same sentence as any
+ * other link that is not a public page, so the answer says nothing about what
+ * is behind it.
+ */
+export const LINK_COPY = {
+  address: "That link isn't a public web page, so take screenshots of the schedule and add those instead.",
+  unreachable: "That page didn't open for me, so take screenshots of the schedule and add those instead.",
+  login: 'That page needs a login before it shows the times, so take screenshots of the schedule and add those instead.',
+  noSchedule: "I couldn't find set times on that page, so take screenshots of the schedule and add those instead.",
+  tooMany: 'The page had {n} images big enough to be the schedule, and only the {max} largest were read.',
 } as const;
 
 /** `{name}` placeholders → values. The page carries the same one-liner. */
@@ -956,30 +1056,71 @@ async function finishUpload(
   saved: SavedTranscription[],
   opts: { reused: boolean; commit: Commit | null; target: ClaimedEdition | null },
 ): Promise<UploadResult> {
+  const read = await readReview(ports, saved, {
+    ...opts,
+    owner: intent.owner,
+    name: intent.festival.trim(),
+    slug: opts.target?.record.slug ?? slugify(intent.festival),
+    officialUrl: intent.officialUrl,
+    timezone: intent.timezone,
+    typedYear: intent.dates.first.slice(0, 4),
+  });
+  return read.result;
+}
+
+/**
+ * What a review is read with. An upload names the festival and its dates; a
+ * link names neither, and the name and the year come off the images.
+ */
+interface ReadingOf {
+  reused: boolean;
+  commit: Commit | null;
+  target: ClaimedEdition | null;
+  owner?: string;
+  /** The festival's name as typed. Absent: the name printed on the images. */
+  name?: string;
+  /** The slug to read under. Absent: derived from the name. */
+  slug?: string;
+  officialUrl?: string;
+  timezone?: string;
+  /** The year the typed dates are in. Absent: nothing typed, so nothing to mismatch. */
+  typedYear?: string;
+}
+
+/**
+ * The saved replies, read through the library into one review payload — the
+ * one shape every intent that reads images answers with.
+ */
+async function readReview(
+  ports: PublisherPorts,
+  saved: SavedTranscription[],
+  opts: ReadingOf,
+): Promise<{ result: UploadResult; transcription: Transcription | null }> {
+  const refused = (rejection: Rejection) => ({ result: rejectedUpload(rejection, opts.commit), transcription: null });
   // Recorded before it is read. A reply the library then refuses is still on
   // the record for the audit trail, and the fix-and-retry is free.
   if (opts.commit) await ports.repo.commit(opts.commit);
 
   const { target } = opts;
-  const namespace = namespaceOf(intent, ports, target);
-  const timezone = intent.timezone ?? DEFAULT_TIMEZONE;
+  const namespace = namespaceOf(opts, ports, target);
+  const timezone = opts.timezone ?? DEFAULT_TIMEZONE;
   let transcription: Transcription;
   try {
     transcription = transcribe(modelOutputs(saved), {
       namespace,
-      name: intent.festival.trim(),
-      slug: opts.target?.record.slug ?? slugify(intent.festival),
-      officialUrl: intent.officialUrl,
+      ...(opts.name !== undefined ? { name: opts.name } : {}),
+      ...(opts.slug !== undefined ? { slug: opts.slug } : {}),
+      officialUrl: opts.officialUrl,
       timezone,
-      timezoneAssumed: intent.timezone === undefined,
+      timezoneAssumed: opts.timezone === undefined,
     });
   } catch (err) {
-    return rejectedUpload(readingProblem(err), opts.commit);
+    return refused(readingProblem(err));
   }
 
   const { festival, stages } = transcription.edition;
   if (target && festival.year !== target.record.year) {
-    return rejectedUpload(wrongYear(festival.year, target.record.year), opts.commit);
+    return refused(wrongYear(festival.year, target.record.year));
   }
   // A correction keeps the slug it has — the UIDs are derived from it. Anything
   // else claims one: suffixed inside `/fan/`, the festival's own at the root,
@@ -987,7 +1128,7 @@ async function finishUpload(
   const claimed = target
     ? { slug: target.record.slug }
     : claimSlug(await ports.repo.readPublished(), namespace, festival);
-  if ('gate' in claimed) return rejectedUpload(claimed, opts.commit);
+  if ('gate' in claimed) return refused(claimed);
   const slug = claimed.slug;
   const stageNames = new Map(stages.map((s) => [s.id, s.name]));
   const hashOf = new Map(saved.map((s) => [storedImageName(s), s.image]));
@@ -1003,7 +1144,7 @@ async function finishUpload(
     correcting: target !== null,
     timezone,
     timezoneAssumed: transcription.timezoneAssumed,
-    yearMismatch: intent.dates.first.slice(0, 4) !== String(festival.year),
+    yearMismatch: opts.typedYear !== undefined && opts.typedYear !== String(festival.year),
     stages: stages.map((s) => ({ id: s.id, name: s.name })),
     sets: transcription.sets.map((set, index) => ({
       index,
@@ -1022,7 +1163,254 @@ async function finishUpload(
     reused: opts.reused,
   };
 
-  return { ok: true, rejection: null, review, commit: opts.commit, notifications: [], reused: opts.reused };
+  return {
+    result: { ok: true, rejection: null, review, commit: opts.commit, notifications: [], reused: opts.reused },
+    transcription,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// link
+// ---------------------------------------------------------------------------
+
+/**
+ * The images not yet decided that the schedule check said no to, by content
+ * hash — committed state, so a link tried twice asks about the same banner
+ * once. Written only when the check said no.
+ */
+export interface ScreenedLedger {
+  $comment?: string | string[];
+  /** Hash → when the check said this image is not a schedule. */
+  notSchedules: Record<string, string>;
+}
+
+const SCREENED_COMMENT = [
+  'COMMITTED STATE — images a link\'s "is this a schedule" check said no to, by content hash, with',
+  'when. A link that shows the same image again does not pay to ask again. An image the check said',
+  'yes to is in state/transcriptions/ instead. Nothing in the build reads this file.',
+];
+
+/** A page image that cleared the free gates: hashed, sized, and ready to ask about. */
+interface Candidate {
+  hash: string;
+  image: SourceImage;
+  /** Where on the page it came, from 0. The order the review keeps. */
+  order: number;
+}
+
+/**
+ * The festival's schedule page, read into the same review an upload of its
+ * images would give.
+ *
+ * Nothing typed but the link and the address, so the gates are the upload's
+ * with the page in front of them, cheapest first, stopping at the first one
+ * that fails:
+ *
+ *   1. the address; the link is a public http(s) web page    (free, no request)
+ *   2. the caps — a link is one upload                       (free, no request)
+ *   3. every address the host resolves to is public          (a name lookup)
+ *   4. the page answers, without a login, as a web page      (one request)
+ *   5. every image on it, fetched; the ones too small, too
+ *      big or not an image by their header are dropped, and
+ *      at most the upload image limit is kept, largest first (requests, no model)
+ *   6. content-hash lookup, per image                         (free — a hit costs nothing)
+ *   7. is this a schedule, per unread image — a no drops the
+ *      image, not the link, and is remembered                 (a small model)
+ *   8. transcribe, per schedule image not read before         (the real cost)
+ *
+ * What comes back is exactly an upload's review, read with the name and the
+ * year printed on the images and the link as the official schedule, plus the
+ * images themselves: confirm is the upload's confirm, and takes them back.
+ */
+export async function link(intent: LinkIntent, ports: LinkPorts): Promise<LinkResult> {
+  const refused = (rejection: Rejection, commit: Commit | null = null): LinkResult => ({
+    ...rejectedUpload(rejection, commit),
+    officialUrl: null,
+    days: [],
+    images: [],
+  });
+
+  if (!EMAIL_RE.test(intent.email.trim())) return refused(reject('details', GATE_COPY.email));
+  const target = publicLink(intent.url);
+  if (!target) return refused(reject('address', LINK_COPY.address));
+
+  // The caps before any request: a link is one upload, and a gate whose job
+  // is to bound what a stranger can make this do cannot do it first.
+  const now = ports.clock.now();
+  const stamp = icalStamp(now);
+  const address = addressHash(intent.email);
+  const ledger = await ports.repo.readUploads();
+  const capped = checkCaps(ledger, address, now);
+  if (capped) return refused(capped);
+
+  // A name is resolved before anything is asked of it, and one that leads
+  // anywhere private is refused with the same sentence as any other address
+  // that is not a public page.
+  const reach = publicHosts(ports.web);
+  const where = await reach(target);
+  if (where === 'private') return refused(reject('address', LINK_COPY.address));
+  if (where === 'nowhere') return refused(reject('unreachable', LINK_COPY.unreachable));
+
+  const page = await ports.web.page(target.href);
+  if (!page) return refused(reject('unreachable', LINK_COPY.unreachable));
+  if (isLoginWall(page)) return refused(reject('login', LINK_COPY.login));
+  if (page.status < 200 || page.status > 299) return refused(reject('unreachable', LINK_COPY.unreachable));
+  if (!isHtml(page)) return refused(reject('address', LINK_COPY.address));
+
+  // Every image the page shows, fetched and put through the free gates. What
+  // cannot be a schedule by its header alone never reaches a model.
+  const urls: string[] = [];
+  for (const url of imageUrlsIn(page.html, page.url)) {
+    if (urls.length >= MAX_LINK_IMAGES_FETCHED) break;
+    const parsed = publicLink(url);
+    if (parsed && (await reach(parsed)) === 'public') urls.push(parsed.href);
+  }
+  const candidates: Candidate[] = [];
+  const seen = new Set<string>();
+  for (let at = 0; at < urls.length; at += LINK_FETCH_BATCH) {
+    const batch = urls.slice(at, at + LINK_FETCH_BATCH);
+    const fetched = await Promise.all(batch.map((url) => ports.web.image(url)));
+    for (const [i, got] of fetched.entries()) {
+      if (!got) continue;
+      const hash = sha256(got.bytes);
+      if (seen.has(hash)) continue;
+      seen.add(hash);
+      const header = imageDimensions(got.bytes);
+      if (!header) continue;
+      const image: SourceImage = {
+        filename: filenameOf(batch[i]!),
+        contentType: header.contentType,
+        bytes: got.bytes,
+        width: header.width,
+        height: header.height,
+      };
+      if (checkImage(image)) continue;
+      candidates.push({ hash, image, order: candidates.length });
+    }
+  }
+  if (candidates.length === 0) return refused(reject('no-schedule', LINK_COPY.noSchedule));
+
+  // At most what one upload can carry, the largest first, then back into page
+  // order — the order an uploader holding the same images would give them in.
+  const area = (c: Candidate) => c.image.width * c.image.height;
+  const kept = [...candidates]
+    .sort((a, b) => area(b) - area(a) || a.order - b.order)
+    .slice(0, MAX_UPLOAD_IMAGES)
+    .sort((a, b) => a.order - b.order);
+  const notes = candidates.length > kept.length ? [fill(LINK_COPY.tooMany, { n: candidates.length, max: kept.length })] : [];
+
+  // Each image looked up on its own, exactly as an upload's: a reply already
+  // paid for is a schedule and costs nothing; a no already paid for is not
+  // asked again.
+  const saved = await Promise.all(kept.map((c) => ports.repo.readTranscription(c.hash)));
+  const screened = await readScreened(ports);
+  const unread = kept.flatMap((c, i) => (saved[i] || screened.notSchedules[c.hash] ? [] : [i]));
+
+  const noLonger: string[] = [];
+  for (const i of unread) {
+    const check = await ports.vision.looksLikeSchedule(kept[i]!.image);
+    if (!check.isSchedule) noLonger.push(kept[i]!.hash);
+  }
+  const schedule = kept.flatMap((c, i) => (saved[i] || (unread.includes(i) && !noLonger.includes(c.hash)) ? [i] : []));
+
+  const fresh: SavedTranscription[] = [];
+  for (const i of schedule) {
+    if (saved[i]) continue;
+    const { hash, image } = kept[i]!;
+    const output = await ports.vision.transcribe(image);
+    const reading: SavedTranscription = { image: hash, filename: image.filename, contentType: image.contentType, output, transcribedAt: stamp };
+    fresh.push(reading);
+    saved[i] = reading;
+  }
+
+  // Anything paid for is recorded, whatever the page turns out to hold: the
+  // replies, the noes, and the link as one upload against the caps.
+  const paidFor = [...fresh.map((f) => f.image), ...noLonger];
+  const commit: Commit | null =
+    paidFor.length === 0
+      ? null
+      : {
+          message: `${fresh.length > 0 ? 'Transcribe' : 'Screen'} a link to ${hostOf(target)} (${paidFor.map((h) => h.slice(0, 12)).join(', ')})`,
+          files: [
+            ...fresh.map((f) => ({ path: `${TRANSCRIPTION_STORE_DIR}/${f.image}.json`, contents: committedJson(f) })),
+            ...(noLonger.length > 0
+              ? [
+                  {
+                    path: SCREENED_PATH,
+                    contents: committedJson({
+                      $comment: screened.$comment ?? SCREENED_COMMENT,
+                      notSchedules: sortKeys({ ...screened.notSchedules, ...Object.fromEntries(noLonger.map((h) => [h, stamp])) }),
+                    }),
+                  },
+                ]
+              : []),
+            {
+              path: UPLOADS_PATH,
+              contents: committedJson({
+                $comment: ledger.$comment ?? UPLOADS_COMMENT,
+                uploads: [
+                  ...pruneUploads(ledger, now),
+                  { address, at: now, image: paidFor[0]!, ...(paidFor.length > 1 ? { images: paidFor } : {}) },
+                ],
+              }),
+            },
+          ],
+          images: [],
+        };
+
+  if (schedule.length === 0) {
+    if (commit) await ports.repo.commit(commit);
+    return refused(reject('no-schedule', LINK_COPY.noSchedule), commit);
+  }
+
+  const images = schedule.map((i) => kept[i]!.image);
+  const read = await readReview(ports, schedule.map((i) => saved[i]!), {
+    reused: commit === null,
+    commit,
+    target: null,
+    owner: intent.owner,
+    officialUrl: target.href,
+  });
+  if (!read.result.ok) return { ...read.result, officialUrl: null, days: [], images: [] };
+
+  const review = read.result.review!;
+  if (notes.length > 0) review.observations = [...review.observations, ...notes];
+  return {
+    ...read.result,
+    officialUrl: target.href,
+    days: [...new Set(read.transcription!.sets.map((s) => s.posterDate))].sort(),
+    images,
+  };
+}
+
+/**
+ * Where a link's host leads: every address it resolves to is public, some
+ * address is not, or it resolves to nothing. An address typed as an IP was
+ * checked by `publicLink()`; a name is resolved once per host per intent.
+ */
+type Reach = 'public' | 'private' | 'nowhere';
+
+function publicHosts(web: WebPort): (url: URL) => Promise<Reach> {
+  const decided = new Map<string, Promise<Reach>>();
+  return (url) => {
+    const host = hostOf(url);
+    if (isPublicAddress(host)) return Promise.resolve('public');
+    let answer = decided.get(host);
+    if (!answer) {
+      answer = web
+        .resolve(host)
+        .then((addresses): Reach => (addresses.length === 0 ? 'nowhere' : addresses.every(isPublicAddress) ? 'public' : 'private'));
+      decided.set(host, answer);
+    }
+    return answer;
+  };
+}
+
+async function readScreened(ports: PublisherPorts): Promise<ScreenedLedger> {
+  const text = await ports.repo.readFile(SCREENED_PATH);
+  if (text === null) return { notSchedules: {} };
+  const parsed = JSON.parse(text) as Partial<ScreenedLedger>;
+  return { ...(parsed.$comment ? { $comment: parsed.$comment } : {}), notSchedules: parsed.notSchedules ?? {} };
 }
 
 // ---------------------------------------------------------------------------
@@ -1493,11 +1881,16 @@ export async function remove(intent: RemoveIntent, ports: PublisherPorts): Promi
 
 /** One intent in, the writes and notifications it would make out. */
 export async function publish(intent: UploadIntent, ports: PublisherPorts): Promise<UploadResult>;
+export async function publish(intent: LinkIntent, ports: LinkPorts): Promise<LinkResult>;
 export async function publish(intent: ConfirmIntent, ports: PublisherPorts): Promise<ConfirmResult>;
 export async function publish(intent: RemoveIntent, ports: PublisherPorts): Promise<RemoveResult>;
-export async function publish(intent: Intent, ports: PublisherPorts): Promise<UploadResult | ConfirmResult | RemoveResult>;
-export async function publish(intent: Intent, ports: PublisherPorts): Promise<UploadResult | ConfirmResult | RemoveResult> {
+export async function publish(intent: Intent, ports: LinkPorts): Promise<UploadResult | ConfirmResult | RemoveResult>;
+export async function publish(intent: Intent, ports: PublisherPorts | LinkPorts): Promise<UploadResult | ConfirmResult | RemoveResult> {
   if (intent.kind === 'upload') return upload(intent, ports);
+  if (intent.kind === 'link') {
+    if (!('web' in ports)) throw new Error('a link intent needs the web port');
+    return link(intent, ports);
+  }
   if (intent.kind === 'confirm') return confirm(intent, ports);
   return remove(intent, ports);
 }

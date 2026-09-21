@@ -72,6 +72,11 @@ export const GATE_SCREENS: Record<Gate, Screen> = {
   stages: 'upload',
   removed: 'details',
   'update-link': 'remove',
+  // A link's answers, for the link-first screen (ticket 20); every one lands where the link was typed.
+  address: 'details',
+  unreachable: 'details',
+  login: 'details',
+  'no-schedule': 'details',
 };
 
 /**
