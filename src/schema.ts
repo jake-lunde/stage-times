@@ -26,6 +26,13 @@ export interface Stage {
   id: string;
   name: string;
   description: string;
+  /**
+   * The acts the stage bills as its closer each night, as printed — usually the last
+   * set, but an afters DJ set does not count. Display only (the card art and the
+   * headliner preview); never touches a feed. Optional: absent means "the last set
+   * of each night". Each name must match a set on this stage exactly.
+   */
+  headliners: string[];
 }
 
 /** A local wall-clock datetime with no offset. Never a UTC instant. */
@@ -322,6 +329,15 @@ export function validateDoc(raw: unknown, sourcePath: string): FestivalDoc {
       const id = reqString(s, 'id', where, problems);
       const name = reqString(s, 'name', where, problems);
       const description = optString(s, 'description', where, problems);
+      const headlinersRaw = s['headliners'];
+      let headliners: string[] = [];
+      if (headlinersRaw !== undefined && headlinersRaw !== null) {
+        if (!Array.isArray(headlinersRaw) || headlinersRaw.some((h) => typeof h !== 'string' || h.trim() === '')) {
+          problems.push(`${where}: \`headliners\` must be a list of artist names as they appear in \`sets\``);
+        } else {
+          headliners = headlinersRaw as string[];
+        }
+      }
       if (id) {
         const problem = stageIdProblem(id);
         if (problem) {
@@ -338,7 +354,7 @@ export function validateDoc(raw: unknown, sourcePath: string): FestivalDoc {
           seen.set(id, i);
         }
       }
-      stages.push({ id, name, description });
+      stages.push({ id, name, description, headliners });
     });
   }
 
@@ -417,6 +433,17 @@ export function validateDoc(raw: unknown, sourcePath: string): FestivalDoc {
         }
       }
     });
+  }
+
+  // A headliner is a display pick, but it has to be a real set on that stage.
+  for (const stage of stages) {
+    for (const h of stage.headliners) {
+      if (!sets.some((e) => e.stage === stage.id && e.artist === h)) {
+        problems.push(
+          `stages: headliner "${h}" on stage "${stage.id}" does not match any set's \`artist\` on that stage — the name must be spelled exactly as in \`sets\``,
+        );
+      }
+    }
   }
 
   // Gate 7, half two: every declared stage has at least one set.

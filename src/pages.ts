@@ -222,9 +222,10 @@ const ART_W = 400;
 const ART_H = 240;
 const ART_CX = 200;
 const ART_CY = 120;
-/** The card's day runs 2 PM to 2 AM; a set that starts before 2 PM belongs to the previous night. */
+/** The dial runs 2 PM to 2 AM; a night runs until 6 AM, so a set that starts before 6 AM belongs to the night before. */
 const DAY_T0 = 14 * 60;
 const DAY_T1 = 26 * 60;
+const NIGHT_ENDS = 6 * 60;
 const RING_INNER = 86;
 const RING_OUTER = 176;
 const RING_SPIN_S = [300, 220, 380];
@@ -298,12 +299,14 @@ function shapeSets(sets: StageEntry['sets'], dayDates: string[]): ArtSet[] {
       let day = dayDates.indexOf(sd);
       let startMin = hhmm(st);
       let endMin = hhmm(et) + (ed > sd ? 1440 : 0);
-      if (startMin < DAY_T0) {
+      if (startMin < NIGHT_ENDS) {
         day -= 1;
         startMin += 1440;
         endMin += 1440;
       }
-      return { artist: s.artist, day, startMin, endMin, len: endMin - startMin, x: (startMin - DAY_T0) / (DAY_T1 - DAY_T0) };
+      // Past 2 AM the dial is full; a later start sits at twelve rather than wrapping.
+      const x = Math.min(1, Math.max(0, (startMin - DAY_T0) / (DAY_T1 - DAY_T0)));
+      return { artist: s.artist, day, startMin, endMin, len: endMin - startMin, x };
     })
     .filter((s) => s.day >= 0)
     .sort((a, b) => a.day - b.day || a.startMin - b.startMin);
@@ -326,9 +329,12 @@ export function beadsArt(stage: StageEntry, color: string, dayDates: string[]): 
   const angOf = (x: number) => -Math.PI / 2 + x * 2 * Math.PI;
   const px = (a: number, r: number) => `${Math.round(ART_CX + Math.cos(a) * r)} ${Math.round(ART_CY + Math.sin(a) * r)}`;
 
+  // The starred sets: the stage's billed headliners (one per night, in night order),
+  // or the last set of each night when none are billed.
   const closers = new Map<number, ArtSet>();
   for (const s of sets) closers.set(s.day, s);
-  const closerList = [...closers.values()];
+  const billed = stage.headliners.map((h) => sets.find((s) => s.artist === h)).filter((s): s is ArtSet => !!s);
+  const closerList = billed.length > 0 ? billed : [...closers.values()];
   const n = closerList.length;
 
   const rings: string[] = [];
@@ -339,7 +345,7 @@ export function beadsArt(stage: StageEntry, color: string, dayDates: string[]): 
     const parts = [`<circle cx="${ART_CX}" cy="${ART_CY}" r="${r}" fill="none" stroke="${cream}" stroke-opacity=".12" stroke-width="1"/>`];
     if (ds.length) {
       const a0 = angOf(Math.min(...ds.map((s) => s.x)));
-      const a1 = angOf(Math.max(...ds.map((s) => (s.endMin - DAY_T0) / (DAY_T1 - DAY_T0))));
+      const a1 = angOf(Math.min(1, Math.max(...ds.map((s) => (s.endMin - DAY_T0) / (DAY_T1 - DAY_T0)))));
       const large = a1 - a0 > Math.PI ? 1 : 0;
       parts.push(
         `<path d="M${px(a0, r)}A${r} ${r} 0 ${large} 1 ${px(a1, r)}" fill="none" stroke="${cream}" stroke-opacity=".45" stroke-width="2" stroke-linecap="round"/>`,

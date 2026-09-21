@@ -228,8 +228,9 @@ Two sources of art, one per card, image area always edge-to-edge:
    45% toward cream. On it: a ring per festival day, evenly spaced from the center to the card
    edge (the outer ring clips top and bottom); a cream bead per set at its clock position, 2 PM
    at twelve, clockwise through the night, bead size from set length; the ring drawn solid only
-   across the hours the stage runs that day. Each night's closer is a four-point star. The
-   headliner names cycle in the center as a poster block — the night and the start time in mono
+   across the hours the stage runs that day. Each night's billed headliner (the stage's
+   `headliners:` list, else the last set of the night; a night runs until 6 AM) is a four-point
+   star. The headliner names cycle in the center as a poster block — the night and the start time in mono
    caps above the name in expanded display type, ink on the light ground — about four seconds
    each, and the closer's star lights in the stage color while its name is up. Rings drift at
    their own speeds; stars stay upright. Nothing is random: every mark is a set. CSS animation on

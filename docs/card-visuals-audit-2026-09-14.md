@@ -236,8 +236,13 @@ Two things the owner flagged for next:
   The build still prints `20 sets · Fri – Sun` plus the description until the owner picks the
   line.
 
-Open from before, now load-bearing: the headliner override (§4). The card headlines each
-night's closer, so Neumos and Barboza show the afters DJ combos and the 39-character names
-shrink to fit. The card also assigns a post-midnight set to the night it belongs to, so
-Saturday's Main Stage headliner reads Instant Crush (1:45 AM) where the glossary's calendar-day
-rule would say Disco Lines. That is a glossary question for the owner.
+Two rulings the same day closed §4's open item:
+
+- **Headliners are billed, not derived.** `headliners:` per stage in the YAML names the act each
+  night's poster column ends on, skipping the AFTERS blocks; the build and the card use it,
+  falling back to the last set of the night when a stage has none. CHBP's lists are in the
+  data. Neumos now headlines Dark Chisme, Rub, and Clouds of the West instead of the afters DJ
+  combos.
+- **A night runs until 6 AM.** A 1:45 AM set belongs to the night before, in the glossary, the
+  manifest, and the card. Instant Crush is Saturday's afters, not Sunday's opener, and Disco
+  Lines is Saturday's headliner as the poster has it.
