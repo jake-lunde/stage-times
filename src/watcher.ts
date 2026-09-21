@@ -80,6 +80,9 @@ import { transcribe, type Transcription } from './transcription.js';
 // The watch list
 // ---------------------------------------------------------------------------
 
+/** Where the watch list is committed. */
+export const WATCH_LIST_PATH = 'config/watch.yaml';
+
 /** One watched edition, as committed configuration (`config/watch.yaml`). */
 export interface WatchEntry {
   /** Display name. Becomes the edition's name. */
