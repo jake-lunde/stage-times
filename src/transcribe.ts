@@ -13,7 +13,7 @@
  * Every judgement call proven during the CHBP hand-transcription is encoded
  * here, NOT left to the model:
  *   - raw strings preserved exactly as printed (poster uppercase kept as-is)
- *   - `CLOSE` end times → start + 60 min, `end_inferred: true`
+ *   - `CLOSE` end times, and a start printed alone → start + 60 min, `end_inferred: true`
  *   - post-midnight times shift to the next calendar date
  *   - combined AFTERS billings stay one event
  *   - duplicate UIDs are a hard fail (via src/schema.ts validation)
@@ -43,7 +43,7 @@ export interface RawSet {
    * standalone annotations, which go in `afters` / `annotations`.
    */
   artist: string;
-  /** Time range exactly as printed, e.g. "3:15-3:45PM" or "11:30-CLOSE". */
+  /** Time exactly as printed, e.g. "3:15-3:45PM", "11:30-CLOSE", or a headliner's bare "8:15". */
   time: string;
   /** True when the poster labels this block `AFTERS`. */
   afters?: boolean;
@@ -137,6 +137,8 @@ export function assertRawTranscription(value: unknown, label: string): RawTransc
 
 const TIME_RANGE_RE =
   /^(\d{1,2}):(\d{2})\s*(AM|PM)?\s*[-–—]\s*(?:(\d{1,2}):(\d{2})\s*(AM|PM)?|(CLOSE))$/i;
+/** A start with nothing after it — how ACL prints its headliners ("SKRILLEX 8:15"). */
+const TIME_START_RE = /^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i;
 
 interface ClockReading {
   hour: number;
@@ -146,15 +148,25 @@ interface ClockReading {
 
 export interface ParsedRange {
   start: ClockReading;
-  /** null when the poster printed CLOSE instead of an end time. */
+  /** null when the poster printed no end time — CLOSE, or nothing at all. */
   end: ClockReading | null;
+  /** How the missing end was printed: the word CLOSE, or a start standing alone. */
+  noEnd?: 'close' | 'bare';
 }
 
 export function parseTimeRange(time: string): ParsedRange {
+  const bare = TIME_START_RE.exec(time.trim());
+  if (bare) {
+    const start: ClockReading = { hour: Number(bare[1]), minute: Number(bare[2]), meridiem: bare[3] ? (bare[3].toUpperCase() as 'AM' | 'PM') : null };
+    if (start.hour < 1 || start.hour > 12 || start.minute > 59) {
+      throw new TranscribeError(`printed time ${JSON.stringify(time)} has an out-of-range clock reading`);
+    }
+    return { start, end: null, noEnd: 'bare' };
+  }
   const m = TIME_RANGE_RE.exec(time.trim());
   if (!m) {
     throw new TranscribeError(
-      `cannot parse printed time ${JSON.stringify(time)} — expected "H:MM-H:MM(AM|PM)" or "H:MM-CLOSE"`,
+      `cannot parse printed time ${JSON.stringify(time)} — expected "H:MM-H:MM(AM|PM)", "H:MM-CLOSE" or a bare "H:MM"`,
     );
   }
   const start: ClockReading = {
@@ -170,7 +182,7 @@ export function parseTimeRange(time: string): ParsedRange {
       throw new TranscribeError(`printed time ${JSON.stringify(time)} has an out-of-range clock reading`);
     }
   }
-  return { start, end };
+  return end ? { start, end } : { start, end, noEnd: 'close' };
 }
 
 /** Minutes-into-day candidates for a possibly meridiem-less clock reading. */
@@ -347,6 +359,8 @@ export interface BuiltSet {
   printedTime: string;
   /** Crossed midnight relative to the poster day. */
   crossesMidnight: boolean;
+  /** The artist as printed, when the name was suffixed to tell repeat bookings apart. */
+  printedArtist?: string;
 }
 
 export interface BuiltTranscription {
@@ -394,8 +408,11 @@ export function applyEdits(sets: BuiltSet[], edits: SetEdit[]): AppliedEdit[] {
       record('end', set.end, edit.end);
       if (set.end !== edit.end && set.end_inferred) {
         set.end_inferred = false;
-        // The CLOSE note described a guess this edit just replaced.
-        set.notes = set.notes.replace(CLOSE_NOTE, 'End time not printed (CLOSE); read off the source on review.').trim();
+        // The no-end note described a guess this edit just replaced.
+        set.notes = set.notes
+          .replace(CLOSE_NOTE, 'End time not printed (CLOSE); read off the source on review.')
+          .replace(BARE_NOTE, 'End time not printed; read off the source on review.')
+          .trim();
       }
       set.end = edit.end;
     }
@@ -439,10 +456,48 @@ function buildRaw(set: RawSet): string {
   return ['AFTERS', set.artist, ...(set.annotations ?? []), set.time].join(' / ');
 }
 
-/** The note a CLOSE end carries, and what a review edit replaces. */
-const CLOSE_NOTE = 'End time not printed (CLOSE); assumed 60 minutes.';
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-function buildNotes(set: RawSet, isClose: boolean): string {
+function weekdayName(isoDate: string): string {
+  const [y, m, d] = isoDate.split('-').map(Number) as [number, number, number];
+  return WEEKDAY_NAMES[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]!;
+}
+
+/** `2026-10-02T20:00:00` → `8:00 PM`. */
+function clockOf(iso: string): string {
+  const [h, m] = iso.slice(11, 16).split(':').map(Number) as [number, number];
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+/**
+ * Suffix the artist of every set that shares its stage with another set of
+ * the same artist, so each is its own event with its own UID. Same stage,
+ * same normalized name, different days → `(Friday)`; any two on one day →
+ * `(Friday 1:30 PM)` for the whole group, so a group reads one way.
+ */
+export function disambiguateRepeats(sets: BuiltSet[]): void {
+  const groups = new Map<string, BuiltSet[]>();
+  for (const s of sets) {
+    const key = `${s.stage}\0${normalizeArtist(s.artist)}`;
+    (groups.get(key) ?? groups.set(key, []).get(key)!).push(s);
+  }
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    const oneADay = new Set(group.map((s) => s.posterDate)).size === group.length;
+    for (const s of group) {
+      const tag = oneADay ? weekdayName(s.posterDate) : `${weekdayName(s.posterDate)} ${clockOf(s.start)}`;
+      s.printedArtist = s.artist;
+      s.artist = `${s.artist} (${tag})`;
+      s.notes = [s.notes, `Billed more than once on this stage; "(${tag})" tells the events apart.`].filter(Boolean).join(' ');
+    }
+  }
+}
+
+/** The notes a missing end carries, and what a review edit replaces. */
+const CLOSE_NOTE = 'End time not printed (CLOSE); assumed 60 minutes.';
+const BARE_NOTE = 'End time not printed; assumed 60 minutes.';
+
+function buildNotes(set: RawSet, noEnd: 'close' | 'bare' | undefined): string {
   const parts: string[] = [];
   if (set.afters) {
     const dj = (set.annotations ?? []).some((a) => /dj set/i.test(a));
@@ -451,7 +506,8 @@ function buildNotes(set: RawSet, isClose: boolean): string {
       parts.push('Two acts on one printed block — kept as one event.');
     }
   }
-  if (isClose) parts.push(CLOSE_NOTE);
+  if (noEnd === 'close') parts.push(CLOSE_NOTE);
+  if (noEnd === 'bare') parts.push(BARE_NOTE);
   return parts.join(' ');
 }
 
@@ -530,7 +586,7 @@ export function buildTranscription(
         const isClose = endMin === null;
         let absEnd: number;
         if (isClose) {
-          absEnd = absStart + 60; // owner's rule: CLOSE → start + 60 min
+          absEnd = absStart + 60; // owner's rule: no printed end → start + 60 min
         } else {
           absEnd = endMin + dayOffset * 1440;
           while (absEnd <= absStart) absEnd += 1440;
@@ -542,7 +598,7 @@ export function buildTranscription(
           start: isoAt(day.date, absStart),
           end: isoAt(day.date, absEnd),
           end_inferred: isClose,
-          notes: buildNotes(rawSet, isClose),
+          notes: buildNotes(rawSet, isClose ? range.noEnd : undefined),
           posterDate: day.date,
           source: sourceOfDate.get(day.date)!,
           printedTime: rawSet.time,
@@ -552,6 +608,14 @@ export function buildTranscription(
       }
     }
   }
+
+  // The same artist twice on one stage collides on UID — the known limitation
+  // (README): UID excludes the start time on purpose. ACL runs a silent disco
+  // on the same stage every night and repeats its kids' acts across days, so
+  // tell them apart in the name, deterministically: the poster day when the
+  // days differ, the day and the printed start when they do not. The note,
+  // the log and the review all show it, and the review lets it be edited.
+  disambiguateRepeats(sets);
 
   // Human corrections land here: after every deterministic rule has run, before
   // anything is rendered or validated, so an edited set is checked by the schema
@@ -725,7 +789,7 @@ function renderLog(
   if (inferred.length > 0) {
     n += 1;
     L.push('');
-    L.push(`### ${n}. ${inferred.length} set${inferred.length === 1 ? ' has' : 's have'} no printed end time (\`CLOSE\`)`);
+    L.push(`### ${n}. ${inferred.length} set${inferred.length === 1 ? ' has' : 's have'} no printed end time (\`CLOSE\`, or a start alone)`);
     L.push('');
     L.push('Each is resolved to **start + 60 minutes**, marked `end_inferred: true`, and the');
     L.push('subscriber-visible event description will say the end time is assumed to be one');
@@ -793,6 +857,23 @@ function renderLog(
     L.push('');
     for (const group of repeats) {
       L.push(`- ${group[0]!.artist}: ${group.map((s) => `${s.stage} ${s.start}`).join(', ')}`);
+    }
+  }
+
+  // 5b. Repeats on one stage, told apart in the name.
+  const suffixed = sets.filter((s) => s.printedArtist !== undefined);
+  if (suffixed.length > 0) {
+    n += 1;
+    L.push('');
+    L.push(`### ${n}. Repeat bookings on one stage, told apart in the name`);
+    L.push('');
+    L.push('UID is sha1(slug + year + stage + normalized artist) and excludes the start time');
+    L.push('(README, the known limitation), so the same act twice on one stage would collapse');
+    L.push('into one event. Each of these carries the day — or the day and printed start — in');
+    L.push('its name so every appearance is its own event:');
+    L.push('');
+    for (const s of suffixed) {
+      L.push(`- ${s.printedArtist} → ${s.artist} (${s.stage}, ${s.start})`);
     }
   }
 

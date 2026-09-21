@@ -243,13 +243,15 @@ test('transcribe: post-midnight printed start shifts to the next calendar date',
   assert.equal(owl.end, '2026-08-08T01:15:00');
 });
 
-test('transcribe: same artist on the same stage (same day or not) is a hard fail', () => {
+test('transcribe: same artist on the same stage across days is two events, told apart in the name', () => {
   const raw = fixture();
   // Put MUNA on main on Saturday too — same stage across days, so the UID
-  // (sha1 of slug+year+stage+normalized artist, no date) collides. Different
-  // stages, as with FROST CHILDREN-style double bookings, are fine.
+  // (sha1 of slug+year+stage+normalized artist, no date) would collide. The
+  // library suffixes the day instead of failing; different stages, as with
+  // FROST CHILDREN-style double bookings, were always fine.
   raw.days[1]!.stages[0]!.sets = [{ artist: 'MUNA', time: '9:00-10:00PM' }];
-  assert.throws(() => transcribe(outputs(raw), OPTS), SchemaError);
+  const t = transcribe(outputs(raw), OPTS);
+  assert.deepEqual(t.sets.filter((s) => s.printedArtist === 'MUNA').map((s) => s.artist), ['MUNA (Friday)', 'MUNA (Saturday)']);
 });
 
 test('transcribe: two sources transcribed to the same date is an error', () => {
@@ -279,7 +281,7 @@ test('transcribe: the log flags inferred ends, casing, afters, repeats and the a
   const raw = fixture();
   raw.days[1]!.stages[0]!.sets = [{ artist: 'SOMEONE ELSE', time: '9:00-10:00PM' }];
   const t = transcribe(outputs(raw), OPTS);
-  assert.match(t.log, /no printed end time \(`CLOSE`\)/);
+  assert.match(t.log, /no printed end time \(`CLOSE`, or a start alone\)/);
   assert.match(t.log, /assumed to be one\nhour after the start|assumed to be one hour after the start/);
   assert.match(t.log, /Artist casing cannot be derived/);
   assert.match(t.log, /Combined AFTERS billings kept as one event/);
@@ -404,6 +406,40 @@ test('transcribe: the saved CHBP Friday model reply matches the verified edition
 // Time parsing
 // ---------------------------------------------------------------------------
 
+test('transcribe: the same act on one stage across days is told apart by the day, so every appearance is its own event', () => {
+  // ACL runs a silent disco on the same stage every night and repeats its kids'
+  // acts across days; UID excludes the start time, so the names must differ.
+  const raw = fixture();
+  raw.days[0]!.stages[0]!.sets.splice(1, 0, { artist: 'SILENT DISCO', time: '8:00-10:00PM' });
+  raw.days[1]!.stages[0]!.sets.unshift({ artist: 'SILENT DISCO', time: '8:00-10:00PM' });
+  raw.days[0]!.stages[1]!.sets.unshift({ artist: 'SCHOOL OF ROCK', time: '1:30-2:00PM' }, { artist: 'SCHOOL OF ROCK', time: '4:30-5:00PM' });
+  const t = transcribe(outputs(raw), OPTS);
+  const discos = t.sets.filter((s) => s.artist.startsWith('SILENT DISCO'));
+  assert.deepEqual(discos.map((s) => s.artist), ['SILENT DISCO (Friday)', 'SILENT DISCO (Saturday)']);
+  assert.equal(discos[0]!.printedArtist, 'SILENT DISCO', 'the printed name is kept for the log and the flags');
+  assert.equal(discos[0]!.raw, 'SILENT DISCO', 'and the raw line is the poster\'s');
+  assert.match(discos[0]!.notes, /Billed more than once on this stage; "\(Friday\)" tells the events apart\./);
+  const rock = t.sets.filter((s) => s.artist.startsWith('SCHOOL OF ROCK'));
+  assert.deepEqual(rock.map((s) => s.artist), ['SCHOOL OF ROCK (Friday 1:30 PM)', 'SCHOOL OF ROCK (Friday 4:30 PM)'], 'two on one day carry the start as well');
+  assert.equal(t.sets.find((s) => s.artist === 'MUNA')!.printedArtist, undefined, 'a name billed once is untouched');
+  assert.match(t.log, /### \d+\. Repeat bookings on one stage, told apart in the name/);
+  assert.match(t.log, /- SILENT DISCO → SILENT DISCO \(Friday\) \(main, 2026-08-07T20:00:00\)/);
+  assert.doesNotThrow(() => loadFestivalFromString(t.yaml, 'repeats'), 'the schema no longer sees a collision');
+  assert.equal(new Set(t.sets.map((s) => `${s.stage}\0${normalizeArtist(s.artist)}`)).size, t.sets.length, 'every set has its own UID key');
+});
+
+test('transcribe: a headliner printed with a start alone gets an hour, marked as a guess, without the word CLOSE', () => {
+  const raw = fixture();
+  raw.days[0]!.stages[0]!.sets.splice(1, 0, { artist: 'SKRILLEX', time: '8:15' });
+  const t = transcribe(outputs(raw), OPTS);
+  const skrillex = t.sets.find((s) => s.artist === 'SKRILLEX')!;
+  assert.equal(skrillex.start, '2026-08-07T20:15:00', 'an unmarked start after the previous set reads as evening');
+  assert.equal(skrillex.end, '2026-08-07T21:15:00');
+  assert.equal(skrillex.end_inferred, true);
+  assert.equal(skrillex.notes, 'End time not printed; assumed 60 minutes.');
+  assert.match(t.log, /\| main \| SKRILLEX \| 8:15 \| 21:15 \|/);
+});
+
 test('parseTimeRange: ordinary range with meridiem on the end only', () => {
   const r = parseTimeRange('3:15-3:45PM');
   assert.deepEqual(r.start, { hour: 3, minute: 15, meridiem: null });
@@ -414,6 +450,18 @@ test('parseTimeRange: CLOSE is not a time', () => {
   const r = parseTimeRange('10:40-CLOSE');
   assert.deepEqual(r.start, { hour: 10, minute: 40, meridiem: null });
   assert.equal(r.end, null);
+});
+
+test('parseTimeRange: a start printed alone is a set with no end — how ACL bills its headliners', () => {
+  const r = parseTimeRange('8:15');
+  assert.deepEqual(r.start, { hour: 8, minute: 15, meridiem: null });
+  assert.equal(r.end, null);
+  assert.equal(r.noEnd, 'bare');
+  assert.equal(parseTimeRange('10:40-CLOSE').noEnd, 'close');
+  assert.equal(parseTimeRange('3:15-3:45PM').noEnd, undefined);
+  assert.deepEqual(parseTimeRange('8:40 PM').start, { hour: 8, minute: 40, meridiem: 'PM' });
+  assert.throws(() => parseTimeRange('13:15'), /out-of-range/);
+  assert.throws(() => parseTimeRange('8'), /cannot parse/);
 });
 
 test('parseTimeRange: tolerates spaces, en-dashes and lowercase meridiem', () => {

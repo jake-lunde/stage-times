@@ -126,8 +126,8 @@ test('upload page: every day has its row from the start, each swappable until th
 });
 
 test('upload page: the reading state says what is being read, how many, and then how long it has been', () => {
-  assert.ok(html.includes("'Reading the artist names and times off your image. Usually about a minute.'"));
-  assert.ok(html.includes("'Reading the artist names and times off your ' + n + ' images, one after the other. Usually about a minute each.'"));
+  assert.ok(html.includes("'Reading the times off your image. This could take about a minute.'"));
+  assert.ok(html.includes("'Reading the times off your ' + n + ' images. This could take about a minute per image.'"));
   assert.ok(html.includes("'Still reading.'") && html.includes("' seconds so far.'"), 'past the first stretch, the elapsed time — the one thing the browser knows');
   assert.ok(html.includes('if (s >= 15) status.textContent = still'), 'not before fifteen seconds');
   assert.ok(html.includes("'Checking the times hold together and saving them. Usually under a minute.'"), 'saving says what it is doing too');
