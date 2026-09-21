@@ -501,8 +501,8 @@ test('watcher: the job runs hourly from a schedule with the permissions a review
   assert.ok(run.env!['ANTHROPIC_API_KEY'] && run.env!['GITHUB_TOKEN'], 'the two secrets the ports need');
 });
 
-test('watcher: the scheduled entrypoint imports the watcher and the ports and nothing else', () => {
+test('watcher: the scheduled entrypoint imports the watcher, the signal and the ports and nothing else', () => {
   const source = readFileSync(join(REPO_ROOT, 'src', 'watch.ts'), 'utf8');
   const imports = [...source.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
-  assert.deepEqual(imports.sort(), ['./ports.js', './watcher.js', 'node:fs']);
+  assert.deepEqual(imports.sort(), ['./ports.js', './signal.js', './watcher.js', 'node:fs']);
 });

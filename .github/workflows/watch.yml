@@ -5,6 +5,10 @@
 # change commits the reply and the watcher's state to main and opens a review
 # pull request for the owner to merge from his phone.
 #
+# The same run then does the signal (src/signal.ts): inside each entry's drop
+# window, one read of the entry's subreddit, and an issue with the link for a
+# set-times post that has gained votes. It needs no secret beyond GITHUB_TOKEN.
+#
 # Minute 7, not the top of the hour: scheduled runs start late under load, and
 # the daily entries are due on the run whose hour is 15:00 UTC, so an early
 # minute leaves most of the hour for the delay.

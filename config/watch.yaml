@@ -12,6 +12,9 @@
 #   window     the drop window: hourly polls from `from` through `to` (default:
 #              the last day); daily before it
 #   match      a regular expression on the image URL; only matching images are read
+#   subreddit  the festival's subreddit, as in r/<name>; during the drop window the
+#              signal (src/signal.ts) sends a link to any set-times post on it that
+#              gains votes. Optional; an entry without one is not signalled.
 #
 # A drop opens a review pull request; merging it publishes and lists the edition
 # at stagetimes.app/<slug>-<year>/ the way the owner's own confirm would.
