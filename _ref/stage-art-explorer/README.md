@@ -20,15 +20,17 @@ Archivo and Fragment Mono from Google Fonts, which the site's own pages never do
   Ray mapping offers Fanned by day (each day nudged a few degrees) and Even (running order, no
   clock). Five countable families sit beside Rays, one mark per set that never merges: Petals
   (capsules in running order), Beads (a ring per day, evenly spaced from the core to the card edge, a bead per set at its
-  clock position; bead size is set length, a dim bead is a guessed end, the ring is solid across
-  the hours that day runs, stars mark the closers or every hour-plus set),
+  clock position; bead size is set length, the ring is solid across the hours that day runs,
+  each ring drifts at its own speed, stars mark the closers or every hour-plus set),
   Ticks (a bezel), Stars (time left to right, day top to bottom, the closer a sparkle), Crowd
   (scattered pills). All share the cores, names, scrim, and glow.
 - The scrim sits between the marks and the core, so the core stays cream.
 - "Compare cores" renders every core as a row; "Compare families" every countable family. The whole configuration lives in the URL hash,
   so a dialed-in look is a shareable link.
-- Names: plain, 32px pills in deep / cream / ink, or a ticker that runs the headliners along
-  the bottom edge (speed from their length, static under reduced motion). Scrim is a separate
+- Names: plain, 32px pills in deep / cream / ink, a ticker that runs the headliners along
+  the bottom edge, or Ambient, which pops each name beside its star for about four seconds in
+  turn and counter-rotates so it rides the drifting ring upright (families without stars show
+  the names at the bottom instead). Nothing is dimmed for a guessed end any more. Scrim is a separate
   toggle: a flat 15% ink overlay on the art area only, under the names.
 
 Regenerate `index.html` after editing the template:
