@@ -15,9 +15,9 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { ACCEPTED_IMAGE_TYPES, EMAIL_RE, GATE_COPY, MAX_IMAGE_EDGE, MIN_IMAGE_EDGE, type Gate } from '../src/publisher.js';
+import { ACCEPTED_IMAGE_TYPES, EMAIL_RE, GATE_COPY, MAX_IMAGE_EDGE, MAX_UPLOAD_IMAGES, MIN_IMAGE_EDGE, type Gate } from '../src/publisher.js';
 import { renderSitePages } from '../src/pages.js';
-import { addDay, editedEnd, editedStart, GATE_SCREENS, ownerFromFragment, ownerLink, renderUploadPage, REVIEW_ZONES, updateLink, updatePagePath, type Screen } from '../src/upload-pages.js';
+import { addDay, dayLabel, daysLabel, editedEnd, editedStart, festivalDays, GATE_SCREENS, nightOf, ownerFromFragment, ownerLink, renderUploadPage, REVIEW_ZONES, updateLink, updatePagePath, type Screen } from '../src/upload-pages.js';
 import { buildFixtureSite, harborDoc, pierDoc, REPO_ROOT, visibleText } from './helpers.js';
 
 const html = renderUploadPage();
@@ -46,10 +46,21 @@ test('upload page: every screen is in the static markup, and only the first one 
   }
 });
 
+/** The upload screen's two shapes: one day is the file pill; more is the day rows and one read pill. */
+function uploadMode(mode: 'one' | 'many'): string {
+  const re = new RegExp(`<div data-${mode}[^>]*>[\\s\\S]*?</div>\\s*(?=<div data-many|</section>)`);
+  const m = re.exec(screen('upload'));
+  assert.ok(m, `the upload screen has its data-${mode} shape`);
+  return m![0];
+}
+
 test('upload page: each deciding screen has exactly one primary pill; the wait has none', () => {
   const count = (markup: string) => (markup.match(/btn--primary/g) ?? []).length;
   assert.equal(count(screen('details')), 1);
-  assert.equal(count(screen('upload')), 1);
+  assert.equal(count(uploadMode('one')), 1, 'one day: the file pill');
+  assert.equal(count(uploadMode('many')), 1, 'more days: the read pill — the rows are not pills');
+  assert.equal(count(screen('upload')), 2, 'and nothing outside the two shapes');
+  assert.match(uploadMode('many'), /^<div data-many hidden>/, 'only one shape shows at a time');
   assert.equal(count(screen('review')), 1);
   assert.equal(count(screen('success')), 1);
   assert.equal(count(screen('publishing')), 0, 'nothing to tap while it builds — except copy the link');
@@ -71,18 +82,103 @@ test('upload page: the details screen asks for the festival, its days, and an em
   );
 });
 
-test('upload page: the upload screen is one file action that takes images only, and says what to pick', () => {
+test('upload page: one day is one file action that takes images only, and says what to pick', () => {
   const upload = screen('upload');
-  assert.match(upload, /<label class="btn btn--primary file-btn"><span>Choose image<\/span><input type="file" accept="image\/\*" name="image"><\/label>/);
-  assert.equal((upload.match(/<input/g) ?? []).length, 1, 'one control on the screen');
+  const one = uploadMode('one');
+  assert.match(one, /<label class="btn btn--primary file-btn"><span>Choose image<\/span><input type="file" accept="image\/\*" name="image"><\/label>/);
+  assert.equal((one.match(/<input/g) ?? []).length, 1, 'one control in the one-day shape');
   assert.ok(
     visibleText(upload).includes('The schedule with the times on it, not the lineup. A screenshot from the app or a photo of the poster both work.'),
   );
+  assert.ok(html.includes('if (!multiDay()) return sendUpload();'), 'one day posts the moment an image is chosen — no extra step');
+  assert.ok(html.includes("if (list.length === 1) body.image = list[0]; else body.images = list;"), 'and goes out as `image`, as it always did');
+});
+
+// ===========================================================================
+// More than one day (ticket 18)
+// ===========================================================================
+
+test('upload page: more days is a row per day — a tappable file row with the day on it, from one template', () => {
+  const many = uploadMode('many');
+  assert.match(many, /<ol class="days" data-days><\/ol>/, 'the rows are rendered in, one per day offered');
+  assert.match(many, /<template id="day-slot">\s*<li class="day" data-slot="">/);
+  assert.match(many, /<label class="day-row">[\s\S]*?<input class="vh" type="file" accept="image\/\*" data-slot-input>[\s\S]*?<\/label>/, 'the whole row is the file action');
+  assert.ok(many.includes('<span class="mono-cap" data-day></span>'), 'the day, in caption caps');
+  assert.ok(many.includes('<span class="day-action" data-action>Choose image</span>'), 'two plain words');
+  assert.ok(many.includes('<img alt="" hidden>'), 'the thumbnail, once there is one');
+  assert.ok(many.includes('<p class="problem" role="alert" hidden></p>'), 'a rejection has somewhere to land under the row');
+  assert.match(many, /<button class="btn btn--primary" type="button" data-read disabled>Read the times<\/button>/, 'one pill, off until an image is chosen');
+  assert.ok(visibleText(many).includes('A day with no times yet can be left out.'));
+  assert.equal(many.includes('<hr'), false, 'no dividers in a row list');
+});
+
+test('upload page: the rows are offered one at a time, each swappable until the read starts', () => {
+  assert.ok(html.includes('var days = festivalDays(d.first, d.last, LIMITS.maxImages);'), 'the days come from the dates typed');
+  assert.ok(html.includes(`"maxImages":${MAX_UPLOAD_IMAGES}`), "no more rows than the publisher's own limit");
+  assert.ok(html.includes('var offered = Math.min(chosen().length + 1, state.days.length);'), 'the next day appears when the one before it has an image');
+  assert.ok(html.includes("$('[data-action]', li).textContent = 'Swap image';"), 'a chosen day can be swapped');
+  assert.ok(html.includes('readBtn.disabled = chosen().length === 0;'), 'the read pill waits for the first image and no more');
+  assert.ok(html.includes("readBtn.addEventListener('click', function () { if (chosen().length) sendUpload(); });"), 'reading starts on one tap');
+  assert.ok(html.includes("? 'Your screenshots' : 'Your screenshot'"), 'the heading agrees with the count');
+  for (const fn of [festivalDays, nightOf, dayLabel, daysLabel]) assert.ok(html.includes(fn.toString()), `${fn.name} rides along by source`);
+});
+
+test('upload page: the reading state says how many images are being read', () => {
+  assert.ok(html.includes("'Reading the times off your image. Usually under a minute.'"));
+  assert.ok(html.includes("'Reading the times off your ' + n + ' images. Usually a minute or two.'"));
+  assert.ok(html.includes("label.textContent = multi ? 'Read the times' : 'Choose image';"), 'the pill comes back as what it was');
+});
+
+test('upload page: a rejection about one image lands under that day\'s row, in the publisher\'s own sentence', () => {
+  assert.ok(html.includes("if (to === 'upload' && multiDay() && typeof body.image === 'number' && slotOf(body.image)) {"));
+  assert.ok(html.includes('slotProblem(body.image, body.reason);'), 'the sentence, untouched');
+  assert.ok(html.includes("if (!r.ok) return land(r.body, 'upload');"), 'from upload');
+  assert.ok(html.includes("if (!r.ok) return land(r.body, 'review');"), 'and from confirm');
+  assert.ok(html.includes("if (multiDay() && slotOf(slot)) slotProblem(slot, text); else problem('upload', text);"), 'the browser\'s own checks land there too');
+});
+
+test('upload page: one post carries every day, so each image gets its share of the byte budget', () => {
+  assert.ok(html.includes('function budget() { return Math.floor(LIMITS.postBytes / Math.max(1, state.days.length)); }'));
+  assert.ok(html.includes('shrink(img, bytes)'));
+  assert.ok(html.includes("'With ' + state.days.length + ' days, each one has to be under ' + mb(bytes) + ' MB.'"), 'a too-big image says why the limit is what it is');
+  assert.ok(html.includes("more than I can send in one go."), 'and the total is checked before it goes');
+});
+
+test('upload page: the review shows each day\'s own image above that day\'s sets, and every row\'s day matches its image', () => {
+  const review = screen('review');
+  assert.match(review, /<template id="day-figure">\s*<figure class="source"><img alt="Your image">/, 'the image card comes from a template, once per image');
+  assert.ok(html.includes('rv.images.forEach(function (hash, k) {'), 'one section per image');
+  assert.ok(html.includes("var daySets = rv.sets.filter(function (s) { return s.image === hash; });"), 'holding the sets read off it');
+  assert.ok(html.includes("$('[data-day]', li).textContent = dayLabel(nightOf(s.start));"), 'a 1 AM set is labeled with the night it belongs to');
+  assert.ok(html.includes("head.textContent = label;"), 'the day heading over each image');
+  assert.ok(html.includes("'Each day against its own image. Fix what\\'s off, and mark anything you can\\'t read.'"));
+  assert.ok(html.includes("'No times were read off this one.'"), 'an image the model read nothing off says so');
+  assert.ok(html.includes("$('[data-swap]').textContent = multi ? 'Swap an image' : 'Different image';"));
+});
+
+test('upload page: confirm sends every image back, and the review\'s own list of them', () => {
+  assert.ok(html.includes('if (rv.images.length > 1) body.reviewed = rv.images;'));
+});
+
+test('day helpers: the days between two dates, capped; the night a start belongs to; the labels', () => {
+  assert.deepEqual(festivalDays('2026-10-09', '2026-10-11', 7), ['2026-10-09', '2026-10-10', '2026-10-11']);
+  assert.deepEqual(festivalDays('2026-10-09', '2026-10-09', 7), ['2026-10-09'], 'one day is one');
+  assert.deepEqual(festivalDays('2026-10-30', '2026-11-01', 7), ['2026-10-30', '2026-10-31', '2026-11-01'], 'across a month end');
+  assert.equal(festivalDays('2026-10-01', '2026-10-31', MAX_UPLOAD_IMAGES).length, MAX_UPLOAD_IMAGES, 'never more than the publisher takes');
+  assert.equal(nightOf('2026-10-10T01:30:00'), '2026-10-09', '1:30 AM is Friday night');
+  assert.equal(nightOf('2026-10-10T06:00:00'), '2026-10-10', '6 AM is the next day');
+  assert.equal(nightOf('2026-10-09T22:40:00'), '2026-10-09');
+  assert.equal(dayLabel('2026-10-09'), 'FRI');
+  assert.equal(dayLabel('2026-10-09', true), 'FRI 9 OCT');
+  assert.equal(daysLabel('2026-10-09', '2026-10-09'), 'FRI 9 OCT');
+  assert.equal(daysLabel('2026-10-09', '2026-10-10'), 'FRI 9 – SAT 10 OCT', 'one month, named once');
+  assert.equal(daysLabel('2026-10-31', '2026-11-01'), 'SAT 31 OCT – SUN 1 NOV');
 });
 
 test('upload page: the review screen shows the image beside the sets in the row-list idiom, flags visible, edits inline', () => {
   const review = screen('review');
   assert.match(review, /<figure class="source"><img alt="Your image">/);
+  assert.ok(review.indexOf('<select name="timezone">') < review.indexOf('<div id="sets">'), 'the zone, which every time is read in, comes before the sets');
   assert.match(review, /<template id="set-row">\s*<li class="set"/);
   for (const field of ['artist', 'start', 'end']) {
     assert.ok(review.includes(`data-field="${field}"`), `${field} is editable in the row`);
@@ -205,12 +301,12 @@ test('upload page: the page embeds those helpers by source and reads a moved sta
 test('upload page: the script posts exactly the fields the two adapters read', () => {
   assert.ok(
     html.includes(
-      "post('/api/upload', withOwner({ festival: d.festival, dates: { first: d.first, last: d.last }, email: d.email, image: imageBody(), update: updateClaim() }))",
+      "post('/api/upload', withOwner(withImages({ festival: d.festival, dates: { first: d.first, last: d.last }, email: d.email, update: updateClaim() })))",
     ),
   );
   assert.ok(
     html.includes(
-      "var body = withOwner({ festival: d.festival, email: d.email, timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: unverifiable, image: imageBody(), update: updateClaim() });",
+      "var body = withOwner(withImages({ festival: d.festival, email: d.email, timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: unverifiable, update: updateClaim() }));",
     ),
   );
   assert.ok(html.includes("post('/api/confirm', body)"));

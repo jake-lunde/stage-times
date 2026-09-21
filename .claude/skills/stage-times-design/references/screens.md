@@ -169,21 +169,33 @@ rejection and holds no rule of its own. Markup and copy in `src/upload-pages.ts`
 │  [                    ]      │
 │  [        Next        ]      │  one primary pill
 │                              │
-│  Your screenshot             │  2. UPLOAD — one line saying what to pick, one
-│  [    Choose image    ]      │     file pill. "Reading…" + a mono status line while
-│                              │     the model reads; a yellow line for any rejection.
+│  Your screenshot             │  2. UPLOAD — one line saying what to pick. A one-day
+│  [    Choose image    ]      │     festival: one file pill, posting on choose.
+│                              │     "Reading…" + a mono status line while the model
+│  Your screenshots            │     reads; a yellow line for any rejection.
+│  (▣) FRI 9 OCT               │     More days (ticket 18): a row per day — 56pt tile,
+│      Swap image              │     the day in caption caps, "Choose image" — offered
+│  (▣) SAT 10 OCT              │     one at a time as the one above fills, tap again
+│      Swap image              │     to swap; one pill reads whatever is chosen, and a
+│  ( ) SUN 11 OCT              │     mono line says a day with no times can be left
+│      Choose image            │     out. A rejection about one image is a yellow line
+│  [   Read the times   ]      │     under that day's row, in the publisher's words.
 │                              │
-│  Check every set             │  3. REVIEW — the uploader's image in a card, then
-│  ┌────────────────────────┐  │     the time zone as a guess (select, spoken names),
-│  │   their image          │  │     then a row list per stage: artist field, day +
-│  └────────────────────────┘  │     two time fields, the printed time in mono,
-│  Time zone [Pacific      ▾]  │     yellow chips for "End is a guess" and "Look
+│  Check every set             │  3. REVIEW — the time zone as a guess (select, spoken
+│  Time zone [Pacific      ▾]  │     names), then one section per image: its day as an
+│  FRI 9 OCT                   │     eyebrow (only with several), the image in a card,
+│  ┌────────────────────────┐  │     then a row list per stage: artist field, day +
+│  │   their Friday image   │  │     two time fields, the printed time in mono,
+│  └────────────────────────┘  │     yellow chips for "End is a guess" and "Look
 │  MAIN STAGE                  │     closer", and a tonal "Can't read it" toggle.
-│  [ MUNA               ]      │     No dividers. Confirm is disabled with a plain
-│  FRI [10:40 PM]–[11:40 PM]   │     reason while any set is marked.
-│  FRI · Printed 10:40-CLOSE   │
-│  (End is a guess)            │
+│  [ MUNA               ]      │     A row's day is the night it belongs to (a 1 AM
+│  FRI [10:40 PM]–[11:40 PM]   │     set is Friday's), so it matches the image above.
+│  FRI · Printed 10:40-CLOSE   │     No dividers. Confirm is disabled with a plain
+│  (End is a guess)            │     reason while any set is marked.
 │  [ Can't read it ]           │
+│  SAT 10 OCT                  │
+│  ┌ their Saturday image ─┐   │
+│  …                           │
 │  [       Confirm      ]      │
 │                              │
 │  Building your page          │  4. PUBLISHING — the honest wait: times are saved,
@@ -206,8 +218,12 @@ Rules that came out of building it:
   about the image, and the caps, go back to the file pill; a review that will not build stays on
   review. `GATE_SCREENS` in `src/upload-pages.ts` is the map, and the script carries it verbatim.
 - **The browser checks what it can before it posts** — type and the short edge — with the
-  publisher's own numbers, and shrinks a photo to fit the platform's body cap. A screenshot never
-  needs shrinking. The same bytes go to upload and to confirm.
+  publisher's own numbers, and shrinks an image to its share of the platform's body cap: one post
+  carries every day, so three days of screenshots share what one screenshot had to itself. The
+  same bytes go to upload and to confirm.
+- **One day is one tap fewer.** With one day between the dates there is no row and no read pill:
+  choosing the image is the read, exactly as before ticket 18. The rows only appear when there
+  is more than one day to give an image to.
 - **The update link is shown while the page builds**, not only on success. Once confirm answers,
   the secret exists nowhere but this tab; a two-minute wait is the wrong place to hold it.
 - **The wait is real.** The script asks for the edition's own calendar until it answers, and says

@@ -391,11 +391,17 @@ and a rejection about one image carries its position as `image`.
 
 ### The screens
 
-`/upload/` is one static page rendered by `src/upload-pages.ts` (ticket 08): details, one file
-action, review, the wait, success. The script reads fields, checks type and dimensions with the
-publisher's own limits before posting, shrinks a photo to fit the platform's body cap, posts to
-the two adapters, and shows one screen at a time; every rejection is the publisher's sentence,
-landed on the screen that can fix it (`GATE_SCREENS`). The update link is
+`/upload/` is one static page rendered by `src/upload-pages.ts` (ticket 08): details, the
+images, review, the wait, success. A one-day festival is one file action that posts the moment an
+image is chosen; more days is a row per day (ticket 18), offered one at a time, each swappable
+until the read starts, and one pill that reads whatever was chosen — a day with no times yet can
+be left out. The script reads fields, checks type and dimensions with the publisher's own limits
+before posting, shrinks each image to its share of the platform's body cap, posts to the two
+adapters (`image` for one, `images` in day order for more, and confirm echoes the review's
+`reviewed` list), and shows one screen at a time; every rejection is the publisher's sentence,
+landed on the screen that can fix it (`GATE_SCREENS`), and one about a single image of several
+lands under that day's row. The review shows each day's image above the sets read off it, every
+row labeled with the night it belongs to. The update link is
 `https://stagetimes.app/update/<edition path>/#<secret>` — decided in `updateLink()` there; the
 page it opens is the same flow for that edition (above). After confirm the page waits for the edition's own `all.ics` to answer, and after
 five minutes says so instead of pretending. `tests/upload-page.test.ts` pins the static markup;
