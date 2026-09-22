@@ -559,8 +559,10 @@ export interface ReviewSet {
   end: string;
   /** The end was not printed on the source — it is a guess (start + an hour). */
   endInferred: boolean;
-  /** The model flagged something about this set. Look here hardest. */
+  /** The model said it was unsure of this line. The review's one flag: look here. */
   lowConfidence: boolean;
+  /** Why, in the model's few words; empty when it was sure. */
+  unsure: string;
   /** The time exactly as printed on the source. */
   printedTime: string;
   notes: string;
@@ -822,18 +824,6 @@ function rejectedRemove(rejection: Rejection): RemoveResult {
 /** Megabytes, one decimal, for a sentence a person reads. */
 function mb(bytes: number): string {
   return (bytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, '');
-}
-
-/**
- * Does the model's own note single this set out? The review screen's
- * "look here hardest" flag. Substring on the artist, because that is the handle
- * the model uses when it is unsure ("MGNA CRRRTA re-checked — three R's are
- * printed"). Names under three characters are skipped: they match everything.
- */
-export function lowConfidence(observations: string[], artist: string): boolean {
-  if (artist.trim().length < 3) return false;
-  const needle = artist.toLowerCase();
-  return observations.some((o) => o.toLowerCase().includes(needle));
 }
 
 /**
@@ -1250,7 +1240,8 @@ async function readReview(
       start: set.start,
       end: set.end,
       endInferred: set.end_inferred,
-      lowConfidence: lowConfidence(transcription.observations, set.printedArtist ?? set.artist),
+      lowConfidence: Boolean(set.unsure),
+      unsure: set.unsure ?? '',
       printedTime: set.printedTime,
       notes: set.notes,
       image: hashOf.get(set.source)!,

@@ -166,7 +166,7 @@ test('upload page: a source with no web address on it grows the one field for it
   assert.ok(html.includes("if (body.gate === 'link') $('[data-link]').hidden = false;"), 'the field appears only then');
   assert.ok(html.includes('if (d.link) body.officialUrl = d.link;'), 'and only goes out when typed');
   assert.ok(html.includes("withImages(typed({ dates: { first: d.first, last: d.last }, update: updateClaim() }))"), 'upload');
-  assert.ok(html.includes("withImages(typed({ timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: unverifiable, update: updateClaim() }))"), 'confirm');
+  assert.ok(html.includes("withImages(typed({ timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: [], update: updateClaim() }))"), 'confirm');
   assert.ok(html.includes('if (!multiDay() && state.images[0]) sendUpload();'), 'back from the form with the image still chosen, it is read again without another tap');
   assert.ok(visibleText(screen('details')).includes("Where the festival posted the times, since the image doesn't say."));
 });
@@ -199,7 +199,7 @@ test('upload page: the review shows each day\'s own image above that day\'s sets
   assert.ok(html.includes("var daySets = rv.sets.filter(function (s) { return s.image === hash; });"), 'holding the sets read off it');
   assert.ok(html.includes("$('[data-day]', li).textContent = dayLabel(nightOf(s.start));"), 'a 1 AM set is labeled with the night it belongs to');
   assert.ok(html.includes("head.textContent = (w ? 'Weekend ' + w + ' · ' : '') + label;"), 'the day heading over each image, with its weekend when there is more than one');
-  assert.ok(html.includes("'Each day against its own image. Check the flagged sets, fix what\\'s off, and mark any you can\\'t read.'"));
+  assert.ok(html.includes("'Each day against its own image. Check the flagged sets and fix what\\'s off.'"));
   assert.ok(html.includes("'No times were read off this one.'"), 'an image the model read nothing off says so');
   assert.ok(html.includes("swap.textContent = viaLink ? 'Different link' : multi ? 'Swap an image' : 'Different image';"));
 });
@@ -233,17 +233,21 @@ test('upload page: the review screen shows the image beside the sets in the row-
   }
   assert.match(review, /<input type="time"[^>]*data-field="start"/);
   assert.match(review, /<input type="time"[^>]*data-field="end"/);
-  assert.ok(review.includes('<span class="chip" data-flag="end">No end printed</span>'), 'the inferred-end flag');
-  assert.ok(review.includes('<span class="chip" data-flag="low">Look closer</span>'), 'the low-confidence flag');
-  assert.ok(review.includes('data-unreadable aria-pressed="false">Can\'t read it</button>'), 'the unverifiable toggle');
+  assert.equal(review.includes('data-flag="end"'), false, 'a guessed end is not a flag');
+  assert.ok(review.includes('<span class="chip" data-flag="low">Look closer</span>'), 'the one flag: the model was unsure of the line');
+  assert.match(review, /<p class="small" data-unsure hidden><\/p>/, 'with its few words why');
+  assert.ok(review.includes('<button class="btn btn--sm btn--tonal" type="button" data-looks-good>Looks good</button>'), 'and one way to fold it away');
+  assert.equal(review.includes('data-unreadable'), false, 'nothing to mark unreadable');
   assert.equal(review.includes('<hr'), false, 'no dividers in a row list');
   assert.ok(review.includes('<template id="set-row">'), 'rows come from one template');
 });
 
-test('upload page: an unreadable set disables confirm, with the same reason the publisher would give', () => {
-  assert.ok(html.includes('btn.disabled = n > 0;'), 'confirm is disabled while any set is marked');
-  assert.ok(html.includes('COPY.unreadableOne'), 'the singular reason is the publisher\'s');
-  assert.ok(html.includes('fill(COPY.unreadableMany, { n: n })'), 'and the plural');
+test('upload page: "Looks good" folds a flagged row away, and nothing on the review blocks confirm', () => {
+  assert.ok(html.includes("var ok = e.target.closest('[data-looks-good]');"));
+  assert.ok(html.includes("li.hidden = true;") && html.includes("group.hidden = $$('.set', group).every(function (row) { return row.hidden; });"), 'the row folds, and its stage with it when nothing is left');
+  assert.equal(html.includes('btn.disabled = n > 0;'), false, 'confirm is never disabled');
+  assert.equal(html.includes('data-unreadable') || html.includes('state.unreadable'), false, 'the unreadable mark is gone from the page (the publisher\'s sentences still ride along, unused)');
+  assert.ok(html.includes('unverifiable: []'), 'confirm still answers the field, empty');
 });
 
 test("upload page: the browser speaks the publisher's own sentences, injected, never retyped", () => {
@@ -345,7 +349,7 @@ test('link review: the name and the days as read sit above the sets as fields, a
   const review = screen('review');
   assert.match(review, /<h3>Does this look right\?<\/h3>/, 'one heading for both doors');
   assert.equal(html.includes('Check every set'), false, 'the old screenshot heading is gone');
-  assert.ok(html.includes("? 'As read off the page. Check the flagged sets, fix what\\'s off, and mark any you can\\'t read.'"));
+  assert.ok(html.includes("? 'As read off the page. Check the flagged sets and fix what\\'s off.'"));
   const block = /<div class="read" data-as-read hidden>[\s\S]*?<\/template>\s*<\/div>/.exec(review)?.[0] ?? '';
   assert.ok(block.length > 0, 'the header block is in the static markup, hidden until a link');
   assert.match(block, /<input name="name" type="text" autocomplete="off" autocapitalize="words" data-read-name>/, 'the name');
@@ -373,7 +377,7 @@ test('weekend runs: the page groups the days exactly as the transcription decide
 });
 
 test('review: the flagged sets show and the rest of a day fold behind one text button', () => {
-  assert.ok(html.includes('function flagged(s) { return s.lowConfidence || s.endInferred; }'), 'a guessed end or a look-closer note is a flag');
+  assert.ok(html.includes('function flagged(s) { return s.lowConfidence; }'), 'a line the model was unsure of is the flag — a guessed end is not');
   assert.ok(html.includes("count.textContent = daySets.length + (daySets.length === 1 ? ' set read, ' : ' sets read, ') + (toCheck ? toCheck + ' flagged.' : 'nothing flagged.');"), 'each day counts its sets and its flags');
   assert.ok(html.includes('if (!flagged(s)) { li.hidden = true; folded += 1; }'), 'an unflagged row waits');
   assert.ok(html.includes('group.hidden = !sets.some(flagged);'), 'a stage with nothing flagged waits with it');
@@ -383,11 +387,12 @@ test('review: the flagged sets show and the rest of a day fold behind one text b
   assert.ok(html.includes("$$('#sets [data-index]').forEach(function (li) {"), 'confirm still reads every row, folded or not');
 });
 
-test("review: a guessed end is left blank, says so, and stays the publisher's guess unless one is typed", () => {
-  assert.ok(html.includes("$('[data-field=\"end\"]', li).value = s.endInferred ? '' : s.end.slice(11, 16);"), 'no invented end in the field');
-  assert.ok(html.includes("$('[data-flag=\"end\"]', li).textContent = /close/i.test(s.printedTime) ? 'Til close' : 'No end printed';"), 'the chip says what was printed');
-  assert.match(screen('review'), /<span data-hour hidden> · An hour on the calendar<\/span>/, 'the printed line says what the calendar gets');
-  assert.ok(html.includes("var end = s.endInferred && !en ? s.end : (start !== s.start || (en && en !== s.end.slice(11, 16))) ? editedEnd(start, en || s.end.slice(11, 16)) : s.end;"), 'a blank guessed end is not sent as an edit');
+test("review: a guessed end is shown as the calendar will have it, said to be a guess with its length, and moves with the start", () => {
+  assert.ok(html.includes("$('[data-field=\"end\"]', li).value = s.end.slice(11, 16);"), 'the guess is in the field');
+  assert.ok(html.includes("guess.textContent = ' \\u00b7 No end printed \\u00b7 ' + Math.round((Date.parse(s.end + 'Z') - Date.parse(s.start + 'Z')) / 60000) + ' min guess';"), 'the printed line says so, with the number');
+  assert.match(screen('review'), /<span data-guess hidden><\/span>/);
+  assert.ok(html.includes("why.textContent = s.unsure;"), "the model's own words under a flagged row");
+  assert.ok(html.includes("var end = (start !== s.start || (en && en !== s.end.slice(11, 16))) ? editedEnd(start, en || s.end.slice(11, 16)) : s.end;"), 'an unchanged guess is not sent as an edit, so the publisher moves it with the start');
 });
 
 test("review: the zone hint says when the zone is the festival's own, and a change clears it", () => {
@@ -470,7 +475,7 @@ test('upload page: the script posts exactly the fields the two adapters read', (
   );
   assert.ok(
     html.includes(
-      "var body = withOwner(withImages(typed({ timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: unverifiable, update: updateClaim() })));",
+      "var body = withOwner(withImages(typed({ timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: [], update: updateClaim() })));",
     ),
   );
   assert.ok(html.includes('body.festival = d.festival;') && html.includes('body.email = d.email;'), 'the form fields ride on both');

@@ -18,7 +18,7 @@
           "name": "CELLAR STAGE",
           "sets": [
             { "artist": "DARK CHISME", "time": "10:45-11:30PM", "afters": false, "annotations": [] },
-            { "artist": "MGNA CRRRTA", "time": "11:45-CLOSE", "afters": true, "annotations": ["(DJ SETS)"] }
+            { "artist": "MGNA CRRRTA", "time": "11:45-CLOSE", "afters": true, "annotations": ["(DJ SETS)"], "unsure": "three R's are printed, re-read twice" }
           ]
         }
       ]

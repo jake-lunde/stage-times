@@ -13,7 +13,9 @@
  * Every judgement call proven during the CHBP hand-transcription is encoded
  * here, NOT left to the model:
  *   - raw strings preserved exactly as printed (poster uppercase kept as-is)
- *   - `CLOSE` end times, and a start printed alone → start + 60 min, `end_inferred: true`
+ *   - `CLOSE` end times, and a start printed alone → a guessed end, `end_inferred: true`:
+ *     start + 90 min for the last set printed on its stage that day (the closer,
+ *     which is who gets no end printed), start + 60 min for any other
  *   - post-midnight times shift to the next calendar date
  *   - combined AFTERS billings stay one event
  *   - duplicate UIDs are a hard fail (via src/schema.ts validation)
@@ -49,6 +51,12 @@ export interface RawSet {
   afters?: boolean;
   /** Standalone printed annotations on the block, e.g. "(DJ SETS)". */
   annotations?: string[];
+  /**
+   * The model's own doubt about this line, in a few words, only when it could
+   * not read the line with confidence. Null or absent otherwise. The review
+   * flags exactly these sets (src/publisher.ts); nothing else is a flag.
+   */
+  unsure?: string | null;
 }
 
 export interface RawStage {
@@ -361,6 +369,8 @@ export interface BuiltSet {
   crossesMidnight: boolean;
   /** The artist as printed, when the name was suffixed to tell repeat bookings apart. */
   printedArtist?: string;
+  /** The model's doubt about this line, when it had one. */
+  unsure?: string;
 }
 
 export interface BuiltTranscription {
@@ -387,15 +397,20 @@ export interface BuiltStage {
  *
  * An edited end is no longer an inference, so `end_inferred` clears: the human
  * typed the time off the source. An edited start on a set whose end was a
- * guess moves the guess with it — still an hour after the start, still a
- * guess; on any other set the start moves alone and the end is whatever it was.
+ * guess moves the guess with it — the same length after the new start, still
+ * a guess; on any other set the start moves alone and the end is whatever it was.
  */
-/** The wall time an hour after `YYYY-MM-DDTHH:MM:SS` — the no-end rule, applied again. */
-function hourAfter(wall: string): string {
+/** Milliseconds since the epoch for a wall time `YYYY-MM-DDTHH:MM:SS`, read as UTC — differences only. */
+function wallMs(wall: string): number {
   const [date, clock] = wall.split('T') as [string, string];
   const [y, m, d] = date.split('-').map(Number) as [number, number, number];
   const [hh, mm, ss] = clock.split(':').map(Number) as [number, number, number?];
-  return new Date(Date.UTC(y, m - 1, d, hh, mm, ss ?? 0) + 3_600_000).toISOString().slice(0, 19);
+  return Date.UTC(y, m - 1, d, hh, mm, ss ?? 0);
+}
+
+/** The guessed end moved to sit the same length after a new start. */
+function movedGuess(set: BuiltSet, newStart: string): string {
+  return new Date(wallMs(newStart) + (wallMs(set.end) - wallMs(set.start))).toISOString().slice(0, 19);
 }
 
 export function applyEdits(sets: BuiltSet[], edits: SetEdit[]): AppliedEdit[] {
@@ -418,8 +433,9 @@ export function applyEdits(sets: BuiltSet[], edits: SetEdit[]): AppliedEdit[] {
     }
     if (edit.start !== undefined) {
       record('start', set.start, edit.start);
+      const guess = set.end_inferred && edit.end === undefined ? movedGuess(set, edit.start) : null;
       set.start = edit.start;
-      if (set.end_inferred && edit.end === undefined) set.end = hourAfter(edit.start);
+      if (guess) set.end = guess;
     }
     if (edit.end !== undefined) {
       record('end', set.end, edit.end);
@@ -427,8 +443,7 @@ export function applyEdits(sets: BuiltSet[], edits: SetEdit[]): AppliedEdit[] {
         set.end_inferred = false;
         // The no-end note described a guess this edit just replaced.
         set.notes = set.notes
-          .replace(CLOSE_NOTE, 'End time not printed (CLOSE); read off the source on review.')
-          .replace(BARE_NOTE, 'End time not printed; read off the source on review.')
+          .replace(GUESS_NOTE_RE, (_, close) => `End time not printed${close ? ' (CLOSE)' : ''}; read off the source on review.`)
           .trim();
       }
       set.end = edit.end;
@@ -559,11 +574,21 @@ export function disambiguateRepeats(sets: BuiltSet[]): void {
   }
 }
 
-/** The notes a missing end carries, and what a review edit replaces. */
-const CLOSE_NOTE = 'End time not printed (CLOSE); assumed 60 minutes.';
-const BARE_NOTE = 'End time not printed; assumed 60 minutes.';
+/**
+ * The guess for a set with no printed end (owner's rule, 2026-09-22): the last
+ * set printed on its stage that day is the closer, and closers run long —
+ * 90 minutes; any other set gets 60. It is a guess either way, flagged
+ * `end_inferred` and said so in the calendar event.
+ */
+export const CLOSER_GUESS_MINUTES = 90;
+export const OTHER_GUESS_MINUTES = 60;
 
-function buildNotes(set: RawSet, noEnd: 'close' | 'bare' | undefined): string {
+/** The notes a missing end carries, and what a review edit replaces. */
+const closeNote = (minutes: number) => `End time not printed (CLOSE); assumed ${minutes} minutes.`;
+const bareNote = (minutes: number) => `End time not printed; assumed ${minutes} minutes.`;
+const GUESS_NOTE_RE = /End time not printed( \(CLOSE\))?; assumed \d+ minutes\./;
+
+function buildNotes(set: RawSet, noEnd: 'close' | 'bare' | undefined, guessMinutes: number): string {
   const parts: string[] = [];
   if (set.afters) {
     const dj = (set.annotations ?? []).some((a) => /dj set/i.test(a));
@@ -572,15 +597,16 @@ function buildNotes(set: RawSet, noEnd: 'close' | 'bare' | undefined): string {
       parts.push('Two acts on one printed block — kept as one event.');
     }
   }
-  if (noEnd === 'close') parts.push(CLOSE_NOTE);
-  if (noEnd === 'bare') parts.push(BARE_NOTE);
+  if (noEnd === 'close') parts.push(closeNote(guessMinutes));
+  if (noEnd === 'bare') parts.push(bareNote(guessMinutes));
   return parts.join(' ');
 }
 
 /**
  * One poster day's sets, stage by stage, in printed order, with every time
- * rule applied: meridiems resolved, midnight crossed, a missing end made start
- * plus an hour. One set per printed set, in the order `day.stages` prints
+ * rule applied: meridiems resolved, midnight crossed, a missing end guessed —
+ * an hour and a half for the stage's closer, an hour for the rest. One set per
+ * printed set, in the order `day.stages` prints
  * them, so the two can be read side by side. `stageSuffix` is the weekend's
  * mark on every stage id when the edition runs more than one (`-weekend-2`).
  */
@@ -590,7 +616,9 @@ export function readDay(day: RawDay, source: string, stageSuffix = ''): BuiltSet
     const stageId = stageIdFromName(stage.name) + stageSuffix;
     let dayOffset = 0;
     let prevAbsStart: number | null = null;
-    for (const rawSet of stage.sets) {
+    for (const [i, rawSet] of stage.sets.entries()) {
+      const closer = i === stage.sets.length - 1;
+      const guessMinutes = closer ? CLOSER_GUESS_MINUTES : OTHER_GUESS_MINUTES;
       const range = parseTimeRange(rawSet.time);
       const { startMin, endMin } = resolveRange(range, prevAbsStart);
       let absStart = startMin + dayOffset * 1440;
@@ -603,7 +631,7 @@ export function readDay(day: RawDay, source: string, stageSuffix = ''): BuiltSet
       const isClose = endMin === null;
       let absEnd: number;
       if (isClose) {
-        absEnd = absStart + 60; // owner's rule: no printed end → start + 60 min
+        absEnd = absStart + guessMinutes; // owner's rule: no printed end → a guess by who it is
       } else {
         absEnd = endMin + dayOffset * 1440;
         while (absEnd <= absStart) absEnd += 1440;
@@ -615,11 +643,12 @@ export function readDay(day: RawDay, source: string, stageSuffix = ''): BuiltSet
         start: isoAt(day.date, absStart),
         end: isoAt(day.date, absEnd),
         end_inferred: isClose,
-        notes: buildNotes(rawSet, isClose ? range.noEnd : undefined),
+        notes: buildNotes(rawSet, isClose ? range.noEnd : undefined, guessMinutes),
         posterDate: day.date,
         source,
         printedTime: rawSet.time,
         crossesMidnight: absEnd >= 1440,
+        ...(rawSet.unsure ? { unsure: rawSet.unsure } : {}),
       });
       prevAbsStart = absStart;
     }
@@ -885,10 +914,10 @@ function renderLog(
     L.push('');
     L.push(`### ${n}. ${inferred.length} set${inferred.length === 1 ? ' has' : 's have'} no printed end time (\`CLOSE\`, or a start alone)`);
     L.push('');
-    L.push('Each is resolved to **start + 60 minutes**, marked `end_inferred: true`, and the');
-    L.push('subscriber-visible event description will say the end time is assumed to be one');
-    L.push('hour after the start. If a real curfew or club close time surfaces, correct the');
-    L.push('ends in the YAML and rebuild.');
+    L.push(`Each is a guess: **start + ${CLOSER_GUESS_MINUTES} minutes** for the last set printed on its stage that day`);
+    L.push(`(the closer), **start + ${OTHER_GUESS_MINUTES} minutes** for any other, marked \`end_inferred: true\`; the`);
+    L.push('subscriber-visible event description says the end is a guess and by how much. If a real');
+    L.push('curfew or club close time surfaces, correct the ends in the YAML and rebuild.');
     L.push('');
     L.push('| Stage | Artist | Printed | Assumed end |');
     L.push('|---|---|---|---|');
@@ -1010,6 +1039,20 @@ function renderLog(
     L.push('');
     L.push(`\`${festival.official_url}\` is derived from the poster footer (normalized to a`);
     L.push('lowercase https URL). The link has not been fetched — confirm before publish.');
+  }
+
+  // 7b. The lines the model was unsure of — the review's flags, and the only ones.
+  const unsure = sets.filter((s) => s.unsure);
+  if (unsure.length > 0) {
+    n += 1;
+    L.push('');
+    L.push(`### ${n}. ${unsure.length} line${unsure.length === 1 ? '' : 's'} the model was unsure of`);
+    L.push('');
+    L.push('Check each against the poster. These are the review screen\'s flags.');
+    L.push('');
+    L.push('| Stage | Artist | Printed | Why |');
+    L.push('|---|---|---|---|');
+    for (const s of unsure) L.push(`| ${s.stage} | ${s.artist} | ${s.printedTime} | ${s.unsure} |`);
   }
 
   // 8. Model observations, verbatim.

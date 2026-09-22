@@ -172,7 +172,7 @@ test('transcribe: the YAML is exactly what the schema loader would return as the
   // object) is right.
   const frost = t.edition.sets.find((s) => s.artist.startsWith('FROST CHILDREN'))!;
   assert.equal(frost.start.ical, '20260807T233000');
-  assert.equal(frost.end.ical, '20260808T003000');
+  assert.equal(frost.end.ical, '20260808T010000');
   assert.equal(frost.end_inferred, true);
   assert.equal(t.edition.festival.timezone, 'America/Los_Angeles');
 });
@@ -206,20 +206,45 @@ test('transcribe: ordinary set resolves start meridiem from the printed end', ()
   assert.equal(avery.raw, 'AVERY COCHRANE');
 });
 
-test('transcribe: CLOSE → start + 60 min, an inferred-end set, disclosed in notes', () => {
+test('transcribe: CLOSE → a guessed end, an hour and a half for the closer of its stage, disclosed in notes', () => {
   const t = transcribe(outputs(), OPTS);
   const muna = t.sets.find((s) => s.artist === 'MUNA' && s.posterDate === '2026-08-07')!;
   assert.equal(muna.start, '2026-08-07T22:40:00');
-  assert.equal(muna.end, '2026-08-07T23:40:00');
+  assert.equal(muna.end, '2026-08-08T00:10:00', 'the last set printed on the stage that day');
   assert.equal(muna.end_inferred, true);
-  assert.match(muna.notes, /End time not printed \(CLOSE\); assumed 60 minutes\./);
+  assert.match(muna.notes, /End time not printed \(CLOSE\); assumed 90 minutes\./);
+});
+
+test('transcribe: a set with no printed end that is not its stage\'s closer gets an hour', () => {
+  const raw = fixture();
+  raw.days[0]!.stages[0]!.sets.splice(1, 0, { artist: 'MID CARD', time: '5:00-CLOSE' });
+  const t = transcribe(outputs(raw), OPTS);
+  const mid = t.sets.find((s) => s.artist === 'MID CARD')!;
+  assert.equal(mid.end, '2026-08-07T18:00:00');
+  assert.equal(mid.end_inferred, true);
+  assert.match(mid.notes, /assumed 60 minutes/);
+  assert.equal(t.sets.find((s) => s.artist === 'MUNA' && s.posterDate === '2026-08-07')!.end, '2026-08-08T00:10:00', 'the closer still gets its hour and a half');
+});
+
+test("transcribe: the model's doubt about a line rides through to the set and the log, and nothing else is a flag", () => {
+  const raw = fixture();
+  raw.days[0]!.stages[0]!.sets[0]!.unsure = 'the second word is partly under a fold';
+  raw.days[0]!.stages[0]!.sets[1]!.unsure = null;
+  const t = transcribe(outputs(raw), OPTS);
+  assert.equal(t.sets[0]!.unsure, 'the second word is partly under a fold');
+  assert.equal(t.sets[1]!.unsure, undefined, 'null is no doubt');
+  assert.equal(t.sets.filter((s) => s.unsure).length, 1);
+  assert.match(t.log, /### \d+\. 1 line the model was unsure of/);
+  assert.match(t.log, /\| main \| AVERY COCHRANE \| 3:15-3:45PM \| the second word is partly under a fold \|/);
+  const plain = transcribe(outputs(), OPTS);
+  assert.doesNotMatch(plain.log, /unsure of/, 'no doubt, no section');
 });
 
 test('transcribe: post-midnight inferred end shifts to the next calendar date', () => {
   const t = transcribe(outputs(), OPTS);
   const afters = t.sets.find((s) => s.artist.startsWith('FROST CHILDREN'))!;
   assert.equal(afters.start, '2026-08-07T23:30:00');
-  assert.equal(afters.end, '2026-08-08T00:30:00');
+  assert.equal(afters.end, '2026-08-08T01:00:00', 'the closer of its stage: an hour and a half');
   assert.equal(afters.end_inferred, true);
   assert.equal(afters.crossesMidnight, true);
 });
@@ -282,7 +307,8 @@ test('transcribe: the log flags inferred ends, casing, afters, repeats and the a
   raw.days[1]!.stages[0]!.sets = [{ artist: 'SOMEONE ELSE', time: '9:00-10:00PM' }];
   const t = transcribe(outputs(raw), OPTS);
   assert.match(t.log, /no printed end time \(`CLOSE`, or a start alone\)/);
-  assert.match(t.log, /assumed to be one\nhour after the start|assumed to be one hour after the start/);
+  assert.match(t.log, /start \+ 90 minutes\*\* for the last set printed on its stage that day/);
+  assert.match(t.log, /start \+ 60 minutes\*\* for any other/);
   assert.match(t.log, /Artist casing cannot be derived/);
   assert.match(t.log, /Combined AFTERS billings kept as one event/);
   assert.match(t.log, /Timezone was assumed/);
@@ -311,7 +337,7 @@ test('transcribe: a review edit replaces the artist, start or end and lands in t
   const munaSet = edited.sets.find((s) => s.artist === 'MUNA')!;
   assert.equal(munaSet.end.raw, '2026-08-07T23:55:00');
   assert.equal(munaSet.end_inferred, false, 'a typed-in end is no longer a guess');
-  assert.doesNotMatch(munaSet.notes, /assumed 60 minutes/);
+  assert.doesNotMatch(munaSet.notes, /assumed \d+ minutes/);
 });
 
 test('transcribe: every edit is recorded in the log, machine reading beside the correction', () => {
@@ -394,8 +420,11 @@ test('transcribe: the saved CHBP Friday model reply matches the verified edition
     assert.ok(expected, `${set.stage} · ${set.artist} is not in the verified edition`);
     assert.equal(set.artist, expected.artist);
     assert.equal(set.start, expected.start.raw, `${set.artist} start`);
-    assert.equal(set.end, expected.end.raw, `${set.artist} end`);
     assert.equal(set.end_inferred, expected.end_inferred, `${set.artist} end_inferred`);
+    // A guessed end is the pipeline's rule, not the model's reading: the
+    // verified edition guessed an hour (the rule of its day), today's rule
+    // guesses an hour and a half for a closer. Printed ends must match exactly.
+    if (!expected.end_inferred) assert.equal(set.end, expected.end.raw, `${set.artist} end`);
   }
   for (const stage of t.edition.stages) {
     assert.ok(hand.stages.some((s) => s.id === stage.id), `stage id ${stage.id} is not one of the verified stage ids`);

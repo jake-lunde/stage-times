@@ -18,19 +18,19 @@
  *               times yet can be left out. A rejection about one image lands
  *               under that day's row.
  *   review      each day's own image above the sets read off it, in day
- *               order, with the flagged sets — a guessed end, a look-closer
- *               note — shown and the rest folded behind one text button per
- *               day; artist/start/end edits inline, a guessed end left blank
- *               rather than filled in, a "can't read it" toggle that blocks
- *               confirm, and the time zone changeable: the festival's own
- *               when it is on record, else a guess and said so. Every row's
- *               day is the night it belongs to, so it matches the image above
- *               it. After a link, the name and the days as read sit above the
- *               sets as fields, the days grouped by weekend when there is more
- *               than one, with the address the page will live at under them,
- *               so a misread name is caught before it is permanent; a changed
- *               name changes the address as it is typed, and the year is the
- *               first day's.
+ *               order, with the flagged sets — the lines the model said it
+ *               was unsure of — shown and the rest folded behind one text
+ *               button per day; artist/start/end edits inline, a "Looks good"
+ *               that folds a row away, a guessed end shown with its length
+ *               and said to be a guess, and the time zone changeable: the
+ *               festival's own when it is on record, else a guess and said
+ *               so. Every row's day is the night it belongs to, so it matches
+ *               the image above it. After a link, the name and the days as
+ *               read sit above the sets as fields, the days grouped by weekend
+ *               when there is more than one, with the address the page will
+ *               live at under them, so a misread name is caught before it is
+ *               permanent; a changed name changes the address as it is typed,
+ *               and the year is the first day's.
  *   publishing  the honest wait: the times are saved, the page is building,
  *               and the update link is handed over now rather than after
  *   success     the share link and the update link, explained in one line
@@ -50,8 +50,8 @@
  * in src/publisher.ts and reaches the page as JSON through the two adapters in
  * api/; the script here reads fields, checks the image before it costs
  * anything, shows one screen at a time, and repeats the publisher's own words
- * for every rejection. The one rule it repeats is the publisher's own: a set
- * marked unreadable blocks confirm, and the reason is the publisher's sentence.
+ * for every rejection. Nothing on the review blocks confirm: a flagged row is
+ * fixed in place or folded away with "Looks good".
  *
  * Deterministic and self-contained like every other page: no clock at render
  * time, no randomness, nothing fetched from anywhere but this origin. The
@@ -511,7 +511,6 @@ button.text-btn{background:none; border:0; padding:0; font-family:inherit}
   background:var(--yellow); color:#12181F; font-size:var(--t-small); font-weight:600;
 }
 .set .btn--sm{width:auto; padding:0 var(--gap-4); margin-top:var(--gap-2)}
-.blocked{margin:var(--gap-2) 0 0}
 
 /* links on the way out */
 .link-row{display:flex; align-items:center; gap:var(--gap-1); margin-top:var(--gap-1)}
@@ -688,7 +687,7 @@ ${linkScreen}
 
   <section class="screen" data-screen="review" hidden>
     <h3>Does this look right?</h3>
-    <p class="lead" data-review-lead>Against your image. Check the flagged sets, fix what's off, and mark any you can't read.</p>
+    <p class="lead" data-review-lead>Against your image. Check the flagged sets and fix what's off.</p>
     <div class="read" data-as-read hidden>
       <label class="field"><span>Festival</span><input name="name" type="text" autocomplete="off" autocapitalize="words" data-read-name></label>
       <div data-read-days></div>
@@ -716,9 +715,10 @@ ${linkScreen}
           <span aria-hidden="true">–</span>
           <input type="time" aria-label="End" data-field="end">
         </div>
-        <p class="small printed"><span class="mono-cap" data-day></span> · Printed <span data-printed></span><span data-hour hidden> · An hour on the calendar</span></p>
-        <div class="chips"><span class="chip" data-flag="end">No end printed</span><span class="chip" data-flag="low">Look closer</span></div>
-        <button class="btn btn--sm btn--tonal" type="button" data-unreadable aria-pressed="false">Can't read it</button>
+        <p class="small printed"><span class="mono-cap" data-day></span> · Printed <span data-printed></span><span data-guess hidden></span></p>
+        <div class="chips"><span class="chip" data-flag="low">Look closer</span></div>
+        <p class="small" data-unsure hidden></p>
+        <button class="btn btn--sm btn--tonal" type="button" data-looks-good>Looks good</button>
       </li>
     </template>
     <details class="notes" hidden>
@@ -726,7 +726,6 @@ ${linkScreen}
       <div class="body"><ul data-observations></ul></div>
     </details>
     <button class="btn btn--primary" type="button" data-confirm>Confirm</button>
-    <p class="small blocked" data-blocked hidden></p>
     <figure class="loading" data-loading hidden></figure>
     <p class="status" aria-live="polite" data-save-status hidden></p>
     <button class="text-btn" type="button" data-back="upload" data-swap>Different image</button>
@@ -833,7 +832,7 @@ ${linkScreen}
   // state.days is every day an image can be chosen for; state.images is what
   // has been, by day, in day order and without gaps — the rows are offered one at a time.
   // state.via says which first screen the review came from: 'link' or 'upload'.
-  var state = { via: 'upload', details: null, days: [], images: [], review: null, unreadable: {}, timezoneAssumed: true, timezoneOnRecord: false, published: null, live: false };
+  var state = { via: 'upload', details: null, days: [], images: [], review: null, timezoneAssumed: true, timezoneOnRecord: false, published: null, live: false };
   function chosen() { return state.images.filter(function (im) { return !!im; }); }
   function multiDay() { return state.days.length > 1; }
 
@@ -1001,7 +1000,6 @@ ${linkScreen}
       state.details = { festival: rv.festival, first: days[0], last: days[days.length - 1], email: email, link: r.body.officialUrl };
       state.via = 'link';
       state.review = rv;
-      state.unreadable = {};
       state.timezoneAssumed = rv.timezoneAssumed;
       state.timezoneOnRecord = rv.timezoneOnRecord;
       renderReview();
@@ -1198,7 +1196,6 @@ ${linkScreen}
       label.textContent = multi ? 'Read the times' : 'Choose image';
       if (!r.ok) return land(r.body, 'upload');
       state.review = r.body.review;
-      state.unreadable = {};
       state.timezoneAssumed = state.review.timezoneAssumed;
       state.timezoneOnRecord = state.review.timezoneOnRecord;
       renderReview();
@@ -1279,10 +1276,10 @@ ${linkScreen}
     var multi = rv.images.length > 1;
     var viaLink = state.via === 'link';
     $('[data-review-lead]').textContent = viaLink
-      ? 'As read off the page. Check the flagged sets, fix what\\'s off, and mark any you can\\'t read.'
+      ? 'As read off the page. Check the flagged sets and fix what\\'s off.'
       : multi
-      ? 'Each day against its own image. Check the flagged sets, fix what\\'s off, and mark any you can\\'t read.'
-      : 'Against your image. Check the flagged sets, fix what\\'s off, and mark any you can\\'t read.';
+      ? 'Each day against its own image. Check the flagged sets and fix what\\'s off.'
+      : 'Against your image. Check the flagged sets and fix what\\'s off.';
     var swap = $('[data-swap]');
     swap.textContent = viaLink ? 'Different link' : multi ? 'Swap an image' : 'Different image';
     swap.setAttribute('data-back', viaLink ? 'link' : 'upload');
@@ -1305,11 +1302,12 @@ ${linkScreen}
     // by stage. The review's images are in day order — the order they were
     // chosen in, or the order a link's were read as. A row's day is the night
     // it belongs to, so it reads the same as the image above it. The flagged
-    // sets show; the rest of a day's wait behind one text button.
+    // sets — the lines the model was unsure of — show; the rest of a day's
+    // wait behind one text button.
     var host = $('#sets'), tpl = $('#set-row'), figTpl = $('#day-figure'), images = chosen();
     var runs = weekendRuns(state.days);
     function weekendOf(night) { for (var w = 0; w < runs.length; w++) if (runs[w].indexOf(night) >= 0) return w + 1; return 0; }
-    function flagged(s) { return s.lowConfidence || s.endInferred; }
+    function flagged(s) { return s.lowConfidence; }
     host.textContent = '';
     rv.images.forEach(function (hash, k) {
       var im = images[k];
@@ -1360,15 +1358,19 @@ ${linkScreen}
           $('[data-field="artist"]', li).value = s.artist;
           $('[data-day]', li).textContent = dayLabel(nightOf(s.start));
           $('[data-field="start"]', li).value = s.start.slice(11, 16);
-          // A guessed end is left blank rather than filled in: the source has
-          // none, and the calendar gets an hour unless one is typed here.
-          $('[data-field="end"]', li).value = s.endInferred ? '' : s.end.slice(11, 16);
+          $('[data-field="end"]', li).value = s.end.slice(11, 16);
           $('[data-printed]', li).textContent = s.printedTime;
+          // A guessed end is shown as the calendar will have it, and said to be a guess.
           if (s.endInferred) {
-            $('[data-hour]', li).hidden = false;
-            $('[data-flag="end"]', li).textContent = /close/i.test(s.printedTime) ? 'Til close' : 'No end printed';
-          } else $('[data-flag="end"]', li).remove();
-          if (!s.lowConfidence) $('[data-flag="low"]', li).remove();
+            var guess = $('[data-guess]', li);
+            guess.textContent = ' \\u00b7 No end printed \\u00b7 ' + Math.round((Date.parse(s.end + 'Z') - Date.parse(s.start + 'Z')) / 60000) + ' min guess';
+            guess.hidden = false;
+          }
+          if (s.lowConfidence) {
+            var why = $('[data-unsure]', li);
+            why.textContent = s.unsure;
+            why.hidden = !s.unsure;
+          } else $('[data-flag="low"]', li).remove();
           if (!flagged(s)) { li.hidden = true; folded += 1; }
           ol.appendChild(li);
         });
@@ -1395,26 +1397,16 @@ ${linkScreen}
     rv.observations.forEach(function (o) { var li = document.createElement('li'); li.textContent = o; list.appendChild(li); });
     notes.hidden = rv.observations.length === 0;
     notes.open = false;
-    updateConfirm();
   }
 
-  function updateConfirm() {
-    var n = Object.keys(state.unreadable).length;
-    var btn = $('[data-confirm]'), why = $('[data-blocked]');
-    btn.disabled = n > 0;
-    why.hidden = n === 0;
-    why.textContent = n === 1 ? COPY.unreadableOne : fill(COPY.unreadableMany, { n: n });
-  }
-
+  // "Looks good" folds the row away; a stage with nothing left showing folds
+  // with it. Nothing blocks confirm: the fix for a wrong line is the fields.
   screens.review.addEventListener('click', function (e) {
-    var toggle = e.target.closest('[data-unreadable]');
-    if (!toggle) return;
-    var idx = toggle.closest('[data-index]').getAttribute('data-index');
-    var on = toggle.getAttribute('aria-pressed') !== 'true';
-    toggle.setAttribute('aria-pressed', on ? 'true' : 'false');
-    toggle.textContent = on ? 'Marked unreadable' : 'Can\\'t read it';
-    if (on) state.unreadable[idx] = true; else delete state.unreadable[idx];
-    updateConfirm();
+    var ok = e.target.closest('[data-looks-good]');
+    if (!ok) return;
+    var li = ok.closest('.set'), group = li.closest('.stage-group');
+    li.hidden = true;
+    group.hidden = $$('.set', group).every(function (row) { return row.hidden; });
   });
 
   $('[data-confirm]').addEventListener('click', function () {
@@ -1428,7 +1420,7 @@ ${linkScreen}
       if (!name) return problem('review', COPY.festival);
       if (days.some(function (d, i) { return !weekdayName(d) || days.indexOf(d) !== i; })) return problem('review', COPY.days);
     }
-    var edits = [], unverifiable = [];
+    var edits = [];
     $$('#sets [data-index]').forEach(function (li) {
       var i = Number(li.getAttribute('data-index'));
       var s = rv.sets.filter(function (x) { return x.index === i; })[0];
@@ -1439,11 +1431,10 @@ ${linkScreen}
       var start = st && st !== s.start.slice(11, 16) ? editedStart(s.start, st) : s.start;
       if (start !== s.start) e.start = start;
       // The end follows the start: a moved start can put an unchanged end before it.
-      // A guessed end left blank stays the publisher's guess, moved with the start there.
-      var end = s.endInferred && !en ? s.end : (start !== s.start || (en && en !== s.end.slice(11, 16))) ? editedEnd(start, en || s.end.slice(11, 16)) : s.end;
+      // An unchanged guessed end is not sent: the publisher moves the guess with the start.
+      var end = (start !== s.start || (en && en !== s.end.slice(11, 16))) ? editedEnd(start, en || s.end.slice(11, 16)) : s.end;
       if (end !== s.end) e.end = end;
       if (Object.keys(e).length > 1) edits.push(e);
-      if ($('[data-unreadable]', li).getAttribute('aria-pressed') === 'true') unverifiable.push(i);
     });
     problem('review', '');
     var was = btn.textContent;
@@ -1452,7 +1443,7 @@ ${linkScreen}
     var work = startWork('review', 'Checking the times hold together and saving them. Usually under a minute.', rv.images.length);
     // Every image goes back, and with more than one, the review's own list of
     // them — so what is published is exactly what was checked.
-    var body = withOwner(withImages(typed({ timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: unverifiable, update: updateClaim() })));
+    var body = withOwner(withImages(typed({ timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: [], update: updateClaim() })));
     if (rv.images.length > 1) body.reviewed = rv.images;
     // After a link the name is the header's, and the days go too when one was moved.
     if (viaLink) { body.festival = name; if (days.join() !== state.days.join()) body.days = days; }

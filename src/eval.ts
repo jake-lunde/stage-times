@@ -112,7 +112,10 @@ export function scoreTranscription(hand: EvalSet[], generated: EvalSet[]): Trans
       continue;
     }
     matched.add(candidate);
-    const fields = COMPARED_FIELDS.filter((f) => candidate[f] !== handSet[f]);
+    // A guessed end is the pipeline's rule, not the model's reading: where both
+    // sides guessed, the end is not compared — the guess length may change
+    // (60 → 90 for closers, 2026-09-22) without the reading getting worse.
+    const fields = COMPARED_FIELDS.filter((f) => candidate[f] !== handSet[f] && !(f === 'end' && handSet.end_inferred && candidate.end_inferred));
     if (fields.length === 0) {
       exact += 1;
       dayScore.exact += 1;

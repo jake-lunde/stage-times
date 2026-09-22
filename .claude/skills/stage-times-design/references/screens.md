@@ -229,19 +229,19 @@ rejection and holds no rule of its own. Markup and copy in `src/upload-pages.ts`
 │                              │     and said so. Then one section per image, in day
 │  WEEKEND 1 · FRI 2 OCT       │     order: its day as an eyebrow (only with several,
 │  ┌────────────────────────┐  │     with its weekend), the image in a card, a count
-│  │   their Friday image   │  │     ("34 sets read, 7 flagged."), then the flagged
-│  └────────────────────────┘  │     rows only — a guessed end, a look-closer note —
-│  34 sets read, 7 flagged.    │     by stage, and one text button that shows the
-│  T-MOBILE                    │     rest. A row: artist field, day + two time fields,
-│  [ LORDE              ]      │     the printed time in mono, yellow chips ("No end
-│  FRI [8:15 PM]–[        ]    │     printed" or "Til close", "Look closer"), a tonal
-│  FRI · Printed 8:15 · An hour│     "Can't read it" toggle. A guessed end is left
-│  on the calendar             │     blank, not filled in: the calendar gets an hour
-│  (No end printed)            │     unless one is typed. A row's day is the night it
-│  [ Can't read it ]           │     belongs to (a 1 AM set is Friday's). No dividers.
-│  Show all 34 sets            │     Confirm is disabled with a plain reason while any
-│  WEEKEND 1 · SAT 3 OCT       │     set is marked.
-│  …                           │
+│  │   their Friday image   │  │     ("34 sets read, 1 flagged."), then the flagged
+│  └────────────────────────┘  │     rows only — the lines the model said it was
+│  34 sets read, 1 flagged.    │     unsure of, and nothing else — by stage, and one
+│  TITO'S HANDMADE VODKA       │     text button that shows the rest. A row: artist
+│  [ ¥OU$UK€ ¥UK1MAT$U   ]     │     field, day + two time fields, the printed time
+│  SAT [6:30 PM]–[7:30 PM]     │     in mono, the yellow "Look closer" chip, the
+│  SAT · Printed 6:30 – 7:30   │     model's own few words why, and a tonal "Looks
+│  (Look closer)               │     good" that folds the row away. A guessed end is
+│  stylized glyphs; could be…  │     shown as the calendar will have it and the
+│  [ Looks good ]              │     printed line says "No end printed · 90 min
+│  Show all 34 sets            │     guess" — it is not a flag. A row's day is the
+│  WEEKEND 1 · SAT 3 OCT       │     night it belongs to (a 1 AM set is Friday's).
+│  …                           │     No dividers. Nothing blocks confirm.
 │  [       Confirm      ]      │
 │                              │
 │  Building your page          │  4. PUBLISHING — the honest wait: times are saved,
@@ -296,10 +296,19 @@ Rules that came out of building it:
 
 - **The flagged sets are the review; the rest wait behind one tap per day** (owner feedback,
   2026-09-22). Two hundred rows is a page nobody checks. Each day counts its sets and its
-  flags — a guessed end, a look-closer note from the read — shows only those rows, and offers
-  "Show all N sets". Confirm still reads every row, shown or not, and is still the human's act
-  (the no-draft-tier ruling): what changed is what the human is asked to look at. The same
-  feedback dropped the Year field (each day carries its year; the first day's is the
+  flags, shows only those rows, and offers "Show all N sets". Confirm still reads every row,
+  shown or not, and is still the human's act (the no-draft-tier ruling): what changed is what
+  the human is asked to look at. **A flag is the model's own doubt, nothing else** (second
+  round, same day): the vision reply carries `unsure` per set, filled only when the model could
+  not read that line with confidence, and the review flags exactly those — with the model's few
+  words under the row and one tonal "Looks good" that folds it away. A name that merely looks
+  odd, a note in the observations, and a missing end are not flags; on the ACL read that took
+  35 flags to about one a day. "Can't read it" is gone: nothing on the review blocks confirm,
+  and the fix for a wrong line is the fields. **A missing end is guessed, shown, and said so**:
+  90 minutes for the last set printed on its stage that day (the closer, which is who gets no
+  end printed), 60 for any other, in the end field as the calendar will have it, with "No end
+  printed · 90 min guess" on the printed line; a moved start carries the guess with it. The
+  same feedback dropped the Year field (each day carries its year; the first day's is the
   festival's), grouped the days a weekend at a time, put a link's images into day order
   whatever order the page listed them, left a guessed end blank with "No end printed" or "Til
   close" instead of an invented time, and read the zone off the almanac

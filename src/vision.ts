@@ -89,7 +89,8 @@ Rules — these are hard requirements:
 4. Read the day header exactly as printed into "header" and convert it to an ISO date in "date" (YYYY-MM-DD). Double-check the weekday against the date.
 5. Keep sets in printed top-to-bottom order within each stage, and stages in printed order.
 6. "festival_name" is the festival name as printed (keep poster casing). "official_url" is any URL printed on the poster (usually the footer), or null.
-7. Use "observations" for anything a human reviewer should double-check: hard-to-read text, names that look like OCR errors but are printed that way, artists appearing twice, unusual layout, partially obscured text. Do not silently guess — say so.
+7. "unsure" on a set is for one thing only: a line you could not read with confidence — a glyph you could not make out, a partly obscured or blurred name or time, a name you re-read and are still not certain of, or a time whose column is ambiguous. Say in a few words what is uncertain. Otherwise "unsure" is null. A name that merely looks unusual, stylized, misspelled or surprising is NOT a reason: reproduce it exactly and leave "unsure" null. Most sets on a clean poster have "unsure": null.
+8. Use "observations" for the poster as a whole: layout oddities, a legend or icon you applied, an artist billed twice, a block you were not sure belonged to a stage, text cut off at an edge. Do not use it to restate that a name was reproduced as printed, and do not repeat a set's "unsure" there.
 
 Respond with a single JSON object of this shape and nothing else:
 {
@@ -103,7 +104,7 @@ Respond with a single JSON object of this shape and nothing else:
         {
           "name": string,
           "sets": [
-            { "artist": string, "time": string, "afters": boolean, "annotations": [string, ...] }
+            { "artist": string, "time": string, "afters": boolean, "annotations": [string, ...], "unsure": string | null }
           ]
         }
       ]
@@ -161,12 +162,13 @@ const TRANSCRIPTION_SCHEMA = {
                   items: {
                     type: 'object',
                     additionalProperties: false,
-                    required: ['artist', 'time', 'afters', 'annotations'],
+                    required: ['artist', 'time', 'afters', 'annotations', 'unsure'],
                     properties: {
                       artist: { type: 'string' },
                       time: { type: 'string' },
                       afters: { type: 'boolean' },
                       annotations: { type: 'array', items: { type: 'string' } },
+                      unsure: { anyOf: [{ type: 'string' }, { type: 'null' }] },
                     },
                   },
                 },
