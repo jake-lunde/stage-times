@@ -10,7 +10,7 @@
     "CHBP+Daily+Schedule_SUNDAY.webp"
   ],
   "trials": 2,
-  "measured": "2026-09-13",
+  "measured": "2026-09-22",
   "chosen": {
     "default": "claude-sonnet-5",
     "fallback": "claude-opus-5"
@@ -23,34 +23,34 @@
       "backend": "sdk",
       "structuredOutputs": true,
       "trial": 1,
-      "exact": 78,
+      "exact": 79,
       "total": 79,
       "inferredFlagged": 9,
       "inferredExpected": 9,
-      "mismatches": 1,
+      "mismatches": 0,
       "missing": 0,
       "extra": 0,
       "generatedSets": 79,
-      "costUsdPerPoster": 0.07092,
-      "costUsdTotal": 0.21276,
+      "costUsdPerPoster": 0.08117333333333333,
+      "costUsdTotal": 0.24352000000000001,
       "posters": [
         {
           "source": "CHBP+Daily+Schedule_FRIDAY.webp",
-          "costUsd": 0.055345,
-          "inputTokens": 3294,
-          "outputTokens": 1555
+          "costUsd": 0.08119,
+          "inputTokens": 3568,
+          "outputTokens": 2534
         },
         {
           "source": "CHBP+Daily+Schedule_SATURDAY.webp",
-          "costUsd": 0.081995,
-          "inputTokens": 3294,
-          "outputTokens": 2621
+          "costUsd": 0.08674,
+          "inputTokens": 3568,
+          "outputTokens": 2756
         },
         {
           "source": "CHBP+Daily+Schedule_SUNDAY.webp",
-          "costUsd": 0.07542,
-          "inputTokens": 3294,
-          "outputTokens": 2358
+          "costUsd": 0.07559,
+          "inputTokens": 3568,
+          "outputTokens": 2310
         }
       ]
     },
@@ -68,26 +68,26 @@
       "missing": 0,
       "extra": 0,
       "generatedSets": 79,
-      "costUsdPerPoster": 0.07236166666666666,
-      "costUsdTotal": 0.21708499999999997,
+      "costUsdPerPoster": 0.07894,
+      "costUsdTotal": 0.23681999999999997,
       "posters": [
         {
           "source": "CHBP+Daily+Schedule_FRIDAY.webp",
-          "costUsd": 0.07887,
-          "inputTokens": 3294,
-          "outputTokens": 2496
+          "costUsd": 0.077815,
+          "inputTokens": 3568,
+          "outputTokens": 2399
         },
         {
           "source": "CHBP+Daily+Schedule_SATURDAY.webp",
-          "costUsd": 0.084545,
-          "inputTokens": 3294,
-          "outputTokens": 2723
+          "costUsd": 0.08539,
+          "inputTokens": 3568,
+          "outputTokens": 2702
         },
         {
           "source": "CHBP+Daily+Schedule_SUNDAY.webp",
-          "costUsd": 0.05367,
-          "inputTokens": 3294,
-          "outputTokens": 1488
+          "costUsd": 0.073615,
+          "inputTokens": 3568,
+          "outputTokens": 2231
         }
       ]
     },
@@ -105,26 +105,26 @@
       "missing": 0,
       "extra": 0,
       "generatedSets": 79,
-      "costUsdPerPoster": 0.052897,
-      "costUsdTotal": 0.158691,
+      "costUsdPerPoster": 0.054964000000000006,
+      "costUsdTotal": 0.164892,
       "posters": [
         {
           "source": "CHBP+Daily+Schedule_FRIDAY.webp",
-          "costUsd": 0.049527,
-          "inputTokens": 3294,
-          "outputTokens": 2643
+          "costUsd": 0.056034,
+          "inputTokens": 3568,
+          "outputTokens": 3022
         },
         {
           "source": "CHBP+Daily+Schedule_SATURDAY.webp",
-          "costUsd": 0.058602,
-          "inputTokens": 3294,
-          "outputTokens": 3248
+          "costUsd": 0.061794,
+          "inputTokens": 3568,
+          "outputTokens": 3406
         },
         {
           "source": "CHBP+Daily+Schedule_SUNDAY.webp",
-          "costUsd": 0.050562,
-          "inputTokens": 3294,
-          "outputTokens": 2712
+          "costUsd": 0.047064,
+          "inputTokens": 3568,
+          "outputTokens": 2424
         }
       ]
     },
@@ -142,26 +142,26 @@
       "missing": 0,
       "extra": 0,
       "generatedSets": 79,
-      "costUsdPerPoster": 0.045672,
-      "costUsdTotal": 0.137016,
+      "costUsdPerPoster": 0.057853999999999996,
+      "costUsdTotal": 0.173562,
       "posters": [
         {
           "source": "CHBP+Daily+Schedule_FRIDAY.webp",
-          "costUsd": 0.041937,
-          "inputTokens": 3294,
-          "outputTokens": 2137
+          "costUsd": 0.057204,
+          "inputTokens": 3568,
+          "outputTokens": 3100
         },
         {
           "source": "CHBP+Daily+Schedule_SATURDAY.webp",
-          "costUsd": 0.058392,
-          "inputTokens": 3294,
-          "outputTokens": 3234
+          "costUsd": 0.066174,
+          "inputTokens": 3568,
+          "outputTokens": 3698
         },
         {
           "source": "CHBP+Daily+Schedule_SUNDAY.webp",
-          "costUsd": 0.036687,
-          "inputTokens": 3294,
-          "outputTokens": 1787
+          "costUsd": 0.050184,
+          "inputTokens": 3568,
+          "outputTokens": 2632
         }
       ]
     },
@@ -179,29 +179,29 @@
       "missing": 79,
       "extra": 0,
       "generatedSets": 0,
-      "costUsdPerPoster": 0.008701666666666668,
-      "costUsdTotal": 0.026105000000000003,
+      "costUsdPerPoster": 0.009861,
+      "costUsdTotal": 0.029582999999999998,
       "posters": [
         {
           "source": "CHBP+Daily+Schedule_FRIDAY.webp",
-          "costUsd": 0.009015,
-          "inputTokens": 2855,
-          "outputTokens": 1232
+          "costUsd": 0.009571,
+          "inputTokens": 3076,
+          "outputTokens": 1299
         },
         {
           "source": "CHBP+Daily+Schedule_SATURDAY.webp",
-          "costUsd": 0.008735,
-          "inputTokens": 2855,
-          "outputTokens": 1176
+          "costUsd": 0.010966,
+          "inputTokens": 3076,
+          "outputTokens": 1578
         },
         {
           "source": "CHBP+Daily+Schedule_SUNDAY.webp",
-          "costUsd": 0.008355,
-          "inputTokens": 2855,
-          "outputTokens": 1100
+          "costUsd": 0.009046,
+          "inputTokens": 3076,
+          "outputTokens": 1194
         }
       ],
-      "failure": "CHBP+Daily+Schedule_SUNDAY.webp: bad transcription shape: \u2022 days[1].stages[0].sets must be a non-empty array"
+      "failure": "two posters transcribed to the same date 2026-08-08 — check that each image is a distinct day"
     },
     {
       "model": "claude-haiku-4-5-20251001",
@@ -217,29 +217,29 @@
       "missing": 79,
       "extra": 0,
       "generatedSets": 0,
-      "costUsdPerPoster": 0.008508333333333335,
-      "costUsdTotal": 0.025525000000000003,
+      "costUsdPerPoster": 0.009441,
+      "costUsdTotal": 0.028323,
       "posters": [
         {
           "source": "CHBP+Daily+Schedule_FRIDAY.webp",
-          "costUsd": 0.00871,
-          "inputTokens": 2855,
-          "outputTokens": 1171
+          "costUsd": 0.008946,
+          "inputTokens": 3076,
+          "outputTokens": 1174
         },
         {
           "source": "CHBP+Daily+Schedule_SATURDAY.webp",
-          "costUsd": 0.008375,
-          "inputTokens": 2855,
-          "outputTokens": 1104
+          "costUsd": 0.009111,
+          "inputTokens": 3076,
+          "outputTokens": 1207
         },
         {
           "source": "CHBP+Daily+Schedule_SUNDAY.webp",
-          "costUsd": 0.00844,
-          "inputTokens": 2855,
-          "outputTokens": 1117
+          "costUsd": 0.010266,
+          "inputTokens": 3076,
+          "outputTokens": 1438
         }
       ],
-      "failure": "CHBP+Daily+Schedule_SUNDAY.webp: bad transcription shape: \u2022 days[1].stages must be a non-empty array"
+      "failure": "cannot parse printed time \"1:145-2:115PM\" — expected \"H:MM-H:MM(AM|PM)\", \"H:MM-CLOSE\" or a bare \"H:MM\""
     }
   ]
 }

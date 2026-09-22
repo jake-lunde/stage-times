@@ -323,6 +323,15 @@ export function formatSetTimeRange(start: WallTime, end: WallTime): string {
 
 export const END_INFERRED_CAVEAT =
   'End time not printed on the official schedule; assumed to be one hour after the start. Treat it as approximate.';
+/** The same caveat for a closer, whose guess is an hour and a half (src/transcribe.ts, CLOSER_GUESS_MINUTES). */
+export const END_INFERRED_CAVEAT_CLOSER =
+  'End time not printed on the official schedule; assumed to be an hour and a half after the start, as the last set of the night. Treat it as approximate.';
+
+/** Which caveat a guessed end gets: by its length, since that is all the YAML keeps of the rule. */
+export function endInferredCaveat(start: WallTime, end: WallTime): string {
+  const minutes = (Date.UTC(end.year, end.month - 1, end.day, end.hour, end.minute) - Date.UTC(start.year, start.month - 1, start.day, start.hour, start.minute)) / 60_000;
+  return minutes >= 90 ? END_INFERRED_CAVEAT_CLOSER : END_INFERRED_CAVEAT;
+}
 
 /** Everything about an event that a subscriber can see. Hashed to drive SEQUENCE. */
 export interface EventContent {
@@ -339,7 +348,7 @@ export function makeEventContent(festival: FestivalMeta, stage: Stage, set: SetE
   const descriptionLines = [
     stage.name,
     formatSetTimeRange(set.start, set.end),
-    ...(set.end_inferred ? [END_INFERRED_CAVEAT] : []),
+    ...(set.end_inferred ? [endInferredCaveat(set.start, set.end)] : []),
     `Official schedule: ${festival.official_url}`,
   ];
   return {

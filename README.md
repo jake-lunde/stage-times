@@ -216,8 +216,9 @@ The caps sit ahead of the schedule check rather than behind it: that check is a 
 gate whose job is to bound spend cannot spend to run. Every rejection is one or two plain
 sentences, written under the copy rules and passed to the screen untouched. What comes back is a
 **review payload** — one set list across every day, every set with its inferred-end flag, a
-low-confidence flag where the model singled the read out, the printed time, and the image it was
-read from, and the time zone marked as assumed.
+look-here flag where the model said it was unsure of the line (and its few words why), the
+printed time, and the image it was read from, and the time zone: the festival's own when it is
+on record in the almanac, else the default, marked as assumed.
 
 **`link`** (ticket 19) — the festival's schedule page and a contact address, and nothing else
 typed. The caps count it as one upload and run before any request. The link has to be a public

@@ -308,7 +308,7 @@ test('notification: a correction to a listed edition emits one notification with
   assert.equal(n!.title, 'Listed edition corrected: Low Tide 2026');
   assert.equal(n!.email, UPLOADER);
   assert.match(n!.body, /^The uploader corrected 1 set through the update link\. Live already; nothing waits on you\./);
-  assert.ok(n!.body.includes('- MUNA (Main Stage): Oct 9 22:40–23:40 → Oct 9 22:50–23:55'), n!.body);
+  assert.ok(n!.body.includes('- MUNA (Main Stage): Oct 9 22:40–00:10 → Oct 9 22:50–23:55'), n!.body);
   assert.ok(n!.body.includes('https://stagetimes.app/fan/low-tide-2026/'));
 
   assert.deepEqual(result.changes, [
@@ -316,7 +316,7 @@ test('notification: a correction to a listed edition emits one notification with
       kind: 'changed',
       stage: 'main',
       stageName: 'Main Stage',
-      before: { artist: 'MUNA', start: '2026-10-09T22:40:00', end: '2026-10-09T23:40:00' },
+      before: { artist: 'MUNA', start: '2026-10-09T22:40:00', end: '2026-10-10T00:10:00' },
       after: { artist: 'MUNA', start: '2026-10-09T22:50:00', end: '2026-10-09T23:55:00' },
     },
   ]);

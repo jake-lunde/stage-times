@@ -280,11 +280,13 @@ test('review: every set carries its confidence flag, its inferred-end flag and t
   assert.equal(muna.endInferred, true, 'the source printed CLOSE, so the end is a guess');
   assert.equal(muna.printedTime, '10:40-CLOSE');
   assert.equal(muna.start, '2026-10-09T22:40:00');
-  assert.equal(muna.end, '2026-10-09T23:40:00');
-  assert.equal(muna.lowConfidence, false, 'the model said nothing about this one');
+  assert.equal(muna.end, '2026-10-10T00:10:00', 'the closer of its stage: an hour and a half, as a guess');
+  assert.equal(muna.lowConfidence, false, 'the model was sure of this line');
+  assert.equal(muna.unsure, '');
 
   const mgna = review.sets.find((s) => s.artist === 'MGNA CRRRTA')!;
-  assert.equal(mgna.lowConfidence, true, 'the model singled this read out — look here hardest');
+  assert.equal(mgna.lowConfidence, true, 'the model said it was unsure of this line — look here');
+  assert.equal(mgna.unsure, "three R's are printed, re-read twice", 'in its own few words');
 
   const avery = review.sets.find((s) => s.artist === 'AVERY COCHRANE')!;
   assert.equal(avery.endInferred, false);
@@ -400,7 +402,7 @@ test('confirm: an edited artist, start or end is published and each edit is reco
   assert.match(log, /## Corrections made on review/);
   assert.match(log, /\| main \| AVERY COCHRANE \| artist \| AVERY COCHRANE \| Avery Cochrane \|/);
   assert.match(log, /\| main \| AVERY COCHRANE \| start \| 2026-10-09T15:15:00 \| 2026-10-09T15:20:00 \|/);
-  assert.match(log, /\| main \| MUNA \| end \| 2026-10-09T23:40:00 \| 2026-10-09T23:55:00 \|/);
+  assert.match(log, /\| main \| MUNA \| end \| 2026-10-10T00:10:00 \| 2026-10-09T23:55:00 \|/);
 });
 
 test('confirm: an edit that breaks the schedule is refused, and nothing is committed', async () => {
