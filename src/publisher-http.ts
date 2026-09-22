@@ -24,7 +24,7 @@
  * rest. A client that does not ask gets exactly what it always did.
  */
 
-import type { Gate, Progress, ProgressPort, Rejection, SourceImage, UpdateClaim } from './publisher.js';
+import type { Gate, Progress, ProgressPort, Rejection, SourceImage } from './publisher.js';
 
 /** A request that could not be read as an intent at all. */
 export class BadRequestError extends Error {
@@ -104,22 +104,6 @@ export function editList(body: Body, field: string): { index: number; artist?: s
       ...(optStr(entry, 'end') !== undefined ? { end: optStr(entry, 'end')! } : {}),
     };
   });
-}
-
-/**
- * The update link, as `{editionPath, secret}` — the page reads the secret from
- * the link's fragment. Optional on upload and confirm: without it, or with one
- * that does not hold, the publisher treats the intent as a fresh upload.
- */
-export function optUpdate(body: Body): { update: UpdateClaim } | Record<string, never> {
-  if (body['update'] === undefined || body['update'] === null) return {};
-  return { update: update(body) };
-}
-
-/** The update link, required — a self-removal has nothing else to go on. */
-export function update(body: Body): UpdateClaim {
-  const raw = obj(body, 'update');
-  return { editionPath: str(raw, 'editionPath'), secret: str(raw, 'secret') };
 }
 
 /** `{filename, contentType, width, height, data}` with base64 bytes. */
@@ -212,22 +196,17 @@ function imageFrom(raw: Body, label: string): SourceImage {
  * is this file's opinion about it, and nothing downstream reads it.
  */
 const STATUS: Record<Gate, number> = {
+  owner: 403,
   details: 400,
   images: 400,
   type: 400,
   size: 413,
   dimensions: 400,
-  'address-cap': 429,
-  'daily-cap': 429,
   schedule: 422,
   expired: 410,
   review: 409,
   schema: 422,
   link: 422,
-  year: 422,
-  stages: 422,
-  removed: 410,
-  'update-link': 403,
   address: 400,
   unreachable: 502,
   login: 422,

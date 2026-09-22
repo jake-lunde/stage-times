@@ -189,7 +189,7 @@ column of every decision is "ours."
 |---|---|---|
 | `#F5F5F7` page, `#FFF` cards | `--paper` page, `--paper-sunk` cards | **Keep ours.** One-step surface change either way; direction of contrast is irrelevant. |
 | `#000` featured cards | a stage-color or `--red` flood card | Keep ours — one flood per surface (`color.md` rule 3); the hero already spent it on the landing page, so no black-equivalent card on the directory. |
-| Orange NEW eyebrow | `--red-deep` eyebrow text, Fragment Mono caps | **The eyebrow slot is where the ticket's "honest fan-made mark" goes** ("FAN-MADE", `--red-deep`). Owner editions leave the eyebrow for dates and city. |
+| Orange NEW eyebrow | `--red-deep` eyebrow text, Fragment Mono caps | **The eyebrow slot once held the "honest fan-made mark"** (retired with ADR-0005, 2026-09-22; was "FAN-MADE", `--red-deep`). Owner editions leave the eyebrow for dates and city. |
 | Grey `#6E6E73` tail / footnotes | `--ink-soft` | Keep ours. |
 | Blue `#0066CC` text links | `--red-deep` text button | Keep ours (`--red` fails AA under 17px; `--red-deep` is 5.6). |
 | SF Pro 600 titles | Archivo expanded 600–650 | Keep ours; the expanded width is our 600. |
@@ -230,7 +230,7 @@ chosen; the Store's single radius is the discipline.
 ```
 ┌──────────────────────────────┐  --paper-sunk, r 18, fixed height, whole card is the link
 │  AUG 7–9 · SEATTLE           │  eyebrow: Fragment Mono 12 caps, --ink-soft
-│                              │  (fan edition: "FAN-MADE" in --red-deep instead)
+│                              │
 │  Capitol Hill                │  title: Archivo expanded 600, 28 (phone 24), ≤ 2 lines
 │  Block Party                 │
 │  79 sets across 4 stages.    │  lead: 17 / 600 (Apple's 14/600 lifted to our body size)

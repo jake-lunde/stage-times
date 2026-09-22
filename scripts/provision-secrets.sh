@@ -289,7 +289,7 @@ pause
 
 # ── 3. GitHub token ───────────────────────────────────────────────────────
 stage "GitHub: fine-grained token for the publisher"
-say "The upload flow commits edition YAML to main and opens listing pull requests."
+say "The upload flow commits edition YAML to main; the watcher opens review pull requests."
 say "A fine-grained token scoped to this one repo is all it gets."
 if vercel_has GITHUB_TOKEN production && ! confirm "GITHUB_TOKEN already exists on Vercel. Replace it (rotate)?"; then
   note "keeping the existing token"

@@ -1,15 +1,17 @@
 /**
- * Stage Times — the upload flow: one static page at `/upload/`, six screens.
+ * Stage Times — the owner's upload flow: one static page at `/upload/`, six
+ * screens, opened from the owner's bookmark (`ownerLink()`). Every edition is
+ * the owner's (ADR-0005); without the secret the page sends the visitor home
+ * before a screen shows, and the publisher refuses anything posted anyway.
  *
  *   link        the front door (ticket 20): where the set times are — the
- *               festival's schedule page — and an email, one pill, and a
- *               text button to the screenshots for anyone who has those
- *               instead. Nothing else is typed. The read is the same drawn
+ *               festival's schedule page — one pill, and a text button to
+ *               the screenshots for when those are all there is. Nothing else is typed. The read is the same drawn
  *               wait as an upload's, and a page that cannot be read comes
  *               back here in the publisher's sentence, the screenshots one
  *               tap away.
- *   details     festival name, first and last day, an email — one form; the
- *               screenshot flow's own first screen, unchanged
+ *   details     festival name, first and last day — one form; the
+ *               screenshot flow's own first screen
  *   upload      one image per day (ticket 18). A one-day festival is one file
  *               action that posts as soon as an image is chosen — exactly as
  *               before. More days is a row per day, offered one at a time as
@@ -31,19 +33,8 @@
  *               live at under them, so a misread name is caught before it is
  *               permanent; a changed name changes the address as it is typed,
  *               and the year is the first day's.
- *   publishing  the honest wait: the times are saved, the page is building,
- *               and the update link is handed over now rather than after
- *   success     the share link and the update link, explained in one line
- *
- * The update link opens the same flow for one edition (ticket 09), rendered
- * once per fan edition at `/update/<edition path>/`: the header names the
- * festival and the details screen says what a new screenshot will replace
- * before anything is uploaded; the secret rides in the fragment and goes out
- * with upload and confirm, and a correction replaces the times in place. Two
- * more screens hang off it:
- *
- *   remove      take it down — one destructive button, one way back
- *   removed     what happens next, in one line
+ *   publishing  the honest wait: the times are saved and the page is building
+ *   success     the page's link, to open or send around
  *
  * Rendered by `renderSitePages` in src/pages.ts, sharing its shell (tokens,
  * fonts, analytics snippet, footer voice). Everything the flow *decides* lives
@@ -61,39 +52,35 @@
  * screens.md — the third page type).
  */
 
-import { ACCEPTED_IMAGE_TYPES, EMAIL_RE, GATE_COPY, MAX_IMAGE_EDGE, MAX_UPLOAD_IMAGES, MIN_IMAGE_EDGE, fill, type Gate } from './publisher.js';
+import { ACCEPTED_IMAGE_TYPES, GATE_COPY, MAX_IMAGE_EDGE, MAX_UPLOAD_IMAGES, MIN_IMAGE_EDGE, fill, type Gate } from './publisher.js';
 import { slugify } from './transcribe.js';
 import { artGround, esc, ICON_BACK, ICON_CHECK, ICON_LINK, page, PROD_ORIGIN } from './pages.js';
 
-export type Screen = 'link' | 'details' | 'upload' | 'review' | 'publishing' | 'success' | 'remove' | 'removed';
+export type Screen = 'link' | 'details' | 'upload' | 'review' | 'publishing' | 'success';
 
 /**
  * Where each gate's rejection lands. A typo in the form goes back to the form;
- * anything about the image — or the caps, which the reader can only wait out —
- * goes back to the one file action; a review that will not build stays on
- * review. The script carries this same map verbatim.
+ * anything about the image goes back to the one file action; a review that
+ * will not build stays on review. The script carries this same map verbatim.
  */
 export const GATE_SCREENS: Record<Gate, Screen> = {
+  // A secret that stopped matching (rotated since the bookmark was saved)
+  // lands on the front door, in the publisher's sentence.
+  owner: 'link',
   details: 'details',
   images: 'upload',
   type: 'upload',
   size: 'upload',
   dimensions: 'upload',
-  'address-cap': 'upload',
-  'daily-cap': 'upload',
   schedule: 'upload',
   expired: 'upload',
   review: 'review',
   schema: 'review',
   link: 'details',
-  year: 'upload',
-  stages: 'upload',
-  removed: 'details',
-  'update-link': 'remove',
   // A link's own answers (ticket 20) land where the link was typed. So does
-  // every other answer to a link — a bad email, the caps, a reading that will
-  // not build — since the link screen is the only one that came before it; the
-  // script sends every link answer there, whatever this map says of the gate.
+  // every other answer to a link — a reading that will not build, say — since
+  // the link screen is the only one that came before it; the script sends
+  // every link answer there, whatever this map says of the gate.
   address: 'link',
   unreachable: 'link',
   login: 'link',
@@ -218,14 +205,13 @@ export function weekendRuns(days: string[]): string[][] {
 
 /**
  * Where the page will live, as the review's header has it (ticket 20): the
- * path the publisher claimed while the name and the year are as read — suffix
- * and all — and, once either is changed, the path that name and year derive,
- * the way confirm will derive it. A suffix confirm may add for a changed name
- * cannot be known here; the success screen shows what was claimed.
+ * path the publisher claimed while the name and the year are as read, and,
+ * once either is changed, the path that name and year derive, the way confirm
+ * will derive it.
  */
-export function readAddress(rv: { festival: string; year: number; namespace: string; editionPath: string }, name: string, year: string): string {
+export function readAddress(rv: { festival: string; year: number; editionPath: string }, name: string, year: string): string {
   if (name.trim() === rv.festival && year === String(rv.year)) return rv.editionPath;
-  return (rv.namespace === 'fan' ? 'fan/' : '') + slugify(name) + '-' + year;
+  return slugify(name) + '-' + year;
 }
 
 /** The status line while a link is read, from the link's own reports — before the images report as an upload's do. */
@@ -348,25 +334,11 @@ export function posterBlock(h: PosterHeadliner): string {
 }
 
 /**
- * The update link: the edition's path under `/update/`, the secret in the
- * fragment so it never reaches a server log. Ticket 09 builds what it opens;
- * this is the one place its shape is decided.
- */
-export function updateLink(editionPath: string, secret: string): string {
-  return `${PROD_ORIGIN}/update/${editionPath}/#${secret}`;
-}
-
-/** Where the update-link page for an edition is written under dist/: `update/<edition path>`. */
-export function updatePagePath(editionPath: string): string {
-  return `update/${editionPath}`;
-}
-
-/**
- * The owner's bookmark: this same page, the owner secret in the fragment so it
+ * The owner's bookmark: this page, the owner secret in the fragment so it
  * never reaches a server log. The script reads it, clears it from the address
- * bar, and sends it as `owner` with both posts; the publisher decides what it
- * means. The screens are the same screens — only the review's address and the
- * confirm's namespace differ. Runbook: docs/owner-runbook.md.
+ * bar, keeps it for the tab in session storage so a reload mid-flow still has
+ * it, and sends it as `owner` with every post; the publisher decides what it
+ * means. Runbook: docs/owner-runbook.md.
  */
 export function ownerLink(secret: string): string {
   return `${PROD_ORIGIN}/upload/#owner=${encodeURIComponent(secret)}`;
@@ -476,7 +448,7 @@ button.text-btn{background:none; border:0; padding:0; font-family:inherit}
 @keyframes name-in{from{opacity:0}to{opacity:1}}
 .screen>.loading+.status{margin-top:var(--gap-2)}
 
-/* the uploader's own image, in a card, tall enough to read a poster off */
+/* the source image, in a card, tall enough to read a poster off */
 .source{margin:var(--gap-4) 0 0; background:var(--paper-sunk); border-radius:var(--r-card); overflow:hidden}
 .source img{display:block; width:100%; height:auto; max-height:70vh; object-fit:contain}
 .source figcaption{padding:0 var(--pad-card) 6px}
@@ -531,132 +503,46 @@ button.text-btn{background:none; border:0; padding:0; font-family:inherit}
 // The page
 // ---------------------------------------------------------------------------
 
-/** What the update-link page needs of an edition's manifest. */
-export interface UpdateTarget {
-  festival: { name: string; year: number; basePath: string };
-  blocked: boolean;
-  all: { dayspan: { first: string; last: string } };
-}
-
-/**
- * The upload flow. With no edition it is `/upload/`, adding a new festival.
- * With one it is that edition's update-link page: the same screens, but it
- * names the festival up front, says what a new screenshot replaces before
- * anything is uploaded, and offers taking it down. A taken-down edition's page
- * says so and offers nothing.
- */
-export function renderUploadPage(edition?: UpdateTarget): string {
-  if (edition?.blocked) return renderRemovedUpdatePage(edition);
+/** The upload flow at `/upload/`: the owner adding a festival. */
+export function renderUploadPage(): string {
   const zones = REVIEW_ZONES.map((z) => `<option value="${esc(z.id)}">${esc(z.label)}</option>`).join('');
-  const f = edition?.festival;
-  const pageAddress = f ? `${PROD_ORIGIN.replace(/^https:\/\//, '')}${f.basePath}/` : '';
-  const value = (v: string | undefined) => (v ? ` value="${esc(v)}"` : '');
-
-  const header = f
-    ? `<header>
-    <p class="lockup">Stage&nbsp;Times</p>
-    <h2>${esc(f.name)} <span style="color:var(--ink-soft)">${f.year}</span></h2>
-    <p class="title-meta mono-cap">Fix a time or take it down</p>
-  </header>`
-    : `<header>
-    <p class="lockup">Stage&nbsp;Times</p>
-    <h2>Add a festival</h2>
-    <p class="title-meta mono-cap">From the festival’s schedule page, or your screenshots</p>
-  </header>`;
-
-  const changing = f
-    ? `
-    <p class="lead" data-changing>A new screenshot replaces every time on <a href="${esc(f.basePath)}/">${esc(pageAddress)}</a>. Anyone who added a stage gets the new times the next time their calendar app checks.</p>`
-    : '';
-
-  const removeAction = f
-    ? `
-    <button class="text-btn" type="button" data-back="remove">Take it down</button>`
-    : `
-    <button class="text-btn" type="button" data-back="link">Use a link</button>`;
-
-  // The front door (ticket 20): where the set times are, and an email. The
-  // update link's page keeps its own first screen — it names its festival.
-  const linkScreen = f
-    ? ''
-    : `
-  <section class="screen" data-screen="link">
-    <form id="link" novalidate>
-      <label class="field"><span>Schedule page</span><input name="url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://" required>
-        <span class="hint">The festival’s page with the set times on it, not the lineup.</span></label>
-      <label class="field"><span>Email</span><input name="email" type="email" inputmode="email" autocomplete="email" required>
-        <span class="hint">Only so I can reach you about a wrong time. No account, and nothing gets sent to it.</span></label>
-      <p class="problem" role="alert" hidden></p>
-      <figure class="loading" data-loading hidden></figure>
-      <p class="status" aria-live="polite" hidden></p>
-      <button class="btn btn--primary" type="submit">Read the times</button>
-    </form>
-    <button class="text-btn" type="button" data-back="details">Use screenshots</button>
-  </section>`;
-
-  const removeScreens = f
-    ? `
-
-  <section class="screen" data-screen="remove" hidden>
-    <h3>Take it down</h3>
-    <p class="lead">Its calendars go empty and the page says it was taken down. Anyone who added a stage sees it come up blank the next time their calendar app checks.</p>
-    <p class="problem" role="alert" hidden></p>
-    <button class="btn btn--tonal btn--danger" type="button" data-remove>Take it down</button>
-    <button class="text-btn" type="button" data-back="details">Keep it</button>
-  </section>
-
-  <section class="screen" data-screen="removed" hidden>
-    <h3>Taken down</h3>
-    <p class="lead">The page and its calendars empty out in a couple of minutes.</p>
-  </section>`
-    : '';
-
-  const publishingLead = f
-    ? 'Your new times are saved. The page takes a couple of minutes to rebuild, and this waits for it.'
-    : 'Your times are saved. The page and its calendars take a couple of minutes to build, and this waits for them.';
-
-  const publishingLink = f
-    ? ''
-    : `
-    <p class="eyebrow" style="margin-top:var(--gap-5)">Your update link</p>
-    <div class="link-row"><code class="url" data-update></code><button class="icon-btn" data-copy aria-label="Copy update link">${ICON_LINK}${ICON_CHECK}</button></div>
-    <p class="small">Keep this one now, while it builds. It's the only way to fix a time or take the page down later, and it's shown once.</p>`;
-
-  const successLive = f
-    ? `<h3>It's live</h3>
-      <p class="lead">The new times are on your page. Calendars pick them up the next time they check.</p>`
-    : `<h3>It's live</h3>
-      <p class="lead">Add a stage from your page like anyone would, and send the link around.</p>`;
-
-  const successLinks = f
-    ? ''
-    : `
-    <p class="eyebrow" style="margin-top:var(--gap-4)">Your update link</p>
-    <div class="link-row"><code class="url" data-update></code><button class="icon-btn" data-copy aria-label="Copy update link">${ICON_LINK}${ICON_CHECK}</button></div>
-    <p class="small">Keep this one. It's the only way to fix a time or take the page down later, and it's shown once.</p>
-    <p class="small">Not on the homepage yet. I list festivals by hand.</p>`;
 
   const body = `<main class="wrap">
   <nav class="topbar">
     <a class="icon-btn" href="/" aria-label="Stage Times home">${ICON_BACK}</a>
   </nav>
 
-  ${header}
-${linkScreen}
-  <section class="screen" data-screen="details"${f ? '' : ' hidden'}>${changing}
+  <header>
+    <p class="lockup">Stage&nbsp;Times</p>
+    <h2>Add a festival</h2>
+    <p class="title-meta mono-cap">From the festival’s schedule page, or screenshots</p>
+  </header>
+
+  <section class="screen" data-screen="link" hidden>
+    <form id="link" novalidate>
+      <label class="field"><span>Schedule page</span><input name="url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://" required>
+        <span class="hint">The festival’s page with the set times on it, not the lineup.</span></label>
+      <p class="problem" role="alert" hidden></p>
+      <figure class="loading" data-loading hidden></figure>
+      <p class="status" aria-live="polite" hidden></p>
+      <button class="btn btn--primary" type="submit">Read the times</button>
+    </form>
+    <button class="text-btn" type="button" data-back="details">Use screenshots</button>
+  </section>
+
+  <section class="screen" data-screen="details" hidden>
     <form id="details" novalidate>
-      <label class="field"><span>Festival</span><input name="festival" type="text" autocomplete="off" autocapitalize="words" required${value(f?.name)}></label>
+      <label class="field"><span>Festival</span><input name="festival" type="text" autocomplete="off" autocapitalize="words" required></label>
       <div class="field-pair">
-        <label class="field"><span>First day</span><input name="first" type="date" required${value(edition?.all.dayspan.first)}></label>
-        <label class="field"><span>Last day</span><input name="last" type="date" required${value(edition?.all.dayspan.last)}></label>
+        <label class="field"><span>First day</span><input name="first" type="date" required></label>
+        <label class="field"><span>Last day</span><input name="last" type="date" required></label>
       </div>
-      <label class="field"><span>Email</span><input name="email" type="email" inputmode="email" autocomplete="email" required>
-        <span class="hint">Only so I can reach you about a wrong time. No account, and nothing gets sent to it.</span></label>
       <label class="field" data-link hidden><span>Schedule link</span><input name="link" type="url" inputmode="url" autocomplete="off" placeholder="https://">
         <span class="hint">Where the festival posted the times, since the image doesn't say.</span></label>
       <p class="problem" role="alert" hidden></p>
       <button class="btn btn--primary" type="submit">Next</button>
-    </form>${removeAction}
+    </form>
+    <button class="text-btn" type="button" data-back="link">Use a link</button>
   </section>
 
   <section class="screen" data-screen="upload" hidden>
@@ -732,26 +618,27 @@ ${linkScreen}
   </section>
 
   <section class="screen" data-screen="publishing" hidden>
-    <h3>Building your page</h3>
-    <p class="lead">${publishingLead}</p>
-    <p class="status" aria-live="polite" data-publish-status>Checking again every ten seconds.</p>${publishingLink}
+    <h3>Building the page</h3>
+    <p class="lead">The times are saved. The page and its calendars take a couple of minutes to build, and this waits for them.</p>
+    <p class="status" aria-live="polite" data-publish-status>Checking again every ten seconds.</p>
   </section>
 
   <section class="screen" data-screen="success" hidden>
     <div data-live>
-      ${successLive}
+      <h3>It's live</h3>
+      <p class="lead">On the homepage now. Add a stage from the page like anyone would, and send the link around.</p>
     </div>
     <div data-late hidden>
       <h3>Nearly there</h3>
       <p class="lead">Still building after five minutes, which is longer than usual. The links don't change, and they'll work once it's done.</p>
     </div>
-    <p class="eyebrow" style="margin-top:var(--gap-5)">Your page</p>
-    <div class="link-row"><code class="url" data-share></code><button class="icon-btn" data-copy aria-label="Copy page link">${ICON_LINK}${ICON_CHECK}</button></div>${successLinks}
-    <a class="btn btn--primary" data-open>Open your page</a>
-  </section>${removeScreens}
+    <p class="eyebrow" style="margin-top:var(--gap-5)">The page</p>
+    <div class="link-row"><code class="url" data-share></code><button class="icon-btn" data-copy aria-label="Copy page link">${ICON_LINK}${ICON_CHECK}</button></div>
+    <a class="btn btn--primary" data-open>Open the page</a>
+  </section>
 
   <footer>
-    <p>Anything put on here is checked by the person who put it there, against their own image, before it goes live.</p>
+    <p>Every time here is checked against the festival’s own schedule before it goes live.</p>
     <p>Unofficial. Not affiliated with any festival.</p>
     <p>Wrong time? <a href="https://github.com/jake-lunde/stage-times/issues">Tell me ↗</a></p>
   </footer>
@@ -763,14 +650,8 @@ ${linkScreen}
   var GATES = ${JSON.stringify(GATE_SCREENS)};
   var LIMITS = ${JSON.stringify(LIMITS)};
   var COPY = ${JSON.stringify(GATE_COPY)};
-  var EMAIL_RE = ${EMAIL_RE.toString()};
   ${fill.toString()}
   var ORIGIN = '${PROD_ORIGIN}';
-  var UPDATE_LINK = ${JSON.stringify(updateLink('{path}', '{secret}'))};
-  // The edition this page changes, or null on /upload/. The secret is the link's
-  // fragment: it never reaches a server log, and it goes out only in a body.
-  var UPDATE = ${JSON.stringify(f ? { editionPath: f.basePath.replace(/^\//, '') } : null)};
-  function updateClaim() { return UPDATE ? { editionPath: UPDATE.editionPath, secret: location.hash.slice(1) } : undefined; }
   var BUILD_WAIT_MS = 5 * 60 * 1000;
   var POLL_MS = 10 * 1000;
   var ART_GROUND = '${artGround('#EC300C')}';
@@ -824,10 +705,15 @@ ${linkScreen}
 
   ${ownerFromFragment.toString()}
   // The owner's bookmark. Read once, then cleared from the address bar so a
-  // shared screen or a copied link never carries it.
+  // shared screen or a copied link never carries it, and kept for this tab so
+  // a reload mid-flow still has it. Without it this page is nobody else's:
+  // home, before a screen shows.
+  var OWNER_KEY = 'stage-times-owner';
   var OWNER = ownerFromFragment(location.hash);
   if (OWNER && history.replaceState) history.replaceState(null, '', location.pathname + location.search);
-  function withOwner(body) { if (OWNER) body.owner = OWNER; return body; }
+  try { if (OWNER) sessionStorage.setItem(OWNER_KEY, OWNER); else OWNER = sessionStorage.getItem(OWNER_KEY) || ''; } catch (e) {}
+  if (!OWNER) { location.replace('/'); return; }
+  function withOwner(body) { body.owner = OWNER; return body; }
 
   // state.days is every day an image can be chosen for; state.images is what
   // has been, by day, in day order and without gaps — the rows are offered one at a time.
@@ -845,6 +731,7 @@ ${linkScreen}
     Object.keys(screens).forEach(function (k) { screens[k].hidden = k !== name; });
     window.scrollTo(0, 0);
   }
+  show('link');
 
   // One yellow line per screen. Empty text hides it.
   function problem(name, text, list) {
@@ -925,10 +812,9 @@ ${linkScreen}
   $('#details').addEventListener('submit', function (e) {
     e.preventDefault();
     var f = e.target;
-    var d = { festival: f.festival.value.trim(), first: f.first.value, last: f.last.value, email: f.email.value.trim(), link: f.link.value.trim() };
+    var d = { festival: f.festival.value.trim(), first: f.first.value, last: f.last.value, link: f.link.value.trim() };
     if (!d.festival) return problem('details', COPY.festival);
     if (!d.first || !d.last || d.last < d.first) return problem('details', COPY.dates);
-    if (!EMAIL_RE.test(d.email)) return problem('details', COPY.email);
     if (d.link && !/^https?:\\/\\/\\S+$/.test(d.link)) return problem('details', 'That link doesn\\'t look right. It starts with https://');
     problem('details', '');
     state.details = d;
@@ -948,7 +834,6 @@ ${linkScreen}
   function typed(body) {
     var d = state.details;
     body.festival = d.festival;
-    body.email = d.email;
     if (d.link) body.officialUrl = d.link;
     return body;
   }
@@ -973,15 +858,14 @@ ${linkScreen}
   if (linkForm) linkForm.addEventListener('submit', function (e) {
     e.preventDefault();
     var f = e.target;
-    var url = f.url.value.trim(), email = f.email.value.trim();
+    var url = f.url.value.trim();
     if (!url) return problem('link', 'Paste the link to the festival\\'s schedule page first.');
-    if (!EMAIL_RE.test(email)) return problem('link', COPY.email);
     problem('link', '');
     var btn = $('button[type="submit"]', f), was = btn.textContent;
     btn.classList.add('is-loading');
     btn.textContent = 'Reading\\u2026';
     var work = startWork('link', CAN_STREAM ? linkStatus({ step: 'page' }) : 'Reading the set times off that page. This could take a few minutes.', 1);
-    post('/api/link', withOwner({ url: url, email: email }), function (p) {
+    post('/api/link', withOwner({ url: url }), function (p) {
       if (p.kind === 'link') { work.say(linkStatus(p)); if (p.step === 'found') work.redraw(p.images); }
       if (p.kind === 'read') { work.say(readingStatus(p)); work.headliners(p.headliners); }
     }).then(function (r) {
@@ -997,7 +881,7 @@ ${linkScreen}
       });
       state.days = days;
       // What an upload's form would have typed, as read off the page: the link is the official schedule.
-      state.details = { festival: rv.festival, first: days[0], last: days[days.length - 1], email: email, link: r.body.officialUrl };
+      state.details = { festival: rv.festival, first: days[0], last: days[days.length - 1], link: r.body.officialUrl };
       state.via = 'link';
       state.review = rv;
       state.timezoneAssumed = rv.timezoneAssumed;
@@ -1186,7 +1070,7 @@ ${linkScreen}
         ? 'Reading the times off your image. This could take about a minute.'
         : 'Reading the times off your ' + n + ' images. This could take about a minute per image.'),
       state.days.length);
-    return post('/api/upload', withOwner(withImages(typed({ dates: { first: d.first, last: d.last }, update: updateClaim() }))), function (p) {
+    return post('/api/upload', withOwner(withImages(typed({ dates: { first: d.first, last: d.last } }))), function (p) {
       if (p.kind !== 'read') return;
       work.say(readingStatus(p));
       work.headliners(p.headliners);
@@ -1251,11 +1135,8 @@ ${linkScreen}
     return state.via === 'link' ? readAddress(rv, nameField.value, readYear()) : rv.editionPath;
   }
   function updateAddress() {
-    var rv = state.review;
     var address = ORIGIN.replace(/^https:\\/\\//, '') + '/' + readPath() + '/';
-    $('[data-address]').textContent = !UPDATE ? 'Your page will be ' + address
-      : rv.correcting ? 'This replaces the times on ' + address
-      : 'That update link didn\\'t match, so this will be a new page: ' + address;
+    $('[data-address]').textContent = 'The page will be ' + address;
   }
   nameField.addEventListener('input', updateAddress);
   // The first day's year is the festival's: moving it moves every other day into that year.
@@ -1443,59 +1324,27 @@ ${linkScreen}
     var work = startWork('review', 'Checking the times hold together and saving them. Usually under a minute.', rv.images.length);
     // Every image goes back, and with more than one, the review's own list of
     // them — so what is published is exactly what was checked.
-    var body = withOwner(withImages(typed({ timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: [], update: updateClaim() })));
+    var body = withOwner(withImages(typed({ timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: [] })));
     if (rv.images.length > 1) body.reviewed = rv.images;
     // After a link the name is the header's, and the days go too when one was moved.
     if (viaLink) { body.festival = name; if (days.join() !== state.days.join()) body.days = days; }
-    // A correction's calendar already answers, so the wait is for it to change:
-    // note what it answers with now, before the new times are sent.
-    (rv.correcting ? currentTag(rv.editionPath) : Promise.resolve(null)).then(function (before) {
-      return post('/api/confirm', body, function (p) {
-        if (p.kind === 'confirm') work.say(confirmStatus(p.step));
-      }).then(function (r) { return { r: r, before: before }; });
+    post('/api/confirm', body, function (p) {
+      if (p.kind === 'confirm') work.say(confirmStatus(p.step));
     }).catch(function () {
-      return { r: { ok: false, body: { reason: 'Something went wrong on my end. Try again in a minute.' } }, before: null };
-    }).then(function (x) {
-      var r = x.r;
+      return { ok: false, body: { reason: 'Something went wrong on my end. Try again in a minute.' } };
+    }).then(function (r) {
       work.stop();
       btn.classList.remove('is-loading');
       btn.textContent = was;
       if (!r.ok) return land(r.body, 'review');
       state.published = r.body;
-      var update = UPDATE_LINK.replace('{path}', r.body.editionPath).replace('{secret}', r.body.updateSecret);
-      $$('[data-update]').forEach(function (el) { el.textContent = update; $('[data-copy]', el.parentNode).setAttribute('data-copy', update); });
       show('publishing');
-      waitForBuild(r.body.editionPath, r.body.corrected ? x.before : null).then(showSuccess);
+      waitForBuild(r.body.editionPath).then(showSuccess);
     });
   });
 
-  // ── remove ───────────────────────────────────────────────────────────────
-  var removeBtn = $('[data-remove]');
-  if (removeBtn) removeBtn.addEventListener('click', function () {
-    var btn = this, was = btn.textContent;
-    problem('remove', '');
-    btn.classList.add('is-loading');
-    btn.textContent = 'Taking it down\\u2026';
-    post('/api/remove', { update: updateClaim() }).then(function (r) {
-      btn.classList.remove('is-loading');
-      btn.textContent = was;
-      if (!r.ok) { fail('remove', r.body); return; }
-      show('removed');
-    });
-  });
-
-  // The email typed on one first screen is the same person on the other.
-  function carryEmail(to) {
-    var from = $(to === 'details' ? '#link [name="email"]' : '#details [name="email"]');
-    var into = $(to === 'details' ? '#details [name="email"]' : '#link [name="email"]');
-    if (from && into && !into.value && from.value) into.value = from.value;
-  }
   $$('[data-back]').forEach(function (b) {
-    b.addEventListener('click', function () {
-      var to = b.getAttribute('data-back');
-      if (to === 'details' || to === 'link') carryEmail(to);
-      show(to);
-    });
+    b.addEventListener('click', function () { show(b.getAttribute('data-back')); });
   });
 
   // ── publishing ───────────────────────────────────────────────────────────
@@ -1503,22 +1352,14 @@ ${linkScreen}
   // on the production site that is the real thing; anywhere else it times out
   // honestly.
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
-  // A correction is live when that calendar answers with something other than
-  // what it answered before, the ETag taken just ahead of confirm.
-  function currentTag(editionPath) {
-    return fetch('/' + editionPath + '/all.ics', { method: 'HEAD', cache: 'no-store' }).then(function (res) {
-      return res.ok ? res.headers.get('etag') : null;
-    }, function () { return null; });
-  }
-  function waitForBuild(editionPath, before) {
+  function waitForBuild(editionPath) {
     var status = $('[data-publish-status]');
     var url = '/' + editionPath + '/all.ics';
     var started = Date.now(), tries = 0;
     function check() {
       tries += 1;
       return fetch(url, { method: 'HEAD', cache: 'no-store' }).then(function (res) {
-        return res.ok && (res.headers.get('content-type') || '').indexOf('text/calendar') === 0 &&
-          (!before || res.headers.get('etag') !== before);
+        return res.ok && (res.headers.get('content-type') || '').indexOf('text/calendar') === 0;
       }, function () { return false; }).then(function (live) {
         if (live) { state.live = true; return; }
         var elapsed = Date.now() - started;
@@ -1561,42 +1402,10 @@ ${linkScreen}
 })();
 </script>`;
 
-  return f
-    ? page(
-        `${f.name} ${f.year} — fix a time`,
-        `Fix a time on the ${f.name} ${f.year} set times, or take the page down.`,
-        body,
-        CSS,
-      )
-    : page(
-        'Stage Times — add a festival',
-        'Turn a festival’s schedule page, or a screenshot of its set times, into calendars, one per stage, from your phone.',
-        body,
-        CSS,
-      );
-}
-
-/** The update link of an edition already taken down: it says so, and offers nothing to change. */
-function renderRemovedUpdatePage(edition: UpdateTarget): string {
-  const f = edition.festival;
-  const body = `<main class="wrap">
-  <nav class="topbar">
-    <a class="icon-btn" href="/" aria-label="Stage Times home">${ICON_BACK}</a>
-  </nav>
-
-  <header>
-    <p class="lockup">Stage&nbsp;Times</p>
-    <h2>${esc(f.name)} <span style="color:var(--ink-soft)">${f.year}</span></h2>
-  </header>
-
-  <section class="screen" data-screen="removed">
-    <h3>Taken down</h3>
-    <p class="lead">This page was taken down, so there's nothing left to change here.</p>
-  </section>
-
-  <footer>
-    <p>Unofficial. Not affiliated with ${esc(f.name)}.</p>
-  </footer>
-</main>`;
-  return page(`${f.name} ${f.year} — taken down`, `The ${f.name} ${f.year} set times were taken down.`, body, CSS);
+  return page(
+    'Stage Times — add a festival',
+    'Turn a festival’s schedule page, or a screenshot of its set times, into calendars, one per stage.',
+    body,
+    CSS,
+  );
 }

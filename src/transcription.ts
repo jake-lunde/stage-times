@@ -122,7 +122,7 @@ export function transcribe(outputs: ModelOutput[], options: TranscriptionOptions
 /**
  * The days a set of replies are read as: every day header across every
  * image, ISO, once each, in order. What a link's review shows for the
- * uploader to check, and what a confirm's `days` may move (ticket 20). A
+ * owner to check, and what a confirm's `days` may move (ticket 20). A
  * reply that will not parse contributes nothing — the full reading says why.
  */
 export function daysRead(outputs: ModelOutput[]): string[] {
@@ -140,7 +140,7 @@ export function daysRead(outputs: ModelOutput[]): string[] {
 /**
  * What the replies say the festival is, for matching it against the record
  * of it (src/almanac.ts): the first reply's printed name and the address
- * printed on it, when the reply will parse. A link's uploader typed neither.
+ * printed on it, when the reply will parse. A link typed neither.
  */
 export function festivalRead(outputs: ModelOutput[]): { name: string | null; officialUrl: string | null } {
   for (const o of outputs) {

@@ -92,35 +92,6 @@ export interface SequencesFile {
   editions: Record<string, SequenceLedger>;
 }
 
-/**
- * Who uploaded an edition, written by the publisher at confirm (src/publisher.ts).
- *
- * Its presence is what "uploader-verified" means: a human checked this edition
- * against the image they uploaded. The build never writes it, never reads it,
- * and never drops it — holding the update-link secret is what makes someone an
- * edition's uploader, and losing this record would orphan their edition.
- *
- * Only hashes are kept. The repository is public: the secret is shown once and
- * the contact address reaches the owner through a notification, not a commit.
- */
-export interface UploaderRecord {
-  /** SHA-256 of the update-link secret. */
-  secretHash: string;
-  /** SHA-256 of the lowercased contact address. */
-  addressHash: string;
-  /** The publish stamp of the confirm that created the edition. */
-  verifiedAt: string;
-  /** Content hash of the (first) stored source image the edition was read from. */
-  image: string;
-  /** Every stored source image, in the order given, when there was more than one. */
-  images?: string[];
-  /**
-   * The publish stamp of the latest correction through the update link, if any.
-   * `image`/`images` then name the images that correction was read from.
-   */
-  correctedAt?: string;
-}
-
 export interface PublishedEdition {
   slug: string;
   year: number;
@@ -129,9 +100,10 @@ export interface PublishedEdition {
   /** The owner has approved this edition for the homepage. Always a human act. */
   listed: boolean;
   /**
-   * Removed at a rights holder's request, or by the uploader's self-removal.
-   * Feeds keep serving, empty; the page says the edition was removed. Never
-   * deleted, never listed. Unblocking is a revert of the commit that set this.
+   * Taken down — at a rights holder's request, or because its set times moved
+   * to another edition (`movedTo`). Feeds keep serving, empty; the page says
+   * so. Never deleted, never listed. Unblocking is a revert of the commit that
+   * set this.
    */
   blocked: boolean;
   /**
@@ -142,8 +114,6 @@ export interface PublishedEdition {
   movedTo?: string;
   /** Every stage slug ever served under this edition's path. Append-only. */
   stages: string[];
-  /** Present on an edition a fan uploaded and confirmed. Never set by the build. */
-  uploader?: UploaderRecord;
 }
 
 export interface PublishedFile {
@@ -414,7 +384,7 @@ export function buildFeeds(doc: FestivalDoc, state: BuildState, flags: EditionFl
     const ends = mySets.map((s) => isoLocal(s.end)).sort();
 
     // Headliners: the acts the stage bills as its closer each night, from the YAML
-    // when the uploader named them, otherwise the set that starts last each night.
+    // when the data names them, otherwise the set that starts last each night.
     // A night runs until 6 AM — a 1:45 AM set belongs to the night before (owner
     // ruling, 2026-09-21). Night order; blocked editions have no sets and so none.
     const closerByNight = new Map<string, string>();
@@ -558,9 +528,8 @@ export function buildSite(docs: FestivalDoc[], published: PublishedFile, sequenc
 
     const currentStages = doc.stages.map((s) => s.id);
     nextPublished.editions[path] = {
-      // Carry forward anything the build does not own — the uploader record the
-      // publisher wrote, above all. Dropping it would orphan a fan edition from
-      // the only person allowed to correct it.
+      // Carry forward anything the build does not own — `movedTo`, and
+      // whatever the owner adds to a record by hand.
       ...record,
       slug: doc.festival.slug,
       year: doc.festival.year,

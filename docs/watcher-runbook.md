@@ -69,7 +69,7 @@ are silent.
 **Offering it again.** The watcher records the images it has offered, so the same ones are never
 offered twice — including after a pull request it could not open, or one you closed by mistake,
 or one that will not merge because `state/published.json` moved under it (two reviews opened in
-the same run, or a fan edition published in between: git refuses loudly rather than merging
+the same run, or an edition confirmed from the bookmark in between: git refuses loudly rather than merging
 wrong). To have an edition offered again, delete its entry from `state/watch.json` on `main`
 and push, or run the workflow by hand after; the replies are stored by image hash, so the second
 offer costs no model call.
@@ -130,5 +130,7 @@ nothing, and the pull request is the owner path.
 - Ask a model about an image twice. Every image is screened once and transcribed once, by
   content hash, in the same store an upload uses.
 - Read Instagram, an app, or anything behind a login. Those festivals rely on uploads and the
-  Reddit signal, below.
-- Touch a blocked edition, or a fan edition. It reads and writes the owner namespace only.
+  Reddit signal, below; the owner uploads the screenshot through the bookmark.
+- Touch a blocked edition, or the one fan edition. It reads and writes the owner namespace only.
+- Rename a stage. A new reading keeps the live edition's stage ids and names: a stage the owner
+  renamed carries `read_as:`, the id a reading derives for it, and the reading maps back onto it.

@@ -58,7 +58,7 @@ times are printed AM/PM; a British "colour" three lines from a "3:15 PM" is the 
 that reads as assembled rather than written.
 
 Internal vocabulary from `CONTEXT.md` — edition, drop, source, transcription, trust tier,
-uploader-verified, listed — is for the repo, the tickets, and the tests. **None of it appears
+listed, moved — is for the repo, the tickets, and the tests. **None of it appears
 on a page.** The glossary's own split between *feed* (ours) and *calendar* (what it becomes on
 the attendee's device) is the model: we own one word, the reader gets the other.
 
@@ -130,7 +130,7 @@ The strings, verbatim:
 
 Why it reads the way it does:
 
-- **It does not say who asked.** A rights-holder block and an uploader's self-removal are the
+- **It does not say who asked.** A rights-holder block and any other takedown are the
   same page. Gate does not care and Planner would only get half a story; the runbook has the
   whole one.
 - **"Taken down", not "removed", "blocked", or "delisted".** Glossary words stay in the repo.

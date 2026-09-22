@@ -4,7 +4,7 @@
  * The landing page is a shelf: one directory card per listed edition, earliest
  * first festival day first, then name. Unlisted and blocked editions never
  * appear. The whole card is the link to the edition's subscribe page in its
- * namespace; a fan edition carries the fan-made mark in its eyebrow. A card with
+ * namespace; no card says whose it is (ADR-0005). A card with
  * no committed image draws the Facets core, seeded by festival key. Every card
  * and tile on both page types shares the single 18px radius.
  *
@@ -127,12 +127,11 @@ test('landing: nothing listed renders no shelf at all, and the page still stands
   assert.ok(text.includes('Unofficial. Not affiliated with any festival.'), 'the footer survives');
 });
 
-test('landing: a fan edition carries the fan-made mark in its eyebrow; an owner edition carries dates and city', () => {
+test('landing: every card carries its dates in the eyebrow, and none says whose it is (ADR-0005)', () => {
   const [harbor, pier] = cards(renderLandingPage(twoListed())) as [string, string];
-  assert.match(pier, /<span class="eyebrow eyebrow--fan">Fan-made<\/span>/, 'the fan mark takes the eyebrow slot');
-  assert.doesNotMatch(harbor, /eyebrow--fan/, 'an owner edition shows no fan mark');
   assert.match(harbor, /<span class="eyebrow">Aug 14–16, 2026<\/span>/, 'dates only — the harbor fixture has no city');
-  assert.ok(visibleText(pier).includes('Sep 19, 2026'), 'the fan card still says when');
+  assert.match(pier, /<span class="eyebrow">Sep 19, 2026<\/span>/, 'an edition from before the change reads the same');
+  for (const card of [harbor, pier]) assert.doesNotMatch(card, /Fan-made|eyebrow--fan/);
 });
 
 test('landing: a city joins the eyebrow when the festival has one', () => {

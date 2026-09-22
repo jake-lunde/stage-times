@@ -1,15 +1,15 @@
 /**
- * POST /api/upload — the images (one per day) and what the uploader typed, in; the review to
- * check it against, out.
+ * POST /api/upload — the owner's secret, the images (one per day) and what was typed, in; the
+ * review to check it against, out.
  *
  * Read the fields, call the publisher, return what it said — and, when the
  * page asks for it, stream what the publisher reports on the way (ticket 21). Every rule — the
- * gates, the caps, the cache, the review payload — is in `src/publisher.ts`,
+ * owner's secret, the gates, the cache, the review payload — is in `src/publisher.ts`,
  * and every reason string it hands back goes out untouched.
  */
 
 import { upload, type PublisherPorts, type UploadIntent } from '../src/publisher.js';
-import { badRequest, json, obj, optOwner, optStr, optUpdate, parseImages, readJsonBody, rejected, str, streamed, wantsStream } from '../src/publisher-http.js';
+import { badRequest, json, obj, optOwner, optStr, parseImages, readJsonBody, rejected, str, streamed, wantsStream } from '../src/publisher-http.js';
 import { livePorts } from '../src/ports.js';
 
 export async function handle(request: Request, ports: PublisherPorts): Promise<Response> {
@@ -21,11 +21,9 @@ export async function handle(request: Request, ports: PublisherPorts): Promise<R
       kind: 'upload',
       festival: str(body, 'festival'),
       dates: { first: str(dates, 'first'), last: str(dates, 'last') },
-      email: str(body, 'email'),
       ...(optStr(body, 'timezone') !== undefined ? { timezone: optStr(body, 'timezone')! } : {}),
       ...(optStr(body, 'officialUrl') !== undefined ? { officialUrl: optStr(body, 'officialUrl')! } : {}),
       ...parseImages(body),
-      ...optUpdate(body),
       ...optOwner(body),
     };
   } catch (err) {

@@ -8,36 +8,22 @@
  * reads a file, calls a model, opens a socket, or looks at the wall clock, so
  * every rule below is testable with fakes and no API key (`tests/publisher.test.ts`).
  *
- * Four intents live here:
+ * Three intents live here, and every one is the owner's (ADR-0005): each
+ * carries the secret from the owner's bookmarked link, and an intent the owner
+ * port does not recognize is refused before anything else is looked at.
  *
- *   upload   an image plus a festival name, dates and an address, through the
- *            pre-spend gates, into a review payload the uploader can check
- *            against their own image.
- *   link     the festival's schedule page plus an address, and nothing else:
- *            the page's images, fetched and put through the same gates, into
- *            the same review (ticket 19).
- *   confirm  that review, with the uploader's corrections, validated through
- *            the real schema and committed to main as an edition.
- *   remove   the uploader's self-removal: the edition is blocked, its stored
- *            image kept.
- *
- * Upload and confirm carry an optional `owner` secret — the owner's bookmarked
- * link. When the owner port recognizes it, the same intent publishes into the
- * root namespace and its confirm sets `listed` in the same commit: the human
- * tapping is the approval. A wrong secret is no secret. A fan confirm, instead,
- * opens a pull request on the owner's behalf whose only change is listing the
- * edition; merging it is the one-tap listing (ticket 10).
- *
- * Upload and confirm carrying a valid update link are a **correction**: the
- * same two steps, but the confirm replaces that edition's sets in place instead
- * of making a new one. The build's sequence ledger then advances exactly the
- * events whose content moved. A wrong or absent secret is simply a fresh upload
- * and never touches an existing edition (ticket 09).
+ *   upload   images plus a festival name and dates, through the pre-spend
+ *            gates, into a review payload to check against the images.
+ *   link     the festival's schedule page, and nothing else: the page's
+ *            images, fetched and put through the same gates, into the same
+ *            review (ticket 19).
+ *   confirm  that review, with its corrections, validated through the real
+ *            schema and committed to main as an edition, listed in the same
+ *            commit: the owner tapping is the approval.
  *
  * The watcher (`src/watcher.ts`, ticket 11) is the same shape from the other
  * side: the same ports plus one for pages, and its review pull requests carry
- * the edition exactly as the owner's confirm commits it. The signal (ticket
- * 12) will be too.
+ * the edition exactly as the owner's confirm commits it.
  *
  * Three rules this module exists to enforce:
  *
@@ -45,11 +31,9 @@
  *      fixed order, cheapest first, and every one of them returns a plain
  *      sentence a person can read. A previously transcribed image costs
  *      nothing at all.
- *   2. **The root namespace is owner-only.** A fan intent writes `data/fan/`
- *      and `fan/<key>` in committed state, never the root; only an intent the
- *      owner port recognizes writes the root, and never over an edition
- *      already there. Permanent from first publish —
- *      docs/adr/0001-fan-namespace-prefix.md.
+ *   2. **Only the owner publishes, and never over an edition already there.**
+ *      Everything lands at the root (`data/<key>.yaml`); `/fan/` holds only
+ *      the editions from before, and nothing here writes it.
  *   3. **The publish stamp comes from the injected clock, at commit time.**
  *      The build still never reads a clock; this is the one place a real time
  *      enters the system, and it enters as committed state.
@@ -58,28 +42,16 @@
  * optional progress port — each image checked and read, each confirm step —
  * which the upload adapter streams to the page (ticket 21). A report is never
  * an estimate, and without the port nothing changes.
- *
- * Secrets and addresses: the update-link secret is minted from the injected
- * randomness, returned once, and stored only as a SHA-256 hash. The uploader's
- * address is stored only as a hash too — it reaches the owner through the
- * notification, which is not a public repo.
  */
 
-import { createHash, timingSafeEqual } from 'node:crypto';
-import {
-  editionPath,
-  stageCountOf,
-  type PublishedEdition,
-  type PublishedFile,
-  type UploaderRecord,
-} from './build.js';
+import { createHash } from 'node:crypto';
+import { editionPath, type PublishedEdition, type PublishedFile } from './build.js';
 import { eventContentHash, makeEventContent } from './ics.js';
 import {
   isValidTimeZone,
   loadFestivalFromString,
   SchemaError,
   type FestivalDoc,
-  type Namespace,
   type SetEntry,
 } from './schema.js';
 import { NO_OFFICIAL_URL, slugify, TranscribeError, type SetEdit } from './transcribe.js';
@@ -119,13 +91,6 @@ export const MAX_IMAGE_EDGE = 8000;
  */
 export const MAX_UPLOAD_IMAGES = 7;
 
-/** Three uploads per address per hour, twenty per day across everyone. */
-export const UPLOADS_PER_ADDRESS_PER_HOUR = 3;
-export const UPLOADS_PER_DAY = 20;
-
-const HOUR_MS = 60 * 60 * 1000;
-const DAY_MS = 24 * HOUR_MS;
-
 /**
  * The zone the times are read in when nobody has said. A source image cannot
  * carry this, so it is always shown as an assumption on review and is always
@@ -133,12 +98,10 @@ const DAY_MS = 24 * HOUR_MS;
  */
 export const DEFAULT_TIMEZONE = 'America/Los_Angeles';
 
-/** Where each kind of file goes. `data/` itself is the owner's; fans write `data/fan/`. */
+/** Where each kind of file goes. Every edition is the owner's, at the root. */
 export const OWNER_DATA_DIR = 'data';
-export const FAN_DATA_DIR = 'data/fan';
 export const SOURCE_DIR = 'source';
 export const SOURCE_IMAGE_DIR = 'source/images';
-export const UPLOADS_PATH = 'state/uploads.json';
 export const TRANSCRIPTION_STORE_DIR = 'state/transcriptions';
 export const PUBLISHED_PATH = 'state/published.json';
 /** The images a link's schedule check said no to, so the same page never pays to ask twice. */
@@ -148,9 +111,9 @@ export const ALMANAC_PATH = 'config/festivals.yaml';
 
 /**
  * The most images a link reads off one page, in page order, before any is
- * looked at. A schedule page shows a handful; this bounds the fetching a
- * stranger's link can cause, not the reading — the reading is bounded by the
- * upload image limit.
+ * looked at. A schedule page shows a handful; this bounds the fetching one
+ * link can cause, not the reading — the reading is bounded by the upload
+ * image limit.
  */
 export const MAX_LINK_IMAGES_FETCHED = 60;
 /** How many of a page's images are fetched at once. */
@@ -239,30 +202,25 @@ export interface PullRequest {
 
 export interface RepositoryPort {
   readPublished(): Promise<PublishedFile>;
-  readUploads(): Promise<UploadLedger>;
   /** The saved transcription for an image content hash, or null. */
   readTranscription(hash: string): Promise<SavedTranscription | null>;
-  /** A committed text file on main, or null when there is none. A correction reads the YAML it replaces. */
+  /** A committed text file on main, or null when there is none. The watcher reads the YAML a change replaces. */
   readFile(path: string): Promise<string | null>;
   /** Applies the commit to main and returns an id a pull request can branch from. */
   commit(commit: Commit): Promise<string>;
   openPullRequest(pr: PullRequest): Promise<void>;
 }
 
-/** What the owner is told. GitHub is the channel; this is the content. */
+/**
+ * What the owner is told. GitHub is the channel — a public one, since the
+ * repository is public — so a notice carries no one's address, ever.
+ */
 export interface Notification {
-  kind: 'edition-published' | 'edition-corrected' | 'watch-failed' | 'signal' | 'look-ahead';
+  kind: 'watch-failed' | 'signal' | 'look-ahead';
   /** Absent on a notice about no one edition — the look-ahead's. */
   editionPath?: string;
   title: string;
   body: string;
-  /**
-   * The uploader's address. The only place it appears — committed state keeps
-   * a hash, because the repository is public and the address is a contact.
-   * Absent when nobody uploaded anything: the watcher's notices have no one
-   * behind them.
-   */
-  email?: string;
 }
 
 export interface NotifyPort {
@@ -281,7 +239,7 @@ export interface RandomPort {
 /**
  * Is this the owner's secret? A yes or a no and nothing else: a wrong secret,
  * a missing one, and a deployment with none set all answer no, and the
- * publisher treats every no the same way — as a fan.
+ * publisher refuses every no the same way, before anything else is looked at.
  */
 export interface OwnerPort {
   recognizes(presented: string | undefined): boolean;
@@ -358,25 +316,6 @@ export interface LinkPorts extends PublisherPorts {
 // Committed state the publisher owns
 // ---------------------------------------------------------------------------
 
-/**
- * One upload that was paid for, for the caps. The address is a hash: the caps
- * need to recognize a repeat address, not to read it.
- */
-export interface UploadRecord {
-  address: string;
-  /** Epoch ms, from the injected clock. */
-  at: number;
-  /** Content hash of the (first) image that was transcribed. */
-  image: string;
-  /** Every image this upload paid to read, when it was more than one. */
-  images?: string[];
-}
-
-export interface UploadLedger {
-  $comment?: string | string[];
-  uploads: UploadRecord[];
-}
-
 /** A transcription already paid for, so the same image never costs twice. */
 export interface SavedTranscription {
   /** SHA-256 of the image bytes, hex. Also the file name in the store. */
@@ -390,34 +329,17 @@ export interface SavedTranscription {
   transcribedAt: string;
 }
 
-/**
- * The uploader of an edition, recorded in `state/published.json` beside the
- * `listed` and `blocked` flags — its presence is what "uploader-verified"
- * means. Defined with the rest of the committed-state shapes in src/build.ts.
- */
-export type { UploaderRecord };
-
-const UPLOADS_COMMENT = [
-  'COMMITTED STATE — what the upload caps count. Not a log; entries older than 24 hours are dropped.',
-  '`address` is a SHA-256 of the lowercased contact address: the caps need to recognize a repeat',
-  'address, not to read it. The address itself reaches the owner through the notification only.',
-  '`at` is epoch milliseconds from the publisher clock, and the only real time in committed state',
-  'besides publishedAt. Nothing in the build reads this file.',
-];
-
 // ---------------------------------------------------------------------------
 // Intents and results
 // ---------------------------------------------------------------------------
 
 export interface UploadIntent {
   kind: 'upload';
-  /** Festival name as the uploader typed it. Becomes the display name. */
+  /** Festival name as typed. Becomes the display name. */
   festival: string;
-  /** The days the uploader says the edition runs, ISO `YYYY-MM-DD`. */
+  /** The days the edition runs, as typed, ISO `YYYY-MM-DD`. */
   dates: { first: string; last: string };
-  /** Contact address. Never an account (CONTEXT: uploader). */
-  email: string;
-  /** IANA zone the uploader picked, if any. Assumed otherwise. */
+  /** IANA zone picked on the form, if any. Assumed otherwise. */
   timezone?: string;
   /** The link to the official schedule, when the image carries none. */
   officialUrl?: string;
@@ -428,20 +350,8 @@ export interface UploadIntent {
    */
   images?: SourceImage[];
   image?: SourceImage;
-  /** Present when the upload came through an update link. A correction if it holds. */
-  update?: UpdateClaim;
-  /** The secret from the owner's bookmarked link, if the page had one. */
+  /** The secret from the owner's bookmarked link. Nothing is read without it. */
   owner?: string;
-}
-
-/**
- * The update link as the browser hands it over: the edition it names and the
- * secret from its fragment. Holding a secret whose hash matches that edition's
- * uploader record is what makes someone its uploader (CONTEXT: update link).
- */
-export interface UpdateClaim {
-  editionPath: string;
-  secret: string;
 }
 
 export interface ConfirmIntent {
@@ -453,81 +363,62 @@ export interface ConfirmIntent {
   images?: SourceImage[];
   image?: SourceImage;
   /**
-   * The review's `images`, echoed back: the hashes the uploader checked the sets
+   * The review's `images`, echoed back: the hashes the sets were checked
    * against. Required for more than one image, so a confirm cannot quietly
    * publish a subset or a reordering of what was reviewed.
    */
   reviewed?: string[];
   festival: string;
-  email: string;
   /** The zone as it stood on review, changed or not. */
   timezone: string;
-  /** False once the uploader has confirmed or changed the zone. */
+  /** False once the zone has been confirmed or changed on review. */
   timezoneAssumed: boolean;
   officialUrl?: string;
   /** Corrections, by set index in the review payload. */
   edits: SetEdit[];
-  /** Indices of sets the uploader could not verify. Any one blocks confirm. */
+  /** Indices of sets that could not be verified. Any one blocks confirm. */
   unverifiable: number[];
   /**
-   * The days as the uploader has them after checking, one for each day the
+   * The days as they stand after checking, one for each day the
    * images were read as, in that order (a link's `days`; ticket 20). A day
    * that differs moves every set printed under it, and the year with it.
    * Absent, or the same list: the days stay as read.
    */
   days?: string[];
-  /** Present when the confirm came through an update link. A correction if it holds. */
-  update?: UpdateClaim;
-  /** The secret from the owner's bookmarked link, if the page had one. */
+  /** The secret from the owner's bookmarked link. Nothing is published without it. */
   owner?: string;
 }
 
 /**
- * The festival's schedule page instead of screenshots: the link and the
- * contact address, and nothing else typed. The name, the year and the days
- * are read off the page's images, and the link is the official schedule.
+ * The festival's schedule page instead of screenshots: the link, and nothing
+ * else typed. The name, the year and the days are read off the page's images,
+ * and the link is the official schedule.
  */
 export interface LinkIntent {
   kind: 'link';
   /** The schedule page, as typed. A bare `festival.com/schedule` is read as https. */
   url: string;
-  /** Contact address. Never an account (CONTEXT: uploader). */
-  email: string;
-  /** The secret from the owner's bookmarked link, if the page had one. */
+  /** The secret from the owner's bookmarked link. Nothing is fetched without it. */
   owner?: string;
 }
 
-/** The uploader taking their own edition down, from its update link. */
-export interface RemoveIntent {
-  kind: 'remove';
-  update: UpdateClaim;
-}
-
-export type Intent = UploadIntent | LinkIntent | ConfirmIntent | RemoveIntent;
+export type Intent = UploadIntent | LinkIntent | ConfirmIntent;
 
 /** Which gate stopped it. The screen picks its shape from this. */
 export type Gate =
+  /** No owner secret, or not the owner's. Refused before anything else. */
+  | 'owner'
   | 'details'
   | 'images'
   | 'type'
   | 'size'
   | 'dimensions'
-  | 'address-cap'
-  | 'daily-cap'
   | 'schedule'
   | 'expired'
   | 'review'
   | 'schema'
   /** The source carries no web address and none was typed; the schema needs one. */
   | 'link'
-  /** A correction whose source reads as a different year than the edition. */
-  | 'year'
-  /** A correction that would drop a stage people have already added. */
-  | 'stages'
-  /** An update link for an edition that has been taken down. */
-  | 'removed'
-  /** A self-removal whose secret does not match the edition. */
-  | 'update-link'
   /** A link that is not a public http(s) web page — refused before any request. */
   | 'address'
   /** A link whose page did not answer. */
@@ -547,7 +438,7 @@ export interface Rejection {
   image?: number;
 }
 
-/** One set as the review screen shows it, beside the uploader's own image. */
+/** One set as the review screen shows it, beside the image it was read from. */
 export interface ReviewSet {
   /** Position in printed order. What an edit and an unverifiable flag address. */
   index: number;
@@ -576,19 +467,12 @@ export interface Review {
   /** SHA-256 of every image, in the order given. Confirm echoes it back. */
   images: string[];
   festival: string;
-  /** The slug this edition would claim, suffixed if one is already taken. */
+  /** The slug this edition would claim. */
   slug: string;
   /** The year the source reads as. */
   year: number;
-  /** `owner` when the owner's secret came with the upload, else `fan`. */
-  namespace: Namespace;
-  /** Where the feeds would live: `<slug>-<year>` for the owner, `fan/<slug>-<year>` otherwise. */
+  /** Where the feeds would live: `<slug>-<year>`, at the root. */
   editionPath: string;
-  /**
-   * True when the update link held: confirming replaces the sets of the edition
-   * at `editionPath` rather than making a new one.
-   */
-  correcting: boolean;
   timezone: string;
   /** True while nobody has confirmed the zone. The source cannot carry it. */
   timezoneAssumed: boolean;
@@ -598,7 +482,7 @@ export interface Review {
    * rather than the default. Not assumed, and not yet anyone's word either.
    */
   timezoneOnRecord: boolean;
-  /** True when the source reads as a different year than the uploader typed. */
+  /** True when the source reads as a different year than the dates typed. */
   yearMismatch: boolean;
   stages: { id: string; name: string }[];
   sets: ReviewSet[];
@@ -614,16 +498,15 @@ export interface UploadResult {
   review: Review | null;
   /** The writes to apply. Null when there is nothing to write. */
   commit: Commit | null;
-  notifications: Notification[];
   /** True when an earlier upload of the same image paid for the transcription. */
   reused: boolean;
 }
 
 /**
  * A link's answer: the review an upload of the same images would give, plus
- * what an upload's uploader typed and a link's did not — read off the page
- * instead — and the images themselves, which the uploader never had. Confirm
- * takes those images back exactly as an upload's confirm does.
+ * what an upload types and a link does not — read off the page instead — and
+ * the images themselves, which nobody had in hand. Confirm takes those images
+ * back exactly as an upload's confirm does.
  */
 export interface LinkResult extends UploadResult {
   /** The link, as the edition's official schedule. Confirm sends it back as `officialUrl`. */
@@ -637,31 +520,9 @@ export interface LinkResult extends UploadResult {
 export interface ConfirmResult {
   ok: boolean;
   rejection: Rejection | null;
-  /**
-   * The update-link secret, returned once and never stored — committed state
-   * keeps only its hash. Holding it is what makes someone this edition's
-   * uploader (CONTEXT: update link).
-   */
-  updateSecret: string | null;
-  /** `fan/<slug>-<year>`, or `<slug>-<year>` for the owner — where the feeds live. */
+  /** `<slug>-<year>` — where the feeds live. */
   editionPath: string | null;
-  /** True when this confirm replaced an existing edition's sets through its update link. */
-  corrected: boolean;
-  /** On a correction, every set whose calendar event changed, was added, or was dropped. */
-  changes: SetChange[];
   commit: Commit | null;
-  notifications: Notification[];
-  /** The listing pull request a fan confirm opens. Empty for the owner, who listed by confirming. */
-  pullRequests: PullRequest[];
-}
-
-export interface RemoveResult {
-  ok: boolean;
-  rejection: Rejection | null;
-  editionPath: string | null;
-  /** Null when there was nothing to write — the edition was already blocked. */
-  commit: Commit | null;
-  notifications: Notification[];
 }
 
 /** One set as it was and as it is, local wall times. */
@@ -672,9 +533,10 @@ export interface SetTimes {
 }
 
 /**
- * One set a correction changed, keyed as the UID is — stage and normalized
- * artist — so a changed set is exactly an event whose SEQUENCE the build will
- * advance, an added one a new UID, and a removed one a UID that leaves the feed.
+ * One set a change on the schedule page moved, keyed as the UID is — stage and
+ * normalized artist — so a changed set is exactly an event whose SEQUENCE the
+ * build will advance, an added one a new UID, and a removed one a UID that
+ * leaves the feed. The watcher's review diff.
  */
 export interface SetChange {
   kind: 'added' | 'removed' | 'changed';
@@ -692,69 +554,12 @@ export function sha256(value: Uint8Array | string): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
-/** SHA-256 of a contact address, case- and space-insensitively. */
-export function addressHash(email: string): string {
-  return sha256(email.trim().toLowerCase());
-}
-
 /** Epoch ms → the `YYYYMMDDTHHMMSSZ` stamp committed state is written in. */
 export function icalStamp(epochMs: number): string {
   return new Date(epochMs).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
 }
 
-/** A URL-safe secret from n injected random bytes. */
-export function secretFrom(bytes: Uint8Array): string {
-  return Buffer.from(bytes).toString('base64url');
-}
-
-/**
- * The slug a new fan edition gets for this festival-year.
- *
- * The first upload takes the plain slug. A second one for the same festival and
- * year — someone else's image, someone else's edition — gets `-2`, `-3`, and so
- * on, because a fan is never blocked by another fan's work and a published
- * slug is never reused (spec: slug collision inside `/fan/`). The owner
- * namespace is not consulted: it is a different URL family, and nothing here
- * may ever claim a slug in it.
- */
-export function claimFanSlug(published: PublishedFile, slug: string, year: number): string {
-  let candidate = slug;
-  for (let n = 2; published.editions[editionPath('fan', `${candidate}-${year}`)]; n += 1) {
-    candidate = `${slug}-${n}`;
-  }
-  return candidate;
-}
-
-/** A fan edition an update link has proved its holder uploaded. */
-export interface ClaimedEdition {
-  path: string;
-  record: PublishedEdition & { uploader: UploaderRecord };
-}
-
-/**
- * The edition an update link names, if the secret it carries is that
- * edition's: its SHA-256 matches the hash the confirm stored. Anything else —
- * no link, an edition that does not exist or has no uploader, a wrong secret —
- * is null, and the intent is treated as a fresh upload that never touches an
- * existing edition. Fan editions only; the owner path is its own (ticket 10).
- */
-export function claimedEdition(published: PublishedFile, claim: UpdateClaim | undefined): ClaimedEdition | null {
-  if (!claim) return null;
-  const record = Object.hasOwn(published.editions, claim.editionPath) ? published.editions[claim.editionPath] : undefined;
-  if (!record || record.namespace !== 'fan' || !record.uploader) return null;
-  const presented = Buffer.from(sha256(claim.secret), 'hex');
-  const stored = Buffer.from(record.uploader.secretHash, 'hex');
-  if (presented.length !== stored.length || !timingSafeEqual(presented, stored)) return null;
-  return { path: claim.editionPath, record: record as ClaimedEdition['record'] };
-}
-
 export const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-/**
- * Deliberately loose. This is a contact address, not a credential: the only
- * failure that matters is a typo the uploader can see in their own sentence.
- * Exported so the upload screen checks the same shape before it posts.
- */
-export const EMAIL_RE = /^[^\s@]+@[^\s@.]+\.[^\s@]+$/;
 
 /**
  * The sentences the free gates speak, in one place, so the upload screen can
@@ -763,16 +568,14 @@ export const EMAIL_RE = /^[^\s@]+@[^\s@.]+\.[^\s@]+$/;
  * `{n}` are filled in by `fill()`.
  */
 export const GATE_COPY = {
+  owner: 'Only I add festivals here.',
   festival: "Type the festival's name first.",
-  email: "That email address doesn't look right.",
   dates: "Those dates don't look right. Give the day it starts and the day it ends.",
   notImage: "That file isn't an image. A screenshot or a photo of the schedule works.",
   tooSmall: 'That image is {short} pixels on its short side. Under {min} there is nothing legible to read the times off.',
   unreadableOne: "One set is still marked as one you can't read. Check it against your image, then confirm.",
   unreadableMany: "{n} sets are still marked as ones you can't read. Check them against your image, then confirm.",
   noLink: "The image doesn't say where the times are posted. Add the link to the festival's schedule and try again.",
-  removed: "This page was taken down, so it can't be changed from here.",
-  wrongLink: "That update link doesn't match this page. Check you copied all of it.",
   days: "Those days don't look right. Give each day that was read its own date.",
 } as const;
 
@@ -800,25 +603,21 @@ function reject(gate: Gate, reason: string, problems?: string[]): Rejection {
 }
 
 function rejectedUpload(rejection: Rejection, commit: Commit | null = null): UploadResult {
-  return { ok: false, rejection, review: null, commit, notifications: [], reused: false };
+  return { ok: false, rejection, review: null, commit, reused: false };
 }
 
 function rejectedConfirm(rejection: Rejection): ConfirmResult {
-  return {
-    ok: false,
-    rejection,
-    updateSecret: null,
-    editionPath: null,
-    corrected: false,
-    changes: [],
-    commit: null,
-    notifications: [],
-    pullRequests: [],
-  };
+  return { ok: false, rejection, editionPath: null, commit: null };
 }
 
-function rejectedRemove(rejection: Rejection): RemoveResult {
-  return { ok: false, rejection, editionPath: null, commit: null, notifications: [] };
+/**
+ * Every intent's first gate: the owner's secret, or nothing. A wrong secret, a
+ * missing one and a deployment with none set are refused alike, before a
+ * field is read or a request made — so nothing anyone else sends can cost a
+ * call or write a byte (ADR-0005).
+ */
+function notTheOwner(intent: { owner?: string }, ports: PublisherPorts): Rejection | null {
+  return ports.owner.recognizes(intent.owner) ? null : reject('owner', GATE_COPY.owner);
 }
 
 /** Megabytes, one decimal, for a sentence a person reads. */
@@ -827,36 +626,14 @@ function mb(bytes: number): string {
 }
 
 /**
- * Which namespace an intent publishes into. The owner port's yes is the only
- * way into the root; every no — wrong, missing, or no secret configured — is a
- * fan, with nothing in the result to say which kind of no it was.
- *
- * A correction has no say in this: the edition its update link names keeps the
- * namespace it was published in, whatever secret came with the request. An
- * edition never moves between namespaces (README, the permanence contract;
- * docs/adr/0001-fan-namespace-prefix.md).
- */
-function namespaceOf(
-  intent: { owner?: string },
-  ports: PublisherPorts,
-  target: ClaimedEdition | null = null,
-): Namespace {
-  if (target) return target.record.namespace;
-  return ports.owner.recognizes(intent.owner) ? 'owner' : 'fan';
-}
-
-/**
- * The slug an edition claims in its namespace, or a rejection. A fan slug is
- * suffixed past any taken one. A root slug is never minted: it is the festival's
- * own, and an owner edition already there is refused rather than replaced —
- * replacing one is a correction, and a correction is not this intent.
+ * The slug an edition claims, or a rejection. It is the festival's own, never
+ * minted, and an edition already there is refused rather than replaced —
+ * changing one is the watcher's review or a hand edit, not this intent.
  */
 function claimSlug(
   published: PublishedFile,
-  namespace: Namespace,
   festival: { name: string; slug: string; year: number },
 ): { slug: string } | Rejection {
-  if (namespace === 'fan') return { slug: claimFanSlug(published, festival.slug, festival.year) };
   if (published.editions[editionPath('owner', `${festival.slug}-${festival.year}`)]) {
     return reject('details', `${festival.name} ${festival.year} already has a page, and this would replace it. Nothing was published.`);
   }
@@ -898,7 +675,7 @@ function imagesOf(intent: { images?: SourceImage[]; image?: SourceImage }): Sour
 }
 
 /**
- * A rejection about one image of several says which, as the uploader counts
+ * A rejection about one image of several says which, as the form counts
  * them: images come in day order, so the second one is day 2. With one image
  * the sentence is left exactly as it was.
  */
@@ -935,9 +712,9 @@ function checkImages(images: SourceImage[], hashes: string[]): Rejection | null 
   return null;
 }
 
-/** The festival name, dates, zone and address the uploader typed. */
+/** The festival name, dates and zone typed on the form. */
 function checkDetails(intent: UploadIntent): Rejection | null {
-  const named = checkWhoAndWhat(intent.festival, intent.email);
+  const named = checkFestival(intent.festival);
   if (named) return named;
   if (!ISO_DATE_RE.test(intent.dates.first) || !ISO_DATE_RE.test(intent.dates.last) || intent.dates.last < intent.dates.first) {
     return reject('details', GATE_COPY.dates);
@@ -948,43 +725,12 @@ function checkDetails(intent: UploadIntent): Rejection | null {
   return null;
 }
 
-/** The two fields both intents carry. Checked here so the schema never has to. */
-function checkWhoAndWhat(festival: string, email: string): Rejection | null {
+/** The festival's name, which both upload and confirm carry. Checked here so the schema never has to. */
+function checkFestival(festival: string): Rejection | null {
   if (festival.trim() === '' || slugify(festival) === '') {
     return reject('details', GATE_COPY.festival);
   }
-  if (!EMAIL_RE.test(email.trim())) {
-    return reject('details', GATE_COPY.email);
-  }
   return null;
-}
-
-/**
- * The caps.
- *
- * Three per address per hour, twenty per day across everyone, so the worst day
- * costs about five dollars. They sit ahead of the schedule check rather than
- * behind it: that check is a model call, and a gate whose whole job is to bound
- * spend cannot spend to run.
- */
-function checkCaps(ledger: UploadLedger, address: string, now: number): Rejection | null {
-  const today = ledger.uploads.filter((u) => u.at > now - DAY_MS);
-  const mine = today.filter((u) => u.address === address && u.at > now - HOUR_MS);
-  if (mine.length >= UPLOADS_PER_ADDRESS_PER_HOUR) {
-    return reject(
-      'address-cap',
-      `That's ${UPLOADS_PER_ADDRESS_PER_HOUR} uploads from this address in an hour, which is the limit. Try again in an hour.`,
-    );
-  }
-  if (today.length >= UPLOADS_PER_DAY) {
-    return reject('daily-cap', "That's every upload for today. Try again tomorrow.");
-  }
-  return null;
-}
-
-/** Entries still inside the widest window a cap looks at, newest kept. */
-function pruneUploads(ledger: UploadLedger, now: number): UploadRecord[] {
-  return ledger.uploads.filter((u) => u.at > now - DAY_MS);
 }
 
 // ---------------------------------------------------------------------------
@@ -992,18 +738,18 @@ function pruneUploads(ledger: UploadLedger, now: number): UploadRecord[] {
 // ---------------------------------------------------------------------------
 
 /**
- * The images plus what the uploader typed, through the gates, into a review.
+ * The images plus what was typed, through the gates, into a review.
  *
  * Most festivals post one image per day, so an upload is a list of images in
  * day order; one image is a list of one. The gates run cheapest first and stop
  * at the first one that fails, so a rejection never costs a model call it did
  * not have to make:
  *
- *   1. what the uploader typed                  (free)
- *   2. how many images; each one's type, size,
+ *   1. the owner's secret                       (free)
+ *   2. what was typed                           (free)
+ *   3. how many images; each one's type, size,
  *      dimensions; no image twice               (free)
- *   3. content-hash lookup, per image           (free — a hit costs nothing at all)
- *   4. the caps, once for the whole upload      (free)
+ *   4. content-hash lookup, per image           (free — a hit costs nothing at all)
  *   5. is this a schedule, per unread image     (a small model)
  *   6. transcribe, per unread image             (the real cost)
  *
@@ -1011,6 +757,9 @@ function pruneUploads(ledger: UploadLedger, now: number): UploadRecord[] {
  * names it, and none of the others is paid for until it is fixed.
  */
 export async function upload(intent: UploadIntent, ports: PublisherPorts): Promise<UploadResult> {
+  const stranger = notTheOwner(intent, ports);
+  if (stranger) return rejectedUpload(stranger);
+
   const details = checkDetails(intent);
   if (details) return rejectedUpload(details);
 
@@ -1019,32 +768,18 @@ export async function upload(intent: UploadIntent, ports: PublisherPorts): Promi
   const imageProblem = checkImages(images, hashes);
   if (imageProblem) return rejectedUpload(imageProblem);
 
-  // An update link is checked before anything is spent, so a correction to a
-  // page that has been taken down costs nothing. A link that does not hold is
-  // not an error: it is a fresh upload, and the review says where it will live.
-  const target = intent.update ? claimedEdition(await ports.repo.readPublished(), intent.update) : null;
-  if (target?.record.blocked) return rejectedUpload(reject('removed', GATE_COPY.removed));
-
-  const now = ports.clock.now();
-  const stamp = icalStamp(now);
-  const address = addressHash(intent.email);
+  const stamp = icalStamp(ports.clock.now());
 
   // Each image is looked up on its own. A retry of images already paid for
-  // costs nothing and counts against nothing — that is the whole point of
-  // storing the reply (story 31) — and a retry that adds a day pays for that
-  // day alone.
+  // costs nothing — that is the whole point of storing the reply (story 31) —
+  // and a retry that adds a day pays for that day alone.
   const saved = await Promise.all(hashes.map((hash) => ports.repo.readTranscription(hash)));
   const unread = images.flatMap((image, i) => (saved[i] ? [] : [i]));
   const tally = progressOf(ports, images.length);
   for (const [i, reading] of saved.entries()) if (reading) tally.read('reused', i, reading);
   if (unread.length === 0) {
-    return finishUpload(intent, ports, saved as SavedTranscription[], { reused: true, commit: null, target });
+    return finishUpload(intent, ports, saved as SavedTranscription[], { reused: true, commit: null });
   }
-
-  // The caps count the upload, not its images: one request is one upload.
-  const ledger = await ports.repo.readUploads();
-  const capped = checkCaps(ledger, address, now);
-  if (capped) return rejectedUpload(capped);
 
   // Every cheap check before any expensive call, so an image that is not a
   // schedule stops the upload before any of the others is paid for.
@@ -1081,26 +816,13 @@ export async function upload(intent: UploadIntent, ports: PublisherPorts): Promi
     tally.read('read', i, reading);
   }
 
-  const paidFor = fresh.map((f) => f.image);
   const commit: Commit = {
-    message: `Transcribe an upload for ${intent.festival.trim()} (${paidFor.map((h) => h.slice(0, 12)).join(', ')})`,
-    files: [
-      ...fresh.map((f) => ({ path: `${TRANSCRIPTION_STORE_DIR}/${f.image}.json`, contents: committedJson(f) })),
-      {
-        path: UPLOADS_PATH,
-        contents: committedJson({
-          $comment: ledger.$comment ?? UPLOADS_COMMENT,
-          uploads: [
-            ...pruneUploads(ledger, now),
-            { address, at: now, image: paidFor[0]!, ...(paidFor.length > 1 ? { images: paidFor } : {}) },
-          ],
-        }),
-      },
-    ],
+    message: `Transcribe an upload for ${intent.festival.trim()} (${fresh.map((f) => f.image.slice(0, 12)).join(', ')})`,
+    files: fresh.map((f) => ({ path: `${TRANSCRIPTION_STORE_DIR}/${f.image}.json`, contents: committedJson(f) })),
     images: [],
   };
 
-  return finishUpload(intent, ports, saved as SavedTranscription[], { reused: false, commit, target });
+  return finishUpload(intent, ports, saved as SavedTranscription[], { reused: false, commit });
 }
 
 /**
@@ -1135,13 +857,12 @@ async function finishUpload(
   intent: UploadIntent,
   ports: PublisherPorts,
   saved: SavedTranscription[],
-  opts: { reused: boolean; commit: Commit | null; target: ClaimedEdition | null },
+  opts: { reused: boolean; commit: Commit | null },
 ): Promise<UploadResult> {
   const read = await readReview(ports, saved, {
     ...opts,
-    owner: intent.owner,
     name: intent.festival.trim(),
-    slug: opts.target?.record.slug ?? slugify(intent.festival),
+    slug: slugify(intent.festival),
     officialUrl: intent.officialUrl,
     timezone: intent.timezone,
     typedYear: intent.dates.first.slice(0, 4),
@@ -1156,8 +877,6 @@ async function finishUpload(
 interface ReadingOf {
   reused: boolean;
   commit: Commit | null;
-  target: ClaimedEdition | null;
-  owner?: string;
   /** The festival's name as typed. Absent: the name printed on the images. */
   name?: string;
   /** The slug to read under. Absent: derived from the name. */
@@ -1182,8 +901,6 @@ async function readReview(
   // the record for the audit trail, and the fix-and-retry is free.
   if (opts.commit) await ports.repo.commit(opts.commit);
 
-  const { target } = opts;
-  const namespace = namespaceOf(opts, ports, target);
   // The zone: the human's, else the festival's own from the record of it,
   // else the default — assumed, and the review says so.
   const outputs = modelOutputs(saved);
@@ -1192,7 +909,7 @@ async function readReview(
   let transcription: Transcription;
   try {
     transcription = transcribe(outputs, {
-      namespace,
+      namespace: 'owner',
       ...(opts.name !== undefined ? { name: opts.name } : {}),
       ...(opts.slug !== undefined ? { slug: opts.slug } : {}),
       officialUrl: opts.officialUrl,
@@ -1204,15 +921,8 @@ async function readReview(
   }
 
   const { festival, stages } = transcription.edition;
-  if (target && festival.year !== target.record.year) {
-    return refused(wrongYear(festival.year, target.record.year));
-  }
-  // A correction keeps the slug it has — the UIDs are derived from it. Anything
-  // else claims one: suffixed inside `/fan/`, the festival's own at the root,
-  // and refused where the owner already has that festival-year.
-  const claimed = target
-    ? { slug: target.record.slug }
-    : claimSlug(await ports.repo.readPublished(), namespace, festival);
+  // The festival's own slug, refused where that festival-year already has a page.
+  const claimed = claimSlug(await ports.repo.readPublished(), festival);
   if ('gate' in claimed) return refused(claimed);
   const slug = claimed.slug;
   const stageNames = new Map(stages.map((s) => [s.id, s.name]));
@@ -1224,9 +934,7 @@ async function readReview(
     festival: festival.name,
     slug,
     year: festival.year,
-    namespace,
-    editionPath: editionPath(namespace, `${slug}-${festival.year}`),
-    correcting: target !== null,
+    editionPath: editionPath('owner', `${slug}-${festival.year}`),
     timezone,
     timezoneAssumed: transcription.timezoneAssumed,
     timezoneOnRecord: onRecord !== null,
@@ -1251,7 +959,7 @@ async function readReview(
   };
 
   return {
-    result: { ok: true, rejection: null, review, commit: opts.commit, notifications: [], reused: opts.reused },
+    result: { ok: true, rejection: null, review, commit: opts.commit, reused: opts.reused },
     transcription,
   };
 }
@@ -1310,12 +1018,11 @@ interface Candidate {
  * The festival's schedule page, read into the same review an upload of its
  * images would give.
  *
- * Nothing typed but the link and the address, so the gates are the upload's
- * with the page in front of them, cheapest first, stopping at the first one
- * that fails:
+ * Nothing typed but the link, so the gates are the upload's with the page in
+ * front of them, cheapest first, stopping at the first one that fails:
  *
- *   1. the address; the link is a public http(s) web page    (free, no request)
- *   2. the caps — a link is one upload                       (free, no request)
+ *   1. the owner's secret                                    (free, no request)
+ *   2. the link is a public http(s) web page                 (free, no request)
  *   3. every address the host resolves to is public          (a name lookup)
  *   4. the page answers, without a login, as a web page      (one request)
  *   5. every image on it, fetched; the ones too small, too
@@ -1338,18 +1045,11 @@ export async function link(intent: LinkIntent, ports: LinkPorts): Promise<LinkRe
     images: [],
   });
 
-  if (!EMAIL_RE.test(intent.email.trim())) return refused(reject('details', GATE_COPY.email));
+  const stranger = notTheOwner(intent, ports);
+  if (stranger) return refused(stranger);
   const target = publicLink(intent.url);
   if (!target) return refused(reject('address', LINK_COPY.address));
-
-  // The caps before any request: a link is one upload, and a gate whose job
-  // is to bound what a stranger can make this do cannot do it first.
-  const now = ports.clock.now();
-  const stamp = icalStamp(now);
-  const address = addressHash(intent.email);
-  const ledger = await ports.repo.readUploads();
-  const capped = checkCaps(ledger, address, now);
-  if (capped) return refused(capped);
+  const stamp = icalStamp(ports.clock.now());
 
   // A name is resolved before anything is asked of it, and one that leads
   // anywhere private is refused with the same sentence as any other address
@@ -1439,7 +1139,7 @@ export async function link(intent: LinkIntent, ports: LinkPorts): Promise<LinkRe
   }
 
   // Anything paid for is recorded, whatever the page turns out to hold: the
-  // replies, the noes, and the link as one upload against the caps.
+  // replies and the noes.
   const paidFor = [...fresh.map((f) => f.image), ...noLonger];
   const commit: Commit | null =
     paidFor.length === 0
@@ -1459,16 +1159,6 @@ export async function link(intent: LinkIntent, ports: LinkPorts): Promise<LinkRe
                   },
                 ]
               : []),
-            {
-              path: UPLOADS_PATH,
-              contents: committedJson({
-                $comment: ledger.$comment ?? UPLOADS_COMMENT,
-                uploads: [
-                  ...pruneUploads(ledger, now),
-                  { address, at: now, image: paidFor[0]!, ...(paidFor.length > 1 ? { images: paidFor } : {}) },
-                ],
-              }),
-            },
           ],
           images: [],
         };
@@ -1478,7 +1168,7 @@ export async function link(intent: LinkIntent, ports: LinkPorts): Promise<LinkRe
     return refused(reject('no-schedule', LINK_COPY.noSchedule), commit);
   }
 
-  // Into day order — the order an uploader holding the same images would give
+  // Into day order — the order someone holding the same images would give
   // them in, whatever order the page listed them. An image whose reply names
   // no day keeps its page order, after the rest.
   const firstDay = (i: number) => daysRead(modelOutputs([saved[i]!]))[0] ?? '\uffff';
@@ -1487,8 +1177,6 @@ export async function link(intent: LinkIntent, ports: LinkPorts): Promise<LinkRe
   const read = await readReview(ports, schedule.map((i) => saved[i]!), {
     reused: commit === null,
     commit,
-    target: null,
-    owner: intent.owner,
     officialUrl: target.href,
   });
   if (!read.result.ok) return { ...read.result, officialUrl: null, days: [], images: [] };
@@ -1538,7 +1226,7 @@ async function readScreened(ports: PublisherPorts): Promise<ScreenedLedger> {
 // ---------------------------------------------------------------------------
 
 /**
- * The uploader's confirm: this is the human check the whole pipeline waits for.
+ * The owner's confirm: this is the human check the whole pipeline waits for.
  *
  * The sets are rebuilt from the saved model reply rather than from anything the
  * browser sends back, so the only thing a client can change is the three fields
@@ -1547,8 +1235,10 @@ async function readScreened(ports: PublisherPorts): Promise<ScreenedLedger> {
  * not build, it is not committed.
  */
 export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Promise<ConfirmResult> {
+  const stranger = notTheOwner(intent, ports);
+  if (stranger) return rejectedConfirm(stranger);
   confirmStep(ports, 'checking');
-  const named = checkWhoAndWhat(intent.festival, intent.email);
+  const named = checkFestival(intent.festival);
   if (named) return rejectedConfirm(named);
 
   const images = imagesOf(intent);
@@ -1592,26 +1282,22 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
   }
 
   const published = await ports.repo.readPublished();
-  const target = claimedEdition(published, intent.update);
-  const namespace = namespaceOf(intent, ports, target);
-  if (target?.record.blocked) return rejectedConfirm(reject('removed', GATE_COPY.removed));
 
   // The days as checked (ticket 20): one date per day read, or the reading
   // stands. A list that does not fit the reading is refused — nothing is
-  // guessed about which day the uploader meant.
+  // guessed about which day was meant.
   const outputs = daysAsChecked(modelOutputs(saved), intent.days);
   if ('gate' in outputs) return rejectedConfirm(outputs);
 
   // Two passes. The first reads the source to find out what year it is, which
   // is what decides the slug; the second builds the edition under the slug that
-  // read gives it. Both are deterministic over the same saved reply. A
-  // correction keeps the slug it has — the UIDs are derived from it.
+  // read gives it. Both are deterministic over the same saved reply.
   let probe: Transcription;
   try {
     probe = transcribe(outputs, {
-      namespace,
+      namespace: 'owner',
       name: intent.festival.trim(),
-      slug: target?.record.slug ?? slugify(intent.festival),
+      slug: slugify(intent.festival),
       officialUrl: intent.officialUrl,
       timezone: intent.timezone,
       timezoneAssumed: intent.timezoneAssumed,
@@ -1620,24 +1306,21 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
     return rejectedConfirm(readingProblem(err));
   }
 
-  if (target && probe.edition.festival.year !== target.record.year) {
-    return rejectedConfirm(wrongYear(probe.edition.festival.year, target.record.year));
-  }
-  const claimed = target ? { slug: target.record.slug } : claimSlug(published, namespace, probe.edition.festival);
+  const claimed = claimSlug(published, probe.edition.festival);
   if ('gate' in claimed) return rejectedConfirm(claimed);
   const slug = claimed.slug;
 
   let transcription: Transcription;
   try {
     transcription = transcribe(outputs, {
-      namespace,
+      namespace: 'owner',
       name: intent.festival.trim(),
       slug,
       officialUrl: intent.officialUrl,
       timezone: intent.timezone,
       timezoneAssumed: intent.timezoneAssumed,
       edits: intent.edits,
-      // The uploader checking every set against their own image IS the human
+      // The owner checking every set against the images IS the human
       // verification the build's production gate asks for.
       verified: true,
     });
@@ -1646,33 +1329,22 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
   }
 
   const doc: FestivalDoc = transcription.edition;
-  if (target) return correct(intent, ports, { target, published, transcription, saved, images, hashes });
-
   const key = `${doc.festival.slug}-${doc.festival.year}`;
-  const path = editionPath(namespace, key);
-  const owner = namespace === 'owner';
+  const path = editionPath('owner', key);
 
   // The publish stamp: the one real time in the system, taken here and written
   // into committed state so the build never has to read a clock.
   const stamp = icalStamp(ports.clock.now());
-  const updateSecret = secretFrom(ports.random.bytes(32));
 
-  const record: PublishedEdition & { uploader: UploaderRecord } = {
+  const record: PublishedEdition = {
     slug: doc.festival.slug,
     year: doc.festival.year,
-    namespace,
+    namespace: 'owner',
     // Never auto-list. Listing is the owner's act, always (CONTEXT: listing) —
     // and the owner's own confirm is that act, in the same commit.
-    listed: owner,
+    listed: true,
     blocked: false,
     stages: doc.stages.map((s) => s.id).sort(),
-    uploader: {
-      secretHash: sha256(updateSecret),
-      addressHash: addressHash(intent.email),
-      verifiedAt: stamp,
-      image: hashes[0]!,
-      ...(hashes.length > 1 ? { images: hashes } : {}),
-    },
   };
 
   const nextPublished: PublishedFile = {
@@ -1681,14 +1353,10 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
     editions: sortKeys({ ...published.editions, [path]: record }),
   };
 
-  const setCount = doc.sets.length;
-  const stageCount = stageCountOf(doc.stages);
-  const size = `${setCount} set${setCount === 1 ? '' : 's'} across ${stageCount} stage${stageCount === 1 ? '' : 's'}`;
-  const pageUrl = `https://stagetimes.app/${path}/`;
   const commit: Commit = {
-    message: `${owner ? 'Publish and list' : 'Publish'} ${doc.festival.name} ${doc.festival.year} (${path})`,
+    message: `Publish and list ${doc.festival.name} ${doc.festival.year} (${path})`,
     files: [
-      { path: `${owner ? OWNER_DATA_DIR : FAN_DATA_DIR}/${key}.yaml`, contents: transcription.yaml },
+      { path: `${OWNER_DATA_DIR}/${key}.yaml`, contents: transcription.yaml },
       { path: `${SOURCE_DIR}/${path}/TRANSCRIPTION.md`, contents: transcription.log },
       { path: PUBLISHED_PATH, contents: committedJson(nextPublished) },
     ],
@@ -1698,217 +1366,21 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
       bytes: images[i]!.bytes,
     })),
   };
-
-  confirmStep(ports, 'saving');
-  const publishCommit = await ports.repo.commit(commit);
-  confirmStep(ports, 'done');
-
-  // The owner's confirm was a person tapping: nothing machine-initiated
-  // happened, so nothing lands in the inbox.
-  if (owner) {
-    return {
-      ok: true,
-      rejection: null,
-      updateSecret,
-      editionPath: path,
-      corrected: false,
-      changes: [],
-      commit,
-      notifications: [],
-      pullRequests: [],
-    };
-  }
-
-  // A fan confirm asks the owner to list it. The edition is already live and
-  // the update secret exists nowhere else, so a pull request that will not
-  // open must not fail the confirm — the notification says so instead.
-  const listing = listingPullRequest(publishCommit, nextPublished, path, `${doc.festival.name} ${doc.festival.year}`, size, pageUrl);
-  let opened: PullRequest[] = [];
-  let listingNote = 'Merge the listing pull request to list it.';
-  try {
-    await ports.repo.openPullRequest(listing);
-    opened = [listing];
-  } catch (err) {
-    listingNote = `The listing pull request could not be opened (${(err as Error).message}); list it by hand.`;
-  }
-
-  const notification: Notification = {
-    kind: 'edition-published',
-    editionPath: path,
-    title: `Fan edition published: ${doc.festival.name} ${doc.festival.year}`,
-    body:
-      `${size}, ` +
-      `read off ${listed(saved.map((s) => s.filename))} and checked by the uploader` +
-      `${transcription.edits.length > 0 ? ` with ${transcription.edits.length} correction${transcription.edits.length === 1 ? '' : 's'}` : ''}. ` +
-      `Unlisted — ${pageUrl} ${listingNote}`,
-    email: intent.email.trim(),
-  };
-
-  await ports.notify.send(notification);
-
-  return {
-    ok: true,
-    rejection: null,
-    updateSecret,
-    editionPath: path,
-    corrected: false,
-    changes: [],
-    commit,
-    notifications: [notification],
-    pullRequests: opened,
-  };
-}
-
-/**
- * The pull request that lists a fan edition: a branch off the publish commit
- * whose one change is `listed` on that edition in committed state. Branching
- * from the publish commit rather than from wherever main is by then keeps the
- * diff that one line, whatever lands in between; publishedAt is not bumped,
- * because a listing moves no feed byte.
- */
-function listingPullRequest(
-  from: string,
-  published: PublishedFile,
-  path: string,
-  name: string,
-  size: string,
-  pageUrl: string,
-): PullRequest {
-  const listedState: PublishedFile = {
-    ...published,
-    editions: { ...published.editions, [path]: { ...published.editions[path]!, listed: true } },
-  };
-  return {
-    from,
-    branch: `list/${path}`,
-    title: `List ${name}`,
-    body:
-      `${name}: ${size}, checked by the uploader against their own image.\n\n` +
-      `${pageUrl}\n\n` +
-      `Merging lists it on the homepage. The only change is \`listed\` on \`${path}\` in \`${PUBLISHED_PATH}\`.\n`,
-    commit: {
-      message: `List ${name} (${path})`,
-      files: [{ path: PUBLISHED_PATH, contents: committedJson(listedState) }],
-      images: [],
-    },
-  };
-}
-
-// ---------------------------------------------------------------------------
-// correction — confirm through a valid update link
-// ---------------------------------------------------------------------------
-
-/**
- * Replace an edition's sets in place. Same slug, same year, same stage ids —
- * so every UID a subscriber already holds is still the UID of that set — and a
- * new publish stamp, so the build advances SEQUENCE for exactly the events
- * whose content moved and leaves the rest alone (src/build.ts, buildFeeds). The
- * sequence ledger is the build's to write; nothing here touches it.
- *
- * A stage already published cannot disappear (gate 4 would refuse the build),
- * so a correction that drops one is refused here, in words. The owner hears
- * about a correction only when the edition is listed, and nothing waits on
- * him: the commit lands either way.
- */
-async function correct(
-  intent: ConfirmIntent,
-  ports: PublisherPorts,
-  ctx: {
-    target: ClaimedEdition;
-    published: PublishedFile;
-    transcription: Transcription;
-    saved: SavedTranscription[];
-    images: SourceImage[];
-    hashes: string[];
-  },
-): Promise<ConfirmResult> {
-  const { target, published, transcription, saved, images, hashes } = ctx;
-  const doc = transcription.edition;
-  const { path, record } = target;
-  const key = `${record.slug}-${record.year}`;
-  const yamlPath = `${FAN_DATA_DIR}/${key}.yaml`;
-
-  const previousYaml = await ports.repo.readFile(yamlPath);
-  const before = previousYaml === null ? null : loadFestivalFromString(previousYaml, yamlPath);
-
-  const kept = new Set(doc.stages.map((s) => s.id));
-  const dropped = record.stages.filter((id) => !kept.has(id));
-  if (dropped.length > 0) {
-    const names = dropped.map((id) => before?.stages.find((s) => s.id === id)?.name ?? id);
-    return rejectedConfirm(droppedStages(names));
-  }
-
-  const stamp = icalStamp(ports.clock.now());
-  const { images: _previousImages, ...uploader } = record.uploader;
-  const nextRecord: PublishedEdition & { uploader: UploaderRecord } = {
-    ...record,
-    stages: [...new Set([...record.stages, ...kept])].sort(),
-    uploader: {
-      ...uploader,
-      image: hashes[0]!,
-      ...(hashes.length > 1 ? { images: hashes } : {}),
-      correctedAt: stamp,
-    },
-  };
-  const nextPublished: PublishedFile = {
-    ...published,
-    publishedAt: stamp,
-    editions: sortKeys({ ...published.editions, [path]: nextRecord }),
-  };
-
-  const commit: Commit = {
-    message: `Correct ${doc.festival.name} ${doc.festival.year} (${path}) through its update link`,
-    files: [
-      { path: yamlPath, contents: transcription.yaml },
-      { path: `${SOURCE_DIR}/${path}/TRANSCRIPTION.md`, contents: transcription.log },
-      { path: PUBLISHED_PATH, contents: committedJson(nextPublished) },
-    ],
-    images: saved.map((reading, i) => ({
-      path: `${SOURCE_IMAGE_DIR}/${storedImageName(reading)}`,
-      contentType: reading.contentType,
-      bytes: images[i]!.bytes,
-    })),
-  };
-
-  const changes = before ? diffSets(before, doc) : [];
-  const notifications: Notification[] = record.listed
-    ? [
-        {
-          kind: 'edition-corrected',
-          editionPath: path,
-          title: `Listed edition corrected: ${doc.festival.name} ${doc.festival.year}`,
-          body: correctionBody(path, changes),
-          email: intent.email.trim(),
-        },
-      ]
-    : [];
 
   confirmStep(ports, 'saving');
   await ports.repo.commit(commit);
   confirmStep(ports, 'done');
-  for (const n of notifications) await ports.notify.send(n);
 
-  return {
-    ok: true,
-    rejection: null,
-    // The secret the uploader already holds. Still never stored — only its hash.
-    updateSecret: intent.update!.secret,
-    editionPath: path,
-    corrected: true,
-    changes,
-    commit,
-    notifications,
-    // No listing pull request. That one exists to offer the owner an edition
-    // that has just appeared; a correction changes the times of one already
-    // published and leaves `listed` exactly as it found it.
-    pullRequests: [],
-  };
+  // A person tapped: nothing machine-initiated happened, so nothing lands in
+  // the inbox.
+  return { ok: true, rejection: null, editionPath: path, commit };
 }
 
 /**
- * What a correction changed, set by set, keyed as the UID is. "Changed" means
- * the subscriber-visible event changed — the same content hash the build's
- * sequence ledger compares — so this list and the SEQUENCE bumps agree.
+ * What a change on the schedule page moved, set by set, keyed as the UID is.
+ * "Changed" means the subscriber-visible event changed — the same content hash
+ * the build's sequence ledger compares — so this list and the SEQUENCE bumps
+ * agree. The watcher's review diff.
  */
 export function diffSets(before: FestivalDoc, after: FestivalDoc): SetChange[] {
   const index = (doc: FestivalDoc) => {
@@ -1961,70 +1433,22 @@ export function changeLine(c: SetChange): string {
   return `- ${renamed} (${c.stageName}): ${span(c.before!)} → ${span(c.after!)}`;
 }
 
-/** The notification body: one line per changed set, then where it lives. */
-function correctionBody(path: string, changes: SetChange[]): string {
-  const lines = changes.map(changeLine);
-  const summary =
-    changes.length === 0
-      ? 'The uploader re-uploaded through the update link; no set changed.'
-      : `The uploader corrected ${changes.length} set${changes.length === 1 ? '' : 's'} through the update link. Live already; nothing waits on you.`;
-  return [summary, '', ...lines, ...(lines.length ? [''] : []), `https://stagetimes.app/${path}/`].join('\n');
-}
-
-// ---------------------------------------------------------------------------
-// remove — the uploader's self-removal
-// ---------------------------------------------------------------------------
-
-/**
- * Block the edition the update link names. The same one-line edit the takedown
- * runbook describes: `blocked: true`, `listed` left alone, the YAML and the
- * sequence ledger untouched, so a revert brings every event back exactly as it
- * was. The stored source image is kept — a self-removal is not a rights claim,
- * and the image is the evidence behind the times (docs/takedown-runbook.md).
- *
- * A wrong secret is refused and writes nothing: removal has no "fresh" reading.
- */
-export async function remove(intent: RemoveIntent, ports: PublisherPorts): Promise<RemoveResult> {
-  const published = await ports.repo.readPublished();
-  const target = claimedEdition(published, intent.update);
-  if (!target) return rejectedRemove(reject('update-link', GATE_COPY.wrongLink));
-  if (target.record.blocked) {
-    return { ok: true, rejection: null, editionPath: target.path, commit: null, notifications: [] };
-  }
-
-  const nextPublished: PublishedFile = {
-    ...published,
-    editions: { ...published.editions, [target.path]: { ...target.record, blocked: true } },
-  };
-  const commit: Commit = {
-    message:
-      `Block ${target.path}: self-removal through its update link\n\n` +
-      'The stored source image is kept; a self-removal is not a rights claim (docs/takedown-runbook.md).',
-    files: [{ path: PUBLISHED_PATH, contents: committedJson(nextPublished) }],
-    images: [],
-  };
-  await ports.repo.commit(commit);
-  return { ok: true, rejection: null, editionPath: target.path, commit, notifications: [] };
-}
-
 // ---------------------------------------------------------------------------
 // The seam
 // ---------------------------------------------------------------------------
 
-/** One intent in, the writes and notifications it would make out. */
+/** One intent in, the writes it would make out. */
 export async function publish(intent: UploadIntent, ports: PublisherPorts): Promise<UploadResult>;
 export async function publish(intent: LinkIntent, ports: LinkPorts): Promise<LinkResult>;
 export async function publish(intent: ConfirmIntent, ports: PublisherPorts): Promise<ConfirmResult>;
-export async function publish(intent: RemoveIntent, ports: PublisherPorts): Promise<RemoveResult>;
-export async function publish(intent: Intent, ports: LinkPorts): Promise<UploadResult | ConfirmResult | RemoveResult>;
-export async function publish(intent: Intent, ports: PublisherPorts | LinkPorts): Promise<UploadResult | ConfirmResult | RemoveResult> {
+export async function publish(intent: Intent, ports: LinkPorts): Promise<UploadResult | ConfirmResult>;
+export async function publish(intent: Intent, ports: PublisherPorts | LinkPorts): Promise<UploadResult | ConfirmResult> {
   if (intent.kind === 'upload') return upload(intent, ports);
   if (intent.kind === 'link') {
     if (!('web' in ports)) throw new Error('a link intent needs the web port');
     return link(intent, ports);
   }
-  if (intent.kind === 'confirm') return confirm(intent, ports);
-  return remove(intent, ports);
+  return confirm(intent, ports);
 }
 
 // ---------------------------------------------------------------------------
@@ -2042,7 +1466,7 @@ export function modelOutputs(saved: SavedTranscription[]): ModelOutput[] {
 }
 
 /**
- * The replies with their days as the uploader checked them (ticket 20): the
+ * The replies with their days as checked on review (ticket 20): the
  * list has to name one date for each day read, in that order, every one a
  * date and no two the same. The same list as read changes nothing; absent, the
  * reading stands. Anything else is refused rather than guessed at.
@@ -2059,24 +1483,6 @@ export function daysAsChecked(outputs: ModelOutput[], days: string[] | undefined
 /** `a`, `a and b`, `a, b and c` — for a sentence the owner reads. */
 export function listed(items: string[]): string {
   return items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
-}
-
-/** A correction whose source reads as another year: that is another edition. */
-function wrongYear(read: number, edition: number): Rejection {
-  return reject(
-    'year',
-    `That image reads as ${read}, and this page is for ${edition}. For ${read}, add it as a new festival.`,
-  );
-}
-
-/** A correction without a stage people have already added. */
-function droppedStages(names: string[]): Rejection {
-  return reject(
-    'stages',
-    names.length === 1
-      ? `${names[0]} isn't in these times, and people have already added it. Include the image with its sets.`
-      : `${listed(names)} aren't in these times, and people have already added them. Include the images with their sets.`,
-  );
 }
 
 /**

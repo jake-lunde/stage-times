@@ -101,10 +101,12 @@ namespace: owner    # feeds at https://stagetimes.app/<slug>-<year>/…
 namespace: fan      # feeds at https://stagetimes.app/fan/<slug>-<year>/…
 ```
 
-The root is owner-only; fan-uploaded editions live under `/fan/` and stay there even once
-listed ([ADR-0001](./docs/adr/0001-fan-namespace-prefix.md)). The field is required rather than
-defaulted because either default would be a permanent mistake by omission. By convention fan
-YAMLs sit under `data/fan/`, but the field is the declaration — the build reads `data/**/*.yaml`
+Every edition is the owner's and lives at the root
+([ADR-0005](./docs/adr/0005-every-edition-is-the-owners.md)). `/fan/` holds the one edition from
+when anyone could publish, which keeps its URLs forever
+([ADR-0001](./docs/adr/0001-fan-namespace-prefix.md)); nothing writes there again. The field is
+required rather than defaulted because either default would be a permanent mistake by omission.
+By convention fan YAMLs sit under `data/fan/`, but the field is the declaration — the build reads `data/**/*.yaml`
 and places each edition by its `namespace:`. The same `<slug>-<year>` may exist once per
 namespace; the **edition path** (`<key>` or `fan/<key>`) is what is unique, and it is the key
 into both state files.
@@ -115,17 +117,18 @@ into both state files.
 flags:
 
 ```json
-"fan/coachella-2027": {
-  "slug": "coachella", "year": 2027, "namespace": "fan",
-  "listed": false,
+"coachella-2027": {
+  "slug": "coachella", "year": 2027, "namespace": "owner",
+  "listed": true,
   "blocked": false,
   "stages": ["main", "outdoor"]
 }
 ```
 
-- **`listed`** — the owner's approval for the homepage. Always a human edit; the build writes
-  `false` on an edition's first build and never changes it.
-- **`blocked`** — the edition was taken down (a rights holder asked, or the uploader removed it).
+- **`listed`** — the owner's approval for the homepage. Always a human act — his confirm, the
+  merge of a watcher review, or a hand edit; the build writes `false` on an edition's first build
+  and never changes it.
+- **`blocked`** — the edition was taken down (a rights holder asked, or it moved).
   It still builds: every feed URL it ever served returns a valid calendar with zero events and
   its original calendar name, its page becomes the removed page, and `feeds.json` reports it
   `listed: false` whatever the flag above says. Setting it is the one-line takedown edit;
@@ -188,28 +191,32 @@ wall clock.
 
 ## Phase 3 — the publisher
 
-Anyone with a set-times image can publish a fan edition. `src/publisher.ts` is the one seam that
-does it: an **intent** plus injected ports for vision, repository writes, notifications, the clock
-and randomness go in, and the writes and notifications it would make come out. Nothing in it
-reads a file, calls a model, opens a socket or looks at a clock, so every rule below is tested
-with fakes and no API key (`tests/publisher.test.ts`).
+Every edition is the owner's ([ADR-0005](./docs/adr/0005-every-edition-is-the-owners.md)).
+`src/publisher.ts` is the one seam that makes one: an **intent** plus injected ports for vision,
+repository writes, notifications, the clock and randomness go in, and the writes it would make
+come out. Nothing in it reads a file, calls a model, opens a socket or looks at a clock, so every
+rule below is tested with fakes and no API key (`tests/publisher.test.ts`).
 
-Four intents exist today — `upload`, `link`, `confirm` and `remove` — the first three with an
-owner variant, and upload and confirm carrying an update link are a correction. The **watcher**
-(`src/watcher.ts`) is the same shape from the other side: the same ports plus one for pages, and
-its reviews carry the edition exactly as the owner's confirm would commit it. The **signal**
-(`src/signal.ts`) is a third, for festivals the watcher cannot read.
+Three intents exist — `upload`, `link` and `confirm` — and every one carries the owner's secret
+from his bookmarked link, `/upload/#owner=<secret>`. The **owner port** checks it against
+`OWNER_SECRET` in constant time, **before any other gate**: a missing, wrong, empty or
+unconfigured secret is refused (`owner`, HTTP 403) before a field is judged, a name resolved, a
+page fetched, a model asked or a byte written. The **watcher** (`src/watcher.ts`) is the same
+shape from the other side: the same ports plus one for pages, and its reviews carry the edition
+exactly as the owner's confirm would commit it. The **signal** (`src/signal.ts`) is a third, for
+festivals the watcher cannot read. Procedure and secret rotation:
+[docs/owner-runbook.md](./docs/owner-runbook.md).
 
-**`upload`** — the source images, one per day in day order, plus a festival name, dates and a
-contact address. One image is a list of one. The gates run cheapest first and stop at the first
-failure, so a rejection never costs a call it did not have to make:
+**`upload`** — the source images, one per day in day order, plus a festival name and dates. One
+image is a list of one. The gates run cheapest first and stop at the first failure, so a
+rejection never costs a call it did not have to make:
 
 | # | Gate | Costs |
 |---|---|---|
-| 1 | what the uploader typed: name, dates, address, zone | nothing |
-| 2 | at most 7 images, none twice; each one's type, size (10 MB), dimensions (400–8000 px) | nothing |
-| 3 | content-hash lookup per image — the same image is never read twice | nothing |
-| 4 | caps: 3 uploads per address per hour, 20 per day across everyone — an upload is one request, however many images | nothing |
+| 1 | the owner's secret | nothing |
+| 2 | what was typed: name, dates, zone | nothing |
+| 3 | at most 7 images, none twice; each one's type, size (10 MB), dimensions (400–8000 px) | nothing |
+| 4 | content-hash lookup per image — the same image is never read twice | nothing |
 | 5 | "is this a schedule with times on it", for each image not read before | the `screen` model |
 | 6 | transcription, for each image not read before | the `default` model |
 
@@ -217,19 +224,16 @@ Every image clears gate 5 before any image reaches gate 6, so a retry that adds 
 days already read costs one check and one transcription. A rejection about one image of several
 starts `Day 2:` and carries the image's position; the others are not read until it is fixed.
 
-The caps sit ahead of the schedule check rather than behind it: that check is a model call, and a
-gate whose job is to bound spend cannot spend to run. Every rejection is one or two plain
-sentences, written under the copy rules and passed to the screen untouched. What comes back is a
-**review payload** — one set list across every day, every set with its inferred-end flag, a
-look-here flag where the model said it was unsure of the line (and its few words why), the
-printed time, and the image it was read from, and the time zone: the festival's own when it is
-on record in the almanac, else the default, marked as assumed.
+Every rejection is one or two plain sentences, written under the copy rules and passed to the
+screen untouched. What comes back is a **review payload** — one set list across every day, every
+set with its inferred-end flag, a look-here flag where the model said it was unsure of the line
+(and its few words why), the printed time, and the image it was read from, and the time zone:
+the festival's own when it is on record in the almanac, else the default, marked as assumed.
 
-**`link`** (ticket 19) — the festival's schedule page and a contact address, and nothing else
-typed. The caps count it as one upload and run before any request. The link has to be a public
-http(s) web address, and every address its host resolves to has to be public too — a private,
-loopback or link-local address is refused before anything is asked of it (`publicLink()` and
-`isPublicAddress()` in `src/web.ts`), and the live port refuses one again at connect time on
+**`link`** (ticket 19) — the festival's schedule page, and nothing else typed. The link has to be
+a public http(s) web address, and every address its host resolves to has to be public too — a
+private, loopback or link-local address is refused before anything is asked of it (`publicLink()`
+and `isPublicAddress()` in `src/web.ts`), and the live port refuses one again at connect time on
 every redirect. The page is read the way the watcher reads one (`imageUrlsIn()`); every image on
 it is fetched and dropped by the size in its header when it cannot be a schedule; at most the
 upload image limit are kept, the largest first, and the review's notes say when more were left
@@ -243,70 +247,20 @@ stored source images are the bytes the page served and a later screenshot of the
 free. A link that is not a public page, a page that does not answer, a login wall, and a page
 with no schedule on it each come back as one sentence pointing at screenshots.
 
-**`confirm`** — the review with the uploader's corrections, and the same images echoed back with
-the review's list of image hashes; a list that differs in any image or in order is refused. A set
-they could not verify blocks it.
-The edition is rebuilt from the saved model reply (never from anything the browser sends back),
-the corrections are applied and recorded in the transcription log, and the result goes through the
+**`confirm`** — the review with its corrections, and the same images echoed back with the
+review's list of image hashes; a list that differs in any image or in order is refused. The
+edition is rebuilt from the saved model reply (never from anything the browser sends back), the
+corrections are applied and recorded in the transcription log, and the result goes through the
 real schema loader on its way out: if it would not build, it is not committed. One commit to
-`main` carries the edition YAML, its log (which names every source image), every stored source
-image named by content hash, and the state update. **The publish stamp is the injected clock** — the one place a real time enters the
-system, and it enters as committed state, so the build still never reads a wall clock.
+`main` carries `data/<key>.yaml`, its log (which names every source image), every stored source
+image named by content hash, and the state update recording `<key>` with **`listed: true`** —
+the owner's tap is the approval — and opens nothing and tells no one. An edition already at that
+path is refused, never replaced or suffixed. **The publish stamp is the injected clock** — the one
+place a real time enters the system, and it enters as committed state, so the build still never
+reads a wall clock.
 
-A fan intent writes `data/fan/` and `fan/<key>` and nothing else; the root namespace is
-owner-only. A second upload for a festival-year someone else already published gets a suffixed
-slug (`low-tide-2`), because nobody is blocked by another fan's work.
-
-**The owner path** (ticket 10). Both intents take an optional `owner` secret — the owner's
-bookmarked link, `/upload/#owner=<secret>`, which the page reads from the fragment and sends
-with each post. When the **owner port** recognizes it (`OWNER_SECRET`, constant time), the same
-confirm writes `data/<key>.yaml`, records `<key>` with `listed: true` in the same commit, and
-opens nothing: the owner's tap is the approval. A root edition already there is refused, never
-replaced or suffixed. A wrong, missing or unconfigured secret is no secret — the intent is a
-fan's and the response is byte-for-byte a fan's. A fan confirm, after its publish commit, opens
-a **listing pull request** on the owner's behalf: branch `list/fan/<key>` off the publish
-commit, titled `List <Festival> <Year>`, its body the page link and the set count, its only
-change `listed: true` on that edition. Merging it from the GitHub app lists the edition on the
-next build and moves no feed byte. A pull request that will not open never fails the confirm;
-the notification says to list by hand. Procedure and secret rotation:
-[docs/owner-runbook.md](./docs/owner-runbook.md).
-
-The **update link** secret is minted from the injected randomness, returned once in the confirm
-response, and stored only as a SHA-256 hash. The contact address is stored only as a hash too —
-this repository is public — and reaches the owner through the notification instead.
-
-### The update link: correction and self-removal
-
-Holding the update link is what makes someone an edition's uploader. Upload and confirm take it
-as `update: {editionPath, secret}`; the publisher hashes the secret and compares it with the
-edition's `uploader.secretHash` (`claimedEdition()`). When it holds, the upload's review says
-`correcting: true` and the confirm is a **correction**: the edition's YAML and log are replaced
-in place under the same slug, year and stage ids — so every UID a subscriber holds is still that
-set's UID — and `publishedAt` moves to the injected clock. The build's sequence ledger then
-advances SEQUENCE for exactly the events whose content changed. The publisher never writes
-`state/sequences.json`.
-
-- A correction cannot drop a stage that was ever published (gate 4 would refuse the build); it is
-  refused in words instead. An image that reads as another year is refused too.
-- If the edition is **listed**, the owner gets an `edition-corrected` notification carrying a
-  per-set diff (`diffSets()`, keyed as the UID is). Nothing waits on him. An unlisted edition's
-  correction notifies nobody.
-- A **wrong or absent secret never touches an existing edition.** It is a fresh upload, and gets
-  a suffixed slug like any second upload of a festival-year; the review says where it will live.
-- A correction stays in the namespace it was published in and opens **no listing pull request**:
-  the link names a fan edition that already exists, `listed` is left exactly as it was, and an
-  `owner` secret sent alongside a link that holds changes neither. The owner path is for making
-  an edition; the update link is for changing one.
-
-**`remove`** takes only the update link. It sets `blocked: true` — the takedown runbook's one-line
-edit, `listed` left alone — and keeps the stored source image; a wrong secret is refused and
-writes nothing. The next build serves empty calendars and the removed page. A taken-down edition's
-link can no longer correct it.
-
-The link itself is `https://stagetimes.app/update/<edition path>/#<secret>`. The build writes one
-page there per fan edition (`renderUploadPage(edition)`): the upload flow, but naming the festival
-and what a new screenshot replaces before anything is uploaded, with "Take it down" behind a text
-button. The secret is the fragment, so it never reaches a server log.
+Changing a published edition is the watcher's review of a change on its schedule page, or a hand
+edit to the YAML ("Pushing a schedule change", below). Nothing in the publisher replaces one.
 
 ### The watcher
 
@@ -407,32 +361,30 @@ edition missed. It guesses no date, writes no state, and calls no model.
 
 | File | What it is |
 |---|---|
-| `state/published.json` | gains an `uploader` record per fan edition: secret hash, address hash, the confirm's stamp, the first source image hash (and `images`, every one in order, when there was more than one). A correction replaces the image hashes and adds `correctedAt`. Its presence is what *uploader-verified* means. The build carries it forward and never writes it. |
-| `state/uploads.json` | what the caps count. Not a log — entries older than 24 hours are dropped on every write. |
+| `state/published.json` | the confirm records the edition, listed, and moves `publishedAt` to its stamp. Nothing about who: it is always the owner. |
 | `state/transcriptions/<hash>.json` | the model's reply for one image, verbatim, under that image's content hash. This is what makes a retry free. |
 | `source/images/<hash>.<ext>` | the stored source image. Never served. |
-| `source/fan/<key>/TRANSCRIPTION.md` | the edition's log, with every correction made on review. |
+| `source/<key>/TRANSCRIPTION.md` | the edition's log, with every correction made on review. |
 | `state/screened.json` | every image a link's schedule check said no to, by content hash, so the same page is never asked about twice. Written only when the check said no. Nothing in the build reads it. |
 | `state/signal.json` | every subreddit post the signal has sent the owner, per edition, by post id. Written only when a post was sent. Nothing in the build reads it. |
 | `state/watch.json` | what the watcher has seen on each watched page: every image by content hash with its one-time schedule verdict, and the schedule images as of the last drop or change. Written only when an image is new. Nothing in the build reads it. |
 
 ### Over HTTP
 
-`api/upload.ts`, `api/link.ts`, `api/confirm.ts` and `api/remove.ts` are four thin adapters: read the fields, call the publisher,
+`api/upload.ts`, `api/link.ts` and `api/confirm.ts` are three thin adapters: read the fields, call the publisher,
 return what it said. `src/publisher-http.ts` holds what they share (field readers, the base64
 image, the gate-to-status-code map) and `src/ports.ts` holds the live ports — GitHub's Git Data
 API for the commit (one tree per intent, because a half-applied publish is an edition whose feeds
-exist and whose state does not) and for the listing pull request, the web a link points at
+exist and whose state does not) and for the watcher's review pull requests, the web a link points at
 (`liveWeb()`: redirects followed by hand, every connection through a resolver that refuses a
 non-public address), a GitHub issue for the
-notification, `OWNER_SECRET` for the owner port, and `src/vision.ts` for both model calls. A test
-asserts the adapters import nothing but those three modules. Upload and confirm take an optional
-`owner` secret and an optional `update` link; remove requires the link. Both adapters
-take an `images` list or a single `image`; confirm takes the review's hashes back as `reviewed`,
-and a rejection about one image carries its position as `image`. Link takes `url`, `email` and
-the optional `owner`, and answers with the review, `officialUrl`, `days`, and `images` in the
-same shape confirm reads them; confirm also takes `days` back, the days as the uploader checked
-them, one per day read, and a day that differs moves every set printed under it and the year
+notification (its title and body and nothing else — the repository is public), `OWNER_SECRET`
+for the owner port, and `src/vision.ts` for both model calls. A test asserts the adapters import
+nothing but those three modules. All three take `owner`, and without the right one answer 403.
+Upload and confirm take an `images` list or a single `image`; confirm takes the review's hashes
+back as `reviewed`, and a rejection about one image carries its position as `image`. Link takes
+`url` and answers with the review, `officialUrl`, `days`, and `images` in the same shape confirm
+reads them; confirm also takes `days` back, the days as checked, one per day read, and a day that differs moves every set printed under it and the year
 with it (ticket 20). All three stream on request (tickets 20 and 21): with
 `Accept: application/x-ndjson` every report the publisher makes through its optional `progress`
 port goes out as one `{"progress": …}` line while it works — a link's page being opened and the
@@ -443,10 +395,12 @@ is then 200, sent before the answer is known; without the header nothing changes
 
 ### The screens
 
-`/upload/` is one static page rendered by `src/upload-pages.ts` (ticket 08): the link, details,
-the images, review, the wait, success. The front door is the link (ticket 20): the festival's
-schedule page and an email, one pill, and a text button to the screenshot flow, which is the
-details screen and everything after it, unchanged. A link's review carries the name, the year
+`/upload/` is the owner's page, one static page rendered by `src/upload-pages.ts` (ticket 08): the
+link, details, the images, review, the wait, success. Every screen ships hidden; the script reads
+the owner's secret from the fragment (or the tab's session storage, after a reload) and shows the
+link screen, or sends the visitor home without it. The front door is the link (ticket 20): the
+festival's schedule page, one pill, and a text button to the screenshot flow, which is the details
+screen and everything after it. A link's review carries the name, the year
 and the days as read as fields above the sets, with the address the page will live at under
 them — a changed name or year changes the address as it is typed, and confirm gets the name and,
 when a day was moved, the `days`. Every answer to a link lands back on the link screen in the
@@ -462,15 +416,13 @@ saving, the step confirm is on. The clock estimates nothing; a browser that cann
 gets the answer whole, as before. A source with no web
 address printed on it comes back as the `link` gate, which reveals the one field for it on the
 form. The script reads fields, checks type and dimensions with the publisher's own limits
-before posting, shrinks each image to its share of the platform's body cap, posts to the two
+before posting, shrinks each image to its share of the platform's body cap, posts to the
 adapters (`image` for one, `images` in day order for more, and confirm echoes the review's
 `reviewed` list), and shows one screen at a time; every rejection is the publisher's sentence,
 landed on the screen that can fix it (`GATE_SCREENS`), and one about a single image of several
 lands under that day's row. The review shows each day's image above the sets read off it, every
-row labeled with the night it belongs to. The update link is
-`https://stagetimes.app/update/<edition path>/#<secret>` — decided in `updateLink()` there; the
-page it opens is the same flow for that edition (above). After confirm the page waits for the edition's own `all.ics` to answer, and after
-five minutes says so instead of pretending. `tests/upload-page.test.ts` pins the static markup;
+row labeled with the night it belongs to. After confirm the page waits for the edition's own
+`all.ics` to answer, and after five minutes says so instead of pretending. `tests/upload-page.test.ts` pins the static markup;
 the smoke test checks the page on a live deployment (set `VERCEL_AUTOMATION_BYPASS_SECRET` to
 smoke a protected preview).
 
@@ -560,7 +512,7 @@ scripts/provision-secrets.sh
 | Name | What it is for | Where it comes from |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | Vision calls for transcription bill the API, never a subscription | console.anthropic.com → API keys |
-| `GITHUB_TOKEN` | The publisher commits edition YAML and opens listing pull requests | Fine-grained token: this repo only, Contents + Pull requests read/write |
+| `GITHUB_TOKEN` | The publisher commits edition YAML and state to `main` | Fine-grained token: this repo only, Contents read/write (Pull requests no longer needed: ADR-0005) |
 | `OWNER_SECRET` | What the owner's bookmarked upload link is checked against | Generated by the wizard, 32 random bytes |
 
 The wizard signs you in to the Vercel CLI, opens each page, captures the value, sets it for

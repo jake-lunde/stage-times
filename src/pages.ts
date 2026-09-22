@@ -30,7 +30,7 @@
 import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { renderUploadPage, updatePagePath } from './upload-pages.js';
+import { renderUploadPage } from './upload-pages.js';
 
 // ---------------------------------------------------------------------------
 // Manifest shape (structurally typed — build.ts owns the real type)
@@ -614,7 +614,6 @@ h3{font-size:var(--t-card); line-height:1.05; margin:0}
 }
 .shelf-text{display:block; flex:none; padding:var(--pad-shelf) var(--pad-shelf) var(--gap-4)}
 .shelf-text .eyebrow{display:block; margin:0 0 var(--gap-1)}
-.eyebrow--fan{color:var(--red-deep)}
 .shelf-title{
   display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden;
   font-size:var(--t-shelf); line-height:1.1;
@@ -1119,8 +1118,8 @@ document.addEventListener('click', function (e) {
  * one heading, two lines, and one pill to the official schedule.
  *
  * Copy: references/copy.md, "The removed page". The page does not say who asked
- * for the takedown: a rights-holder block and an uploader's self-removal read
- * the same to the person standing at the gate. When the set times moved to
+ * for the takedown: a rights-holder block reads the same as any other to the
+ * person standing at the gate. When the set times moved to
  * another edition (`movedTo`), the page says so and its one pill goes there.
  */
 export function renderBlockedPage(m: Manifest): string {
@@ -1203,19 +1202,16 @@ export function listedEditions(site: SiteManifest): Manifest[] {
  * with the counts, the quiet lines, then art edge to edge to the bottom of the
  * fixed-height card. The whole card is the link; nothing inside it is a button.
  *
- * The eyebrow is the dates and city. On a fan edition the fan-made mark takes
- * that slot (owner ruling 4, 2026-09-20) and the dates drop to the first quiet
- * line, so a fan card still says when. The last quiet line is the first stage's
- * billed headliners — the main stage by convention — as the data has them.
+ * The eyebrow is the dates and city. Every edition is the owner's (ADR-0005),
+ * so no card carries a mark saying whose it is. The quiet line is the first
+ * stage's billed headliners — the main stage by convention — as the data has
+ * them.
  */
 function directoryCard(m: Manifest, image: string | undefined): string {
   const f = m.festival;
-  const fan = m.namespace === 'fan';
   const when = editionDates(m) + (f.city ? ` · ${f.city}` : '');
-  const eyebrow = fan
-    ? `<span class="eyebrow eyebrow--fan">Fan-made</span>`
-    : `<span class="eyebrow">${esc(when)}</span>`;
-  const quiet = [...(fan ? [when] : []), m.stages[0]?.headliners.join(' · ') ?? '']
+  const eyebrow = `<span class="eyebrow">${esc(when)}</span>`;
+  const quiet = [m.stages[0]?.headliners.join(' · ') ?? '']
     .filter((line) => line !== '')
     .map((line) => `<span class="shelf-meta">${esc(line)}</span>`)
     .join('\n        ');
@@ -1295,11 +1291,10 @@ function committedImages(site: SiteManifest): Record<string, string> {
 /**
  * Called by build.ts after the feeds are written. Emits:
  *   dist/index.html                          landing — one card per listed edition
- *   dist/<key>/index.html                    subscribe page, owner edition
- *   dist/fan/<key>/index.html                subscribe page, fan edition
+ *   dist/<key>/index.html                    subscribe page
+ *   dist/fan/<key>/index.html                the same, for the editions from before ADR-0005
  *   …or the removed page at the same path when the edition is blocked
- *   dist/upload/index.html                   the upload flow
- *   dist/update/fan/<key>/index.html         the update link's page, per fan edition
+ *   dist/upload/index.html                   the owner's upload flow
  *   dist/assets/**                           self-hosted fonts + festival art
  */
 export function renderSitePages(site: SiteManifest, outDir: string): string[] {
@@ -1321,21 +1316,10 @@ export function renderSitePages(site: SiteManifest, outDir: string): string[] {
     written.push(`${rel}/index.html`);
   }
 
-  // The upload flow (ticket 08): one static page, five screens, talking to /api/upload and /api/confirm.
+  // The owner's upload flow (ticket 08): one static page, talking to /api/link, /api/upload and /api/confirm.
   mkdirSync(join(outDir, 'upload'), { recursive: true });
   writeFileSync(join(outDir, 'upload', 'index.html'), renderUploadPage(), 'utf8');
   written.push('upload/index.html');
-
-  // The update link (ticket 09): the same flow for one fan edition, at
-  // /update/fan/<key>/. The secret is the link's fragment and never reaches
-  // the build; the publisher decides whether it holds. Owner editions have no
-  // uploader record and so no update link.
-  for (const m of site.editions.filter((e) => e.namespace === 'fan')) {
-    const rel = updatePagePath(m.festival.basePath.replace(/^\//, ''));
-    mkdirSync(join(outDir, rel), { recursive: true });
-    writeFileSync(join(outDir, rel, 'index.html'), renderUploadPage(m), 'utf8');
-    written.push(`${rel}/index.html`);
-  }
 
   return written;
 }

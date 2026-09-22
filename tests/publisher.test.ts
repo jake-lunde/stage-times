@@ -8,24 +8,21 @@
  * what crossed the seam — the commit, the notification, the review payload, the
  * reason a gate gave — never how the module is arranged inside.
  *
- * The two intents covered are the two that make a fan edition exist: upload and
- * confirm. The owner path is tests/publisher-owner.test.ts; correction and
- * self-removal are the same shape and arrive later (ticket 09).
+ * The two intents covered are the two that make an edition exist: upload and
+ * confirm, both carrying the owner's secret. What happens without it is
+ * tests/publisher-owner.test.ts; the link intent is tests/publisher-link.test.ts.
  */
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  claimFanSlug,
   GATE_COPY,
   confirm,
   icalStamp,
   publish,
   sha256,
   upload,
-  UPLOADS_PER_ADDRESS_PER_HOUR,
-  UPLOADS_PER_DAY,
   type ConfirmIntent,
   type Review,
   type UploadIntent,
@@ -37,23 +34,20 @@ import {
   fakePorts,
   fakeRepository,
   fakeVision,
-  FIXED_NOW,
   FIXED_NOW_STAMP,
   image,
-  ledgerOf,
+  OWNER_SECRET,
   recordedReply,
   type Fakes,
 } from './publisher-fakes.js';
-
-const UPLOADER = 'sam@example.com';
 
 function uploadIntent(overrides: Partial<UploadIntent> = {}): UploadIntent {
   return {
     kind: 'upload',
     festival: 'Low Tide',
     dates: { first: '2026-10-09', last: '2026-10-09' },
-    email: UPLOADER,
     image: image(),
+    owner: OWNER_SECRET,
     ...overrides,
   };
 }
@@ -63,7 +57,7 @@ function confirmIntent(review: Review, overrides: Partial<ConfirmIntent> = {}): 
     kind: 'confirm',
     image: image(),
     festival: 'Low Tide',
-    email: UPLOADER,
+    owner: OWNER_SECRET,
     timezone: review.timezone,
     timezoneAssumed: review.timezoneAssumed,
     edits: [],
@@ -124,84 +118,14 @@ test('gate: an image that is not a schedule is refused after the cheap check and
   );
   assert.equal(ports.vision.checks, 1, 'the cheap check ran');
   assert.equal(ports.vision.transcriptions, 0, 'the expensive call did not');
-  assert.deepEqual(ports.repo.commits, [], 'a rejected image is not recorded as an upload');
+  assert.deepEqual(ports.repo.commits, [], 'a rejected image writes nothing');
 });
 
-test('gate: the per-address hourly cap is refused with a plain reason and no vision spend', async () => {
-  const ports = fakePorts({
-    repo: fakeRepository({
-      uploads: ledgerOf(
-        Array.from({ length: UPLOADS_PER_ADDRESS_PER_HOUR }, (_, i) => ({
-          email: UPLOADER,
-          at: FIXED_NOW - (i + 1) * 60_000,
-        })),
-      ),
-    }),
-  });
-  const result = await upload(uploadIntent(), ports);
-  assert.equal(result.ok, false);
-  assert.equal(result.rejection!.gate, 'address-cap');
-  assert.equal(
-    result.rejection!.reason,
-    "That's 3 uploads from this address in an hour, which is the limit. Try again in an hour.",
-  );
-  assert.equal(ports.vision.checks + ports.vision.transcriptions, 0, 'the caps bound spend, so they cost none');
-});
-
-test('gate: the daily cap is refused, says to try again tomorrow, and spends nothing', async () => {
-  const ports = fakePorts({
-    repo: fakeRepository({
-      uploads: ledgerOf(
-        Array.from({ length: UPLOADS_PER_DAY }, (_, i) => ({
-          email: `someone-${i}@example.com`,
-          at: FIXED_NOW - (i + 1) * 60_000,
-        })),
-      ),
-    }),
-  });
-  const result = await upload(uploadIntent(), ports);
-  assert.equal(result.ok, false);
-  assert.equal(result.rejection!.gate, 'daily-cap');
-  assert.match(result.rejection!.reason, /try again tomorrow/i);
-  assert.equal(ports.vision.checks + ports.vision.transcriptions, 0, 'nothing was spent');
-});
-
-test('gate: an hourly cap counts only this address, and only the last hour', async () => {
-  const ports = fakePorts({
-    repo: fakeRepository({
-      uploads: ledgerOf([
-        // Three uploads, but one is somebody else's and one is 90 minutes old.
-        { email: UPLOADER, at: FIXED_NOW - 5 * 60_000 },
-        { email: UPLOADER, at: FIXED_NOW - 90 * 60_000 },
-        { email: 'other@example.com', at: FIXED_NOW - 5 * 60_000 },
-      ]),
-    }),
-  });
-  const result = await upload(uploadIntent(), ports);
-  assert.ok(result.ok, result.rejection?.reason);
-});
-
-test('gate: an upload past the caps records itself, pruned to the day the caps look at', async () => {
-  const ports = fakePorts({
-    repo: fakeRepository({
-      uploads: ledgerOf([
-        { email: 'old@example.com', at: FIXED_NOW - 30 * 60 * 60 * 1000 },
-        { email: 'other@example.com', at: FIXED_NOW - 2 * 60 * 60 * 1000 },
-      ]),
-    }),
-  });
-  await reviewOf(ports);
-  const ledger = JSON.parse(ports.repo.file('state/uploads.json')!) as { uploads: { at: number }[] };
-  assert.equal(ledger.uploads.length, 2, 'yesterday is dropped, today plus the new one is kept');
-  assert.equal(ledger.uploads.at(-1)!.at, FIXED_NOW, 'the new entry carries the injected clock');
-});
-
-test('gate: what the uploader typed is checked before anything is spent', async () => {
+test('gate: what was typed is checked before anything is spent', async () => {
   const ports = fakePorts();
   for (const [intent, expected] of [
     [uploadIntent({ festival: '   ' }), "Type the festival's name first."],
     [uploadIntent({ dates: { first: '9 Oct', last: '2026-10-09' } }), "Those dates don't look right. Give the day it starts and the day it ends."],
-    [uploadIntent({ email: 'sam-at-example' }), "That email address doesn't look right."],
     [uploadIntent({ timezone: 'Mars/Olympus' }), "That time zone isn't one I know."],
   ] as const) {
     const result = await upload(intent, ports);
@@ -228,7 +152,7 @@ test('cache: an image transcribed before comes back without calling the model', 
   assert.equal(ports.vision.checks, 1, 'and not even the cheap check');
   assert.equal(again.reused, true);
   assert.equal(again.review!.reused, true);
-  assert.equal(again.commit, null, 'a free retry writes nothing, so it counts against no cap');
+  assert.equal(again.commit, null, 'a free retry writes nothing');
   assert.deepEqual(again.review!.sets, first.review.sets, 'the saved reading, set for set');
 });
 
@@ -343,10 +267,9 @@ test("review: an upload of a festival on record reads in that festival's own zon
 
 test('review: it says where the edition would live, and flags a year the source disagrees with', async () => {
   const { review } = await reviewOf();
-  assert.equal(review.namespace, 'fan');
   assert.equal(review.slug, 'low-tide');
   assert.equal(review.year, 2026);
-  assert.equal(review.editionPath, 'fan/low-tide-2026');
+  assert.equal(review.editionPath, 'low-tide-2026', 'at the root, the festival\'s own name');
   assert.equal(review.yearMismatch, false);
 
   const wrongYear = await upload(
@@ -361,7 +284,7 @@ test('review: it says where the edition would live, and flags a year the source 
 // confirm
 // ---------------------------------------------------------------------------
 
-test('confirm: a set the uploader cannot verify blocks the publish', async () => {
+test('confirm: a set marked as unverifiable blocks the publish', async () => {
   const { review, ports } = await reviewOf();
   const one = await confirm(confirmIntent(review, { unverifiable: [3] }), ports);
   assert.equal(one.ok, false);
@@ -391,14 +314,14 @@ test('confirm: an edited artist, start or end is published and each edit is reco
   );
   assert.ok(result.ok, result.rejection?.reason);
 
-  const yaml = ports.repo.file('data/fan/low-tide-2026.yaml')!;
+  const yaml = ports.repo.file('data/low-tide-2026.yaml')!;
   const doc = loadFestivalFromString(yaml, 'committed');
   const edited = doc.sets.find((s) => s.artist === 'Avery Cochrane')!;
   assert.equal(edited.start.raw, '2026-10-09T15:20:00');
   assert.equal(doc.sets.find((s) => s.artist === 'MUNA')!.end.raw, '2026-10-09T23:55:00');
   assert.equal(doc.sets.find((s) => s.artist === 'MUNA')!.end_inferred, false, 'a typed-in end is no longer a guess');
 
-  const log = ports.repo.file('source/fan/low-tide-2026/TRANSCRIPTION.md')!;
+  const log = ports.repo.file('source/low-tide-2026/TRANSCRIPTION.md')!;
   assert.match(log, /## Corrections made on review/);
   assert.match(log, /\| main \| AVERY COCHRANE \| artist \| AVERY COCHRANE \| Avery Cochrane \|/);
   assert.match(log, /\| main \| AVERY COCHRANE \| start \| 2026-10-09T15:15:00 \| 2026-10-09T15:20:00 \|/);
@@ -418,15 +341,15 @@ test('confirm: an edit that breaks the schedule is refused, and nothing is commi
   assert.equal(ports.repo.commits.length, 1, 'the upload only');
 });
 
-test('confirm: every committed YAML passes the real schema loader, verified and in the fan namespace', async () => {
+test('confirm: every committed YAML passes the real schema loader, verified and at the root', async () => {
   const { review, ports } = await reviewOf();
   const result = await confirm(confirmIntent(review), ports);
   assert.ok(result.ok, result.rejection?.reason);
 
-  const yaml = ports.repo.file('data/fan/low-tide-2026.yaml')!;
-  const doc = loadFestivalFromString(yaml, 'data/fan/low-tide-2026.yaml');
-  assert.equal(doc.verified, true, 'the uploader checking every set is the human check');
-  assert.equal(doc.namespace, 'fan');
+  const yaml = ports.repo.file('data/low-tide-2026.yaml')!;
+  const doc = loadFestivalFromString(yaml, 'data/low-tide-2026.yaml');
+  assert.equal(doc.verified, true, 'the owner checking every set is the human check');
+  assert.equal(doc.namespace, 'owner');
   assert.equal(doc.festival.slug, 'low-tide');
   assert.equal(doc.festival.year, 2026);
   assert.equal(doc.sets.length, 5);
@@ -444,37 +367,54 @@ test('confirm: the publish stamp is the injected clock, and the build takes it f
   assert.equal(published.publishedAt, icalStamp(clock.now()));
 
   // And the deterministic build reads that stamp rather than any clock.
-  const doc = loadFestivalFromString(ports.repo.file('data/fan/low-tide-2026.yaml')!, 'committed');
+  const doc = loadFestivalFromString(ports.repo.file('data/low-tide-2026.yaml')!, 'committed');
   const site = buildSite([doc], published, { editions: {} }, published.publishedAt);
   assert.equal(site.site.editions[0]!.lastUpdated, '20261009T210530Z');
-  assert.equal(site.site.editions[0]!.festival.basePath, '/fan/low-tide-2026');
+  assert.equal(site.site.editions[0]!.festival.basePath, '/low-tide-2026');
 });
 
-test('confirm: the state update marks the edition uploader-verified and unlisted', async () => {
+test('confirm: the state update records the edition at the root, listed in the same commit', async () => {
   const { review, ports } = await reviewOf();
   const result = await confirm(confirmIntent(review), ports);
   assert.ok(result.ok, result.rejection?.reason);
+  assert.equal(result.editionPath, 'low-tide-2026');
 
+  const publish = ports.repo.commits.at(-1)!;
+  assert.deepEqual(publish.files.map((f) => f.path), ['data/low-tide-2026.yaml', 'source/low-tide-2026/TRANSCRIPTION.md', 'state/published.json']);
   const published = JSON.parse(ports.repo.file('state/published.json')!) as PublishedFile;
-  const record = published.editions['fan/low-tide-2026']!;
-  assert.equal(record.listed, false, "listing is the owner's act, never the publisher's");
-  assert.equal(record.blocked, false);
-  assert.equal(record.namespace, 'fan');
-  assert.deepEqual(record.stages, ['cellar', 'main']);
-  assert.ok(record.uploader, 'uploader-verified: a human confirmed this against their own image');
-  assert.equal(record.uploader!.verifiedAt, FIXED_NOW_STAMP);
-  assert.equal(record.uploader!.image, sha256(image().bytes));
+  assert.deepEqual(published.editions['low-tide-2026'], {
+    slug: 'low-tide',
+    year: 2026,
+    namespace: 'owner',
+    listed: true,
+    blocked: false,
+    stages: ['cellar', 'main'],
+  }, 'the owner tapping confirm is the listing; no record of who, because it is always the owner');
+  assert.ok(!ports.repo.paths().some((p) => p.startsWith('data/fan/') || p.includes('/fan/')), 'nothing is ever written under fan/');
 });
 
-test('confirm: the build keeps the uploader record it did not write', async () => {
-  const { review, ports } = await reviewOf();
-  await confirm(confirmIntent(review), ports);
-  const published = JSON.parse(ports.repo.file('state/published.json')!) as PublishedFile;
-  const doc = loadFestivalFromString(ports.repo.file('data/fan/low-tide-2026.yaml')!, 'committed');
+test('confirm: a root edition already published is refused, never overwritten and never suffixed', async () => {
+  const repo = fakeRepository({
+    published: {
+      publishedAt: '20260101T000000Z',
+      editions: {
+        'low-tide-2026': { slug: 'low-tide', year: 2026, namespace: 'owner', listed: true, blocked: false, stages: ['main'] },
+      },
+    },
+  });
+  const ports = fakePorts({ repo });
+  const up = await upload(uploadIntent(), ports);
+  assert.equal(up.ok, false, 'the review would show a page that already exists');
+  assert.equal(up.rejection!.gate, 'details');
+  assert.match(up.rejection!.reason, /already has a page/);
 
-  const site = buildSite([doc], published, { editions: {} }, published.publishedAt);
-  const after = site.nextPublished.editions['fan/low-tide-2026']!;
-  assert.deepEqual(after.uploader, published.editions['fan/low-tide-2026']!.uploader);
+  const { review } = await reviewOf(fakePorts());
+  const commitsBefore = repo.commits.length;
+  const result = await confirm(confirmIntent(review), ports);
+  assert.equal(result.ok, false);
+  assert.equal(result.rejection!.gate, 'details');
+  assert.equal(repo.commits.length, commitsBefore, 'nothing committed');
+  assert.deepEqual(Object.keys(repo.published.editions), ['low-tide-2026'], 'no low-tide-2-2026');
 });
 
 test('confirm: the source image is committed named by its content hash', async () => {
@@ -486,16 +426,14 @@ test('confirm: the source image is committed named by its content hash', async (
   assert.equal(stored[0]!.path, `source/images/${hash}.webp`);
   assert.equal(stored[0]!.contentType, 'image/webp');
   assert.deepEqual(stored[0]!.bytes, image().bytes);
-  assert.match(ports.repo.file('data/fan/low-tide-2026.yaml')!, new RegExp(`# {3}${hash}\\.webp`));
+  assert.match(ports.repo.file('data/low-tide-2026.yaml')!, new RegExp(`# {3}${hash}\\.webp`));
 });
 
-test('confirm: a blank festival name or a bad address is refused in plain words, not by the schema', async () => {
+test('confirm: a blank festival name is refused in plain words, not by the schema', async () => {
   const { review, ports } = await reviewOf();
   const blank = await confirm(confirmIntent(review, { festival: '  ' }), ports);
   assert.equal(blank.rejection!.gate, 'details');
   assert.equal(blank.rejection!.reason, "Type the festival's name first.");
-  const bad = await confirm(confirmIntent(review, { email: 'sam' }), ports);
-  assert.equal(bad.rejection!.gate, 'details');
   assert.equal(ports.repo.commits.length, 1, 'the upload only');
 });
 
@@ -508,123 +446,12 @@ test('confirm: a review whose image is not in the store is refused, not guessed 
   assert.equal(result.rejection!.reason, "I don't have that image any more. Upload it again and check the times.");
 });
 
-test('confirm: the owner is told, with the address that is nowhere in the commit', async () => {
-  const { review, ports } = await reviewOf();
-  const result = await confirm(confirmIntent(review), ports);
-  assert.equal(result.notifications.length, 1);
-  assert.deepEqual(result.notifications, ports.notify.sent);
-  const [sent] = ports.notify.sent;
-  assert.equal(sent!.kind, 'edition-published');
-  assert.equal(sent!.editionPath, 'fan/low-tide-2026');
-  assert.equal(sent!.title, 'Fan edition published: Low Tide 2026');
-  assert.match(sent!.body, /5 sets across 2 stages/);
-  assert.match(sent!.body, /Unlisted — https:\/\/stagetimes\.app\/fan\/low-tide-2026\//);
-  assert.equal(sent!.email, UPLOADER);
-
-  const committed = ports.repo.commits.flatMap((c) => c.files.map((f) => f.contents)).join('\n');
-  assert.equal(committed.includes(UPLOADER), false, 'the address is a contact, and this repo is public');
-});
-
-// ---------------------------------------------------------------------------
-// Namespace and slug
-// ---------------------------------------------------------------------------
-
-test('namespace: a second fan upload of the same festival and year gets a suffixed slug', async () => {
-  const ports = fakePorts();
-  const first = await reviewOf(ports);
-  await confirm(confirmIntent(first.review), ports);
-
-  // Somebody else's image of the same festival-year: a different hash, so a
-  // different transcription, and an edition of their own.
-  const theirImage = image({ bytes: new TextEncoder().encode('the same friday, photographed by someone else') });
-  const second = await upload(
-    uploadIntent({ email: 'robin@example.com', image: theirImage }),
-    ports,
-  );
-  assert.ok(second.ok, second.rejection?.reason);
-  assert.equal(second.review!.slug, 'low-tide-2', "nobody is blocked by another fan's work");
-  assert.equal(second.review!.editionPath, 'fan/low-tide-2-2026');
-
-  const result = await confirm(
-    confirmIntent(second.review!, { email: 'robin@example.com', image: theirImage }),
-    ports,
-  );
-  assert.ok(result.ok, result.rejection?.reason);
-  assert.equal(result.editionPath, 'fan/low-tide-2-2026');
-
-  const published = JSON.parse(ports.repo.file('state/published.json')!) as PublishedFile;
-  assert.deepEqual(Object.keys(published.editions), ['fan/low-tide-2-2026', 'fan/low-tide-2026']);
-  assert.ok(ports.repo.file('data/fan/low-tide-2-2026.yaml'), 'its own YAML');
-  assert.notEqual(
-    published.editions['fan/low-tide-2026']!.uploader!.secretHash,
-    published.editions['fan/low-tide-2-2026']!.uploader!.secretHash,
-    'two editions, two uploaders',
-  );
-});
-
-test('namespace: no fan intent ever writes the root namespace', async () => {
-  const ports = fakePorts();
-  const { review } = await reviewOf(ports);
-  await confirm(confirmIntent(review), ports);
-
-  for (const path of ports.repo.paths()) {
-    assert.doesNotMatch(path, /^data\/[^/]+\.ya?ml$/, `${path} is a root-namespace edition file`);
-  }
-  const published = JSON.parse(ports.repo.file('state/published.json')!) as PublishedFile;
-  for (const [key, record] of Object.entries(published.editions)) {
-    assert.equal(record.namespace, 'fan', `${key} claimed the owner namespace`);
-    assert.match(key, /^fan\//, `${key} is not under /fan/`);
-  }
-});
-
-test('namespace: the slug walks past every taken fan edition, and consults only the fan namespace', () => {
-  const published: PublishedFile = {
-    publishedAt: FIXED_NOW_STAMP,
-    editions: {
-      'low-tide-2026': { slug: 'low-tide', year: 2026, namespace: 'owner', listed: true, blocked: false, stages: [] },
-      'fan/low-tide-2026': { slug: 'low-tide', year: 2026, namespace: 'fan', listed: false, blocked: false, stages: [] },
-      'fan/low-tide-2-2026': { slug: 'low-tide-2', year: 2026, namespace: 'fan', listed: false, blocked: false, stages: [] },
-    },
-  };
-  assert.equal(claimFanSlug(published, 'low-tide', 2026), 'low-tide-3');
-  assert.equal(claimFanSlug(published, 'low-tide', 2027), 'low-tide', 'a different year is a different edition');
-  assert.equal(claimFanSlug({ publishedAt: FIXED_NOW_STAMP, editions: {} }, 'low-tide', 2026), 'low-tide');
-});
-
-// ---------------------------------------------------------------------------
-// The update link
-// ---------------------------------------------------------------------------
-
-test('update link: the secret is returned once and committed state keeps only its hash', async () => {
+test('confirm: nothing lands in the inbox and no pull request opens — a person tapped, and that was the approval', async () => {
   const { review, ports } = await reviewOf();
   const result = await confirm(confirmIntent(review), ports);
   assert.ok(result.ok, result.rejection?.reason);
-  const secret = result.updateSecret!;
-  assert.match(secret, /^[A-Za-z0-9_-]{43}$/, '32 random bytes, URL-safe');
-
-  const published = JSON.parse(ports.repo.file('state/published.json')!) as PublishedFile;
-  assert.equal(published.editions['fan/low-tide-2026']!.uploader!.secretHash, sha256(secret));
-
-  const everything = ports.repo.commits
-    .flatMap((c) => [...c.files.map((f) => f.contents), ...c.images.map((i) => i.path)])
-    .join('\n');
-  assert.equal(everything.includes(secret), false, 'the secret itself is never written down');
-});
-
-test('update link: the secret comes from the injected randomness, not from anywhere else', async () => {
-  const bytes: number[][] = [];
-  const random = {
-    bytes(n: number) {
-      const out = Uint8Array.from({ length: n }, (_, i) => (i * 3 + 1) % 256);
-      bytes.push([...out]);
-      return out;
-    },
-  };
-  const { review, ports } = await reviewOf(fakePorts({ random }));
-  const result = await confirm(confirmIntent(review), ports);
-  assert.equal(bytes.length, 1, 'one secret, minted once');
-  assert.equal(bytes[0]!.length, 32);
-  assert.equal(result.updateSecret, Buffer.from(Uint8Array.from(bytes[0]!)).toString('base64url'));
+  assert.deepEqual(ports.notify.sent, []);
+  assert.deepEqual(ports.repo.pullRequests, []);
 });
 
 // ---------------------------------------------------------------------------
@@ -637,12 +464,13 @@ test('seam: publish() dispatches on the intent and returns the same result the i
   assert.ok(uploaded.ok, uploaded.rejection?.reason);
   const confirmed = await publish(confirmIntent(uploaded.review!), ports);
   assert.ok(confirmed.ok, confirmed.rejection?.reason);
-  assert.equal(confirmed.editionPath, 'fan/low-tide-2026');
+  assert.equal(confirmed.editionPath, 'low-tide-2026');
   assert.deepEqual(
     ports.repo.commits.map((c) => c.files.map((f) => f.path)),
     [
-      ['state/transcriptions/' + sha256(image().bytes) + '.json', 'state/uploads.json'],
-      ['data/fan/low-tide-2026.yaml', 'source/fan/low-tide-2026/TRANSCRIPTION.md', 'state/published.json'],
+      ['state/transcriptions/' + sha256(image().bytes) + '.json'],
+      ['data/low-tide-2026.yaml', 'source/low-tide-2026/TRANSCRIPTION.md', 'state/published.json'],
     ],
+    'an upload writes the reading it paid for and nothing about who asked',
   );
 });

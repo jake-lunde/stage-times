@@ -8,4 +8,5 @@ split. Owner-published editions sit at the root; every fan-published edition sit
 is a slightly longer link for fan editions. The gain is that the names people will actually
 search for stay owner-curated, and a fan link honestly says what it is to whoever receives it.
 
-Status: accepted, 2026-09-06.
+Status: accepted, 2026-09-06. Publishing half superseded by ADR-0005 (2026-09-22): nobody but the
+owner publishes, and nothing writes `/fan/` again; the one fan edition keeps its URL under this rule.

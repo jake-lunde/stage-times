@@ -1,5 +1,5 @@
 /**
- * The two serverless adapters: HTTP in, the publisher's own answer out.
+ * The serverless adapters: HTTP in, the publisher's own answer out.
  *
  * They are driven here exactly as a deployment drives them — a real `Request`
  * object with a JSON body — but with the fake ports, so no network, no model
@@ -14,9 +14,8 @@ import { join } from 'node:path';
 
 import { handle as handleUpload } from '../api/upload.js';
 import { handle as handleConfirm } from '../api/confirm.js';
-import { handle as handleRemove } from '../api/remove.js';
 import { handle as handleLink } from '../api/link.js';
-import { sha256, type Review, type SourceImage } from '../src/publisher.js';
+import { GATE_COPY, type Review, type SourceImage } from '../src/publisher.js';
 import { STREAM_TYPE } from '../src/publisher-http.js';
 import {
   fakeLinkPorts,
@@ -55,8 +54,8 @@ function post(body: unknown): Request {
 const UPLOAD_BODY = {
   festival: 'Low Tide',
   dates: { first: '2026-10-09', last: '2026-10-09' },
-  email: 'sam@example.com',
   image: imageBody(),
+  owner: OWNER_SECRET,
 };
 
 async function uploadOk(ports: Fakes): Promise<Review> {
@@ -72,7 +71,7 @@ async function uploadOk(ports: Fakes): Promise<Review> {
 test('adapter: a well-formed upload returns the review the publisher built', async () => {
   const ports = fakePorts();
   const review = await uploadOk(ports);
-  assert.equal(review.editionPath, 'fan/low-tide-2026');
+  assert.equal(review.editionPath, 'low-tide-2026');
   assert.equal(review.sets.length, 5);
   assert.equal(review.timezoneAssumed, true);
   assert.equal(ports.repo.commits.length, 1, 'the adapter added no writes of its own');
@@ -80,27 +79,15 @@ test('adapter: a well-formed upload returns the review the publisher built', asy
 
 test("adapter: a gate comes back with the publisher's own words and a status that fits", async () => {
   const ports = fakePorts();
-  const res = await handleUpload(post({ ...UPLOAD_BODY, email: 'not-an-address' }), ports);
+  const res = await handleUpload(post({ ...UPLOAD_BODY, festival: '  ' }), ports);
   assert.equal(res.status, 400);
   const body = (await res.json()) as { ok: boolean; gate: string; reason: string };
   assert.equal(body.ok, false);
   assert.equal(body.gate, 'details');
-  assert.equal(body.reason, "That email address doesn't look right.", 'passed through, not reworded');
+  assert.equal(body.reason, "Type the festival's name first.", 'passed through, not reworded');
 });
 
-test('adapter: a capped upload answers 429, an unreadable one 422', async () => {
-  const capped = fakePorts();
-  capped.repo.uploads = {
-    uploads: [0, 1, 2].map((i) => ({
-      address: sha256('sam@example.com'),
-      at: capped.clock.now() - i * 1000,
-      image: sha256(`x${i}`),
-    })),
-  };
-  const one = await handleUpload(post(UPLOAD_BODY), capped);
-  assert.equal(one.status, 429);
-  assert.equal(((await one.json()) as { gate: string }).gate, 'address-cap');
-
+test('adapter: an unreadable upload answers 422', async () => {
   const notASchedule = fakePorts();
   notASchedule.vision.looksLikeSchedule = async () => ({ isSchedule: false });
   const two = await handleUpload(post(UPLOAD_BODY), notASchedule);
@@ -122,13 +109,13 @@ test('adapter: a body that is not an intent is a 400 that spends nothing', async
 // Confirm
 // ---------------------------------------------------------------------------
 
-test('adapter: confirm publishes and hands back the edition and the secret, once', async () => {
+test('adapter: confirm publishes and hands back where the edition lives', async () => {
   const ports = fakePorts();
   const review = await uploadOk(ports);
   const res = await handleConfirm(
     post({
       festival: 'Low Tide',
-      email: 'sam@example.com',
+      owner: OWNER_SECRET,
       timezone: review.timezone,
       timezoneAssumed: review.timezoneAssumed,
       edits: [{ index: 0, artist: 'Avery Cochrane' }],
@@ -138,11 +125,9 @@ test('adapter: confirm publishes and hands back the edition and the secret, once
     ports,
   );
   assert.equal(res.status, 200, await res.clone().text());
-  const body = (await res.json()) as { ok: boolean; editionPath: string; updateSecret: string };
-  assert.equal(body.ok, true);
-  assert.equal(body.editionPath, 'fan/low-tide-2026');
-  assert.match(body.updateSecret, /^[A-Za-z0-9_-]{43}$/);
-  assert.match(ports.repo.file('data/fan/low-tide-2026.yaml')!, /artist: "Avery Cochrane"/);
+  const body = (await res.json()) as { ok: boolean; editionPath: string };
+  assert.deepEqual(body, { ok: true, editionPath: 'low-tide-2026' });
+  assert.match(ports.repo.file('data/low-tide-2026.yaml')!, /artist: "Avery Cochrane"/);
 });
 
 test('adapter: an unverifiable set answers 409 and publishes nothing', async () => {
@@ -151,7 +136,7 @@ test('adapter: an unverifiable set answers 409 and publishes nothing', async () 
   const res = await handleConfirm(
     post({
       festival: 'Low Tide',
-      email: 'sam@example.com',
+      owner: OWNER_SECRET,
       timezone: review.timezone,
       timezoneAssumed: review.timezoneAssumed,
       edits: [],
@@ -162,7 +147,7 @@ test('adapter: an unverifiable set answers 409 and publishes nothing', async () 
   );
   assert.equal(res.status, 409);
   assert.equal(((await res.json()) as { gate: string }).gate, 'review');
-  assert.equal(ports.repo.file('data/fan/low-tide-2026.yaml'), undefined);
+  assert.equal(ports.repo.file('data/low-tide-2026.yaml'), undefined);
 });
 
 // ---------------------------------------------------------------------------
@@ -185,7 +170,7 @@ test('adapter: an images list goes through as one upload and one confirm, with t
   const res = await handleConfirm(
     post({
       festival: 'Low Tide',
-      email: 'sam@example.com',
+      owner: OWNER_SECRET,
       timezone: review.timezone,
       timezoneAssumed: review.timezoneAssumed,
       edits: [],
@@ -227,7 +212,6 @@ test('adapter: an images field that is not a list of images is a 400', async () 
 function confirmBody(review: Review, extra: Record<string, unknown> = {}) {
   return {
     festival: 'Low Tide',
-    email: 'sam@example.com',
     timezone: review.timezone,
     timezoneAssumed: review.timezoneAssumed,
     edits: [],
@@ -237,87 +221,36 @@ function confirmBody(review: Review, extra: Record<string, unknown> = {}) {
   };
 }
 
-/** Upload and confirm over HTTP, both bodies carrying `extra`; the two responses. */
-async function throughBoth(extra: Record<string, unknown>, ports: Fakes = fakePorts()) {
-  const up = await handleUpload(post({ ...UPLOAD_BODY, ...extra }), ports);
-  const upBody = (await up.json()) as { review: Review };
-  const done = await handleConfirm(post(confirmBody(upBody.review, extra)), ports);
-  return { up: { status: up.status, body: upBody }, done: { status: done.status, body: await done.json() } };
-}
-
 test('adapter: the owner field reaches the publisher, and the owner confirm publishes at the root', async () => {
-  const { up, done } = await throughBoth({ owner: OWNER_SECRET });
-  assert.equal(up.status, 200);
-  assert.equal(up.body.review.editionPath, 'low-tide-2026');
-  assert.equal(done.status, 200, JSON.stringify(done.body));
-  assert.equal((done.body as { editionPath: string }).editionPath, 'low-tide-2026');
-});
-
-test('adapter: a wrong owner secret answers exactly as no owner secret, status and body', async () => {
-  const none = await throughBoth({});
-  for (const owner of ['not-the-owner-secret', '', 42, null, { secret: OWNER_SECRET }, [OWNER_SECRET]]) {
-    const wrong = await throughBoth({ owner });
-    assert.deepEqual(wrong, none, `owner: ${JSON.stringify(owner)} was told something no secret is not`);
-  }
-});
-
-test('adapter: with no owner secret on the deployment, the owner field is no secret and never an error', async () => {
-  const none = await throughBoth({});
-  const unset = await throughBoth({ owner: OWNER_SECRET }, fakePorts({ owner: fakeOwner(null) }));
-  assert.deepEqual(unset, none);
-});
-
-// ---------------------------------------------------------------------------
-// The adapters hold no rules
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// The update link
-// ---------------------------------------------------------------------------
-
-async function publishedLink(ports: Fakes): Promise<{ editionPath: string; secret: string }> {
+  const ports = fakePorts();
   const review = await uploadOk(ports);
-  const res = await handleConfirm(
-    post({ festival: 'Low Tide', email: 'sam@example.com', timezone: review.timezone, timezoneAssumed: true, edits: [], unverifiable: [], image: imageBody() }),
-    ports,
-  );
-  const body = (await res.json()) as { editionPath: string; updateSecret: string };
-  return { editionPath: body.editionPath, secret: body.updateSecret };
-}
-
-test('adapter: an update link rides through upload and confirm as a correction', async () => {
-  const ports = fakePorts();
-  const update = await publishedLink(ports);
-  const up = await handleUpload(post({ ...UPLOAD_BODY, update }), ports);
-  assert.equal(up.status, 200, await up.clone().text());
-  const review = ((await up.json()) as { review: Review }).review;
-  assert.equal(review.correcting, true);
-  assert.equal(review.editionPath, 'fan/low-tide-2026');
-
-  const res = await handleConfirm(
-    post({ festival: 'Low Tide', email: 'sam@example.com', timezone: review.timezone, timezoneAssumed: true, edits: [], unverifiable: [], image: imageBody(), update }),
-    ports,
-  );
-  const body = (await res.json()) as { editionPath: string; updateSecret: string; corrected: boolean };
-  assert.equal(body.corrected, true);
-  assert.equal(body.editionPath, 'fan/low-tide-2026');
-  assert.equal(body.updateSecret, update.secret);
+  assert.equal(review.editionPath, 'low-tide-2026');
+  const done = await handleConfirm(post(confirmBody(review, { owner: OWNER_SECRET })), ports);
+  assert.equal(done.status, 200, await done.clone().text());
 });
 
-test('adapter: remove takes the edition down with the right link and answers 403 with a wrong one', async () => {
+test('adapter: without the owner secret every adapter answers 403 in one sentence, and nothing is spent', async () => {
   const ports = fakePorts();
-  const update = await publishedLink(ports);
-  const wrong = await handleRemove(post({ update: { ...update, secret: 'nope' } }), ports);
-  assert.equal(wrong.status, 403);
-  assert.equal(((await wrong.json()) as { gate: string }).gate, 'update-link');
-  assert.equal(ports.repo.published.editions['fan/low-tide-2026']!.blocked, false);
-
-  const res = await handleRemove(post({ update }), ports);
-  assert.equal(res.status, 200, await res.clone().text());
-  assert.equal(ports.repo.published.editions['fan/low-tide-2026']!.blocked, true);
-
-  const bad = await handleRemove(post({}), ports);
-  assert.equal(bad.status, 400, 'no link, nothing to go on');
+  const review = await uploadOk(ports);
+  const commits = ports.repo.commits.length;
+  const checks = ports.vision.checks;
+  const links = fakeLinkPorts({ vision: weekendVision(), web: weekendPage() });
+  for (const owner of [undefined, 'not-the-owner-secret', '', 42, null, { secret: OWNER_SECRET }, [OWNER_SECRET]]) {
+    const answers = [
+      await handleUpload(post({ ...UPLOAD_BODY, owner }), ports),
+      await handleConfirm(post(confirmBody(review, { owner })), ports),
+      await handleLink(post({ url: SCHEDULE, owner }), links),
+    ];
+    for (const res of answers) {
+      assert.equal(res.status, 403, `owner: ${JSON.stringify(owner)}`);
+      assert.deepEqual(await res.json(), { ok: false, gate: 'owner', reason: GATE_COPY.owner });
+    }
+  }
+  const unset = await handleUpload(post(UPLOAD_BODY), fakePorts({ owner: fakeOwner(null) }));
+  assert.equal(unset.status, 403, 'no secret on the deployment: nobody is the owner');
+  assert.equal(ports.repo.commits.length, commits, 'nothing written');
+  assert.equal(ports.vision.checks, checks, 'nothing asked');
+  assert.deepEqual(links.web.pageFetches, [], 'nothing fetched');
 });
 
 // ---------------------------------------------------------------------------
@@ -341,7 +274,7 @@ function weekendPage() {
 
 test('adapter: a link returns the review, the days and the link as read, and the images, which confirm takes back', async () => {
   const ports = fakeLinkPorts({ vision: weekendVision(), web: weekendPage() });
-  const res = await handleLink(post({ url: SCHEDULE, email: 'sam@example.com' }), ports);
+  const res = await handleLink(post({ url: SCHEDULE, owner: OWNER_SECRET }), ports);
   assert.equal(res.status, 200, await res.clone().text());
   const body = (await res.json()) as { review: Review; officialUrl: string; days: string[]; images: Record<string, unknown>[] };
   assert.equal(body.officialUrl, SCHEDULE);
@@ -354,7 +287,7 @@ test('adapter: a link returns the review, the days and the link as read, and the
       images: body.images,
       reviewed: body.review.images,
       festival: body.review.festival,
-      email: 'sam@example.com',
+      owner: OWNER_SECRET,
       timezone: body.review.timezone,
       timezoneAssumed: body.review.timezoneAssumed,
       officialUrl: body.officialUrl,
@@ -362,14 +295,14 @@ test('adapter: a link returns the review, the days and the link as read, and the
     ports,
   );
   assert.equal(confirmed.status, 200, await confirmed.clone().text());
-  assert.equal(((await confirmed.json()) as { editionPath: string }).editionPath, 'fan/low-tide-2026');
+  assert.equal(((await confirmed.json()) as { editionPath: string }).editionPath, 'low-tide-2026');
 });
 
 test('adapter: a link the publisher cannot read comes back as its sentence, with a status for each reason', async () => {
   const ports = fakeLinkPorts({ web: fakeWeb() });
   const cases: [Record<string, unknown>, number, string][] = [
-    [{ url: 'http://127.0.0.1/', email: 'sam@example.com' }, 400, 'address'],
-    [{ url: SCHEDULE, email: 'sam@example.com' }, 502, 'unreachable'],
+    [{ url: 'http://127.0.0.1/', owner: OWNER_SECRET }, 400, 'address'],
+    [{ url: SCHEDULE, owner: OWNER_SECRET }, 502, 'unreachable'],
   ];
   for (const [body, status, gate] of cases) {
     const res = await handleLink(post(body), ports);
@@ -379,7 +312,7 @@ test('adapter: a link the publisher cannot read comes back as its sentence, with
     assert.match(answer.reason, /screenshots/);
   }
 
-  const unreadable = await handleLink(post({ email: 'sam@example.com' }), ports);
+  const unreadable = await handleLink(post({ owner: OWNER_SECRET }), ports);
   assert.equal(unreadable.status, 400, 'no link, nothing to go on');
 });
 
@@ -394,7 +327,6 @@ test('adapter: each file contains only request parsing and the publisher call', 
     'namespace',
     'sha256',
     'MAX_IMAGE',
-    'UPLOADS_PER',
     'fan/',
     'data/',
     'state/',
@@ -405,7 +337,7 @@ test('adapter: each file contains only request parsing and the publisher call', 
     'listed',
   ];
 
-  for (const file of ['upload.ts', 'link.ts', 'confirm.ts', 'remove.ts']) {
+  for (const file of ['upload.ts', 'link.ts', 'confirm.ts']) {
     const source = readFileSync(join(REPO_ROOT, 'api', file), 'utf8');
     const code = source.replace(/\/\*\*[\s\S]*?\*\//g, ''); // the header comment explains; it does not run
     const imports = [...code.matchAll(/from '([^']+)'/g)].map((m) => m[1]!);
@@ -486,7 +418,7 @@ test('adapter stream: a link sends its own steps, then each check and reading, t
     new Request('https://stagetimes.app/api/link', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: STREAM_TYPE },
-      body: JSON.stringify({ url: SCHEDULE, email: 'sam@example.com' }),
+      body: JSON.stringify({ url: SCHEDULE, owner: OWNER_SECRET }),
     }),
     ports,
   );
@@ -502,18 +434,18 @@ test('adapter stream: a link sends its own steps, then each check and reading, t
   assert.equal(answer.ok, true);
   assert.deepEqual(answer.days, ['2026-10-09', '2026-10-10', '2026-10-11']);
   assert.equal(answer.images.length, 3, 'the same body a plain request gets, as the last line');
-  const plain = await handleLink(post({ url: SCHEDULE, email: 'sam@example.com' }), fakeLinkPorts({ vision: weekendVision(), web: weekendPage() }));
+  const plain = await handleLink(post({ url: SCHEDULE, owner: OWNER_SECRET }), fakeLinkPorts({ vision: weekendVision(), web: weekendPage() }));
   assert.deepEqual(answer, await plain.json());
 });
 
 test('adapter: confirm reads `days` as the days as checked, and refuses a list that is not one', async () => {
   const ports = fakeLinkPorts({ vision: weekendVision(), web: weekendPage() });
-  const linked = (await (await handleLink(post({ url: SCHEDULE, email: 'sam@example.com' }), ports)).json()) as { review: Review; officialUrl: string; images: Record<string, unknown>[] };
+  const linked = (await (await handleLink(post({ url: SCHEDULE, owner: OWNER_SECRET }), ports)).json()) as { review: Review; officialUrl: string; images: Record<string, unknown>[] };
   const body = {
     images: linked.images,
     reviewed: linked.review.images,
     festival: 'Low Tide',
-    email: 'sam@example.com',
+    owner: OWNER_SECRET,
     timezone: linked.review.timezone,
     timezoneAssumed: linked.review.timezoneAssumed,
     officialUrl: linked.officialUrl,
@@ -522,7 +454,7 @@ test('adapter: confirm reads `days` as the days as checked, and refuses a list t
   assert.equal(bad.status, 400, 'not a list: the request could not be read');
   const moved = await handleConfirm(post({ ...body, days: ['2027-10-08', '2027-10-09', '2027-10-10'] }), ports);
   assert.equal(moved.status, 200, await moved.clone().text());
-  assert.equal(((await moved.json()) as { editionPath: string }).editionPath, 'fan/low-tide-2027', 'the days moved, and the year with them');
+  assert.equal(((await moved.json()) as { editionPath: string }).editionPath, 'low-tide-2027', 'the days moved, and the year with them');
 });
 
 test("adapter stream: confirm streams checking, saving, done, then today's answer", async () => {
@@ -532,7 +464,7 @@ test("adapter stream: confirm streams checking, saving, done, then today's answe
   const res = await handleConfirm(
     streamPost({
       festival: 'Low Tide',
-      email: 'sam@example.com',
+      owner: OWNER_SECRET,
       timezone: review.timezone,
       timezoneAssumed: review.timezoneAssumed,
       edits: [],
@@ -547,7 +479,7 @@ test("adapter stream: confirm streams checking, saving, done, then today's answe
     all.slice(0, -1).map((l) => (l as { progress: { step: string } }).progress.step),
     ['checking', 'saving', 'done'],
   );
-  const answer = all.at(-1) as { ok: boolean; editionPath: string; updateSecret: string; corrected: boolean };
-  assert.deepEqual(Object.keys(answer).sort(), ['corrected', 'editionPath', 'ok', 'updateSecret'], "today's confirm answer, nothing added");
-  assert.equal(answer.editionPath, 'fan/low-tide-2026');
+  const answer = all.at(-1) as { ok: boolean; editionPath: string };
+  assert.deepEqual(Object.keys(answer).sort(), ['editionPath', 'ok'], "today's confirm answer, nothing added");
+  assert.equal(answer.editionPath, 'low-tide-2026');
 });

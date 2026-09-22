@@ -47,9 +47,8 @@ or blocked appears; the build never reads a clock, so there is no "past" and no 
 ```
 
 The card, top to bottom: **eyebrow** — the short dates and the city (`Aug 7–9, 2026 · Seattle`,
-mono caps, `--ink-soft`; city is an optional display-only field on the festival); on a fan
-edition the eyebrow slot carries the fan-made mark in `--red-deep` instead and the dates drop
-to the first quiet line. **Title** — the festival name, expanded 600, 24 (phone) / 28, at most
+mono caps, `--ink-soft`; city is an optional display-only field on the festival). No card says
+whose it is: every edition is the owner's (ADR-0005). **Title** — the festival name, expanded 600, 24 (phone) / 28, at most
 two lines. **Lead** — one bold line, `79 sets across 4 stages.` **Quiet line** — the first
 stage's billed headliners, as the data has them. Then art to the bottom edge.
 
@@ -159,13 +158,13 @@ Analytics snippet is the one owner-approved exception). No share sheet. No "add 
 prompt. No countdown timer.
 
 A festival-goer opens a festival page once, taps two or three times, and never returns. Every
-feature that assumes a second visit is dead weight. The one exception is the update link the
-upload flow hands an uploader: that is the second visit, and it is theirs alone.
+feature that assumes a second visit is dead weight.
 
 ## 3. Upload — `/upload/`
 
-The third page type (ticket 08, 2026-09-20). One static page, six screens shown one at a time
-by a small script, so the image never leaves the phone's memory between screens. Everything the
+The third page type (ticket 08, 2026-09-20), and the owner's alone since ADR-0005: every screen
+ships hidden, and without the bookmark's secret the script sends the visitor home before one
+shows. One static page, six screens shown one at a time by a small script, so the image never leaves the phone's memory between screens. Everything the
 flow *decides* is in `src/publisher.ts`; the page repeats the publisher's own sentence for every
 rejection and holds no rule of its own. Markup and copy in `src/upload-pages.ts`.
 
@@ -222,7 +221,7 @@ rejection and holds no rule of its own. Markup and copy in `src/upload-pages.ts`
 │  WEEKEND 2                   │     there is more than one; the year is the first
 │  FRIDAY [Oct 9] SATURDAY [ ] │     day's, and moving it moves every day. Then the
 │  SUNDAY [ ]                  │     address the page will live at, following the name
-│  Your page will be …/fan/…/  │     and that year as typed. After screenshots the
+│  The page will be …/acl-…/   │     and that year as typed. After screenshots the
 │                              │     header is what was typed, unshown. Then the time
 │  Time zone [Central      ▾]  │     zone (select, spoken names): the festival's own
 │  Where this festival is held.│     when it is on record in the almanac, else a guess
@@ -244,24 +243,21 @@ rejection and holds no rule of its own. Markup and copy in `src/upload-pages.ts`
 │  …                           │     No dividers. Nothing blocks confirm.
 │  [       Confirm      ]      │
 │                              │
-│  Building your page          │  4. PUBLISHING — the honest wait: times are saved,
-│  Checking every few seconds. │     the page is building. The update link is handed
-│  YOUR UPDATE LINK            │     over here, not after, with a copy icon button.
-│  [https://…/update/…] (⧉)    │
+│  Building the page           │  4. PUBLISHING — the honest wait: times are saved,
+│  Checking every few seconds. │     the page is building.
 │                              │
-│  It's live                   │  5. SUCCESS — share link, update link, one line
-│  YOUR PAGE                   │     saying which to keep, one pill: Open your page.
-│  [https://…/fan/…/   ] (⧉)   │     After five minutes without an answer the heading
-│  YOUR UPDATE LINK            │     is "Nearly there" and the links are still shown.
-│  [https://…/update/…] (⧉)    │
-│  [    Open your page   ]     │
+│  It's live                   │  5. SUCCESS — the page link with a copy icon
+│  On the homepage now.        │     button, one pill: Open the page. After five
+│  THE PAGE                    │     minutes without an answer the heading is "Nearly
+│  [https://…/acl-…/   ] (⧉)   │     there" and the link is still shown.
+│  [    Open the page    ]     │
 └──────────────────────────────┘
 ```
 
 Rules that came out of building it:
 
 - **A rejection lands on the screen that can fix it.** A typo goes back to the form; anything
-  about the image, and the caps, go back to the file pill; a review that will not build stays on
+  about the image goes back to the file pill; a review that will not build stays on
   review. `GATE_SCREENS` in `src/upload-pages.ts` is the map, and the script carries it verbatim.
 - **The browser checks what it can before it posts** — type and the short edge — with the
   publisher's own numbers, and shrinks an image to its share of the platform's body cap: one post
@@ -279,20 +275,17 @@ Rules that came out of building it:
 - **A rejection never strands the reader.** A review-gate rejection with nothing reviewed lands
   on the images, not on an empty review; Confirm with nothing to confirm goes back. A source
   with no web address printed on it (the schema needs one) lands on the form as the `link`
-  gate, revealing a single "Schedule link" field that is otherwise hidden — the form stays four
-  fields for everyone whose poster prints its address.
-- **The update link is shown while the page builds**, not only on success. Once confirm answers,
-  the secret exists nowhere but this tab; a two-minute wait is the wrong place to hold it.
+  gate, revealing a single "Schedule link" field that is otherwise hidden — the form stays three
+  fields when the poster prints its address.
 - **The wait is real.** The script asks for the edition's own calendar until it answers, and says
   so in a sentence when it stops trying. Nothing on this page says "done" before it is.
-- **Glossary words stay off the page.** Screens say "your page", "your update link", "the times",
+- **Glossary words stay off the page.** Screens say "the page", "the times",
   "a guess" — never edition, feed, transcription, verified, or a zone id.
 - **The link is the front door; the screenshots are one tap away, unchanged** (ticket 20). The
-  link screen asks for two things and nothing about the festival — name, year and days come off
+  link screen asks for one thing and nothing about the festival — name, year and days come off
   the page and are checked on review, where the address updates as the name is typed so a
   misread name is caught before it is permanent. Every answer to a link, whatever its gate, lands
-  back on the link screen: it is the only screen that came before it. The update link's page has
-  no link screen; it already knows its festival.
+  back on the link screen: it is the only screen that came before it.
 
 - **The flagged sets are the review; the rest wait behind one tap per day** (owner feedback,
   2026-09-22). Two hundred rows is a page nobody checks. Each day counts its sets and its
@@ -315,22 +308,8 @@ Rules that came out of building it:
   (`config/festivals.yaml`, matched by the schedule page's host or the printed name — Central
   for ACL) with "Where this festival is held." under the select instead of "A guess".
 
-### The update link's page — `/update/fan/<key>/`
+### No update link's page
 
-The same flow for one festival (ticket 09, 2026-09-21), rendered once per fan edition. It differs
-from `/upload/` in four places and nowhere else:
-
-- **The header names the festival** — `{Festival} {Year}` like the removed page, mono caption
-  `Fix a time or take it down`.
-- **The first screen says what it will change before anything is chosen**: one line above the
-  form — `A new screenshot replaces every time on stagetimes.app/fan/<key>/. Anyone who added a
-  stage gets the new times the next time their calendar app checks.` Name and days are filled in.
-- **Take it down** is a text button under Next, leading to its own screen: one line on what
-  happens, a tonal button with `--red-deep` text (destructive, never a red pill), and `Keep it`
-  back. After it: `Taken down` and one line.
-- **No update link on the way out** — they are holding it. The wait is for the calendar to
-  *change*, not merely to answer. If the link did not hold, the review says so above the sets:
-  `That update link didn't match, so this will be a new page: …`.
-
-A taken-down festival's link says `This page was taken down, so there's nothing left to change
-here.` and offers nothing.
+Until ADR-0005 (2026-09-22) each fan edition had a page at `/update/fan/<key>/` for its
+uploader to fix a time or take it down. Nobody but the owner publishes now, so neither the page
+nor the link exists; the owner corrects through the watcher's review or the YAML.

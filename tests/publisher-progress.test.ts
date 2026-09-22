@@ -14,12 +14,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { confirm, upload, type ConfirmIntent, type Progress, type Review, type SourceImage, type UploadIntent } from '../src/publisher.js';
-import { fakePorts, fakeProgress, weekendImages, weekendVision, type Fakes } from './publisher-fakes.js';
-
-const UPLOADER = 'sam@example.com';
+import { fakePorts, fakeProgress, OWNER_SECRET, weekendImages, weekendVision, type Fakes } from './publisher-fakes.js';
 
 function daysIntent(images: SourceImage[], overrides: Partial<UploadIntent> = {}): UploadIntent {
-  return { kind: 'upload', festival: 'Low Tide', dates: { first: '2026-10-09', last: '2026-10-11' }, email: UPLOADER, images, ...overrides };
+  return { kind: 'upload', festival: 'Low Tide', dates: { first: '2026-10-09', last: '2026-10-11' }, images, owner: OWNER_SECRET, ...overrides };
 }
 
 function confirmOf(review: Review, images: SourceImage[]): ConfirmIntent {
@@ -28,7 +26,7 @@ function confirmOf(review: Review, images: SourceImage[]): ConfirmIntent {
     images,
     reviewed: review.images,
     festival: 'Low Tide',
-    email: UPLOADER,
+    owner: OWNER_SECRET,
     timezone: review.timezone,
     timezoneAssumed: review.timezoneAssumed,
     edits: [],
@@ -52,7 +50,7 @@ const SUNDAY = [
 /** Friday already read by an earlier upload, so its reading costs nothing this time. */
 async function fridayCached(): Promise<Fakes> {
   const ports = fakePorts({ vision: weekendVision() });
-  const first = await upload(daysIntent([weekendImages()[0]!], { email: 'first@example.com' }), ports);
+  const first = await upload(daysIntent([weekendImages()[0]!]), ports);
   assert.equal(first.ok, true, `the Friday upload was refused: ${first.rejection?.reason}`);
   ports.vision.checked.length = 0;
   ports.vision.transcribed.length = 0;
@@ -111,7 +109,7 @@ test('progress: an image that is not a schedule stops the reports at the image b
 
 test('progress: a gate that refuses before anything is read reports nothing', async () => {
   const progress = fakeProgress();
-  const result = await upload(daysIntent(weekendImages(), { email: 'nope' }), fakePorts({ vision: weekendVision(), progress }));
+  const result = await upload(daysIntent(weekendImages(), { festival: '  ' }), fakePorts({ vision: weekendVision(), progress }));
   assert.equal(result.ok, false);
   assert.deepEqual(progress.reports, []);
 });
@@ -145,16 +143,4 @@ test('progress: a confirm the checks refuse never says saving', async () => {
   const result = await confirm({ ...confirmOf(up.review!, weekendImages()), unverifiable: [0] }, { ...ports, progress });
   assert.equal(result.rejection?.gate, 'review');
   assert.deepEqual(progress.reports.map((p) => p.step), ['checking']);
-});
-
-test('progress: a correction reports the same three steps', async () => {
-  const ports = fakePorts({ vision: weekendVision() });
-  const up = await upload(daysIntent(weekendImages()), ports);
-  const done = await confirm(confirmOf(up.review!, weekendImages()), ports);
-  const update = { editionPath: done.editionPath!, secret: done.updateSecret! };
-  const again = await upload(daysIntent(weekendImages(), { update }), ports);
-  const progress = fakeProgress();
-  const corrected = await confirm({ ...confirmOf(again.review!, weekendImages()), update }, { ...ports, progress });
-  assert.equal(corrected.corrected, true, `the correction was refused: ${corrected.rejection?.reason}`);
-  assert.deepEqual(progress.reports.map((p) => p.step), ['checking', 'saving', 'done']);
 });

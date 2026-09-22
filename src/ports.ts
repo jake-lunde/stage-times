@@ -19,7 +19,7 @@
  *
  * Secrets come from the environment, named in `src/secrets.ts`:
  * `ANTHROPIC_API_KEY` pays for vision, `GITHUB_TOKEN` writes the repository
- * and opens listing pull requests, `OWNER_SECRET` is what the owner port
+ * and opens the watcher's review pull requests, `OWNER_SECRET` is what the owner port
  * checks a presented secret against.
  *
  * Deployment note: `config/vision-models.json` must be bundled with the
@@ -36,7 +36,6 @@ import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib';
 import { loadVisionConfig, withModelFallback } from './models.js';
 import {
   PUBLISHED_PATH,
-  UPLOADS_PATH,
   TRANSCRIPTION_STORE_DIR,
   type ClockPort,
   type Commit,
@@ -50,7 +49,6 @@ import {
   type SavedTranscription,
   type ScheduleCheck,
   type SourceImage,
-  type UploadLedger,
   type VisionPort,
   type LinkPorts,
   type WebPort,
@@ -140,11 +138,11 @@ export class GitHubError extends Error {
 /**
  * Commits every intent to `main` through the Git Data API.
  *
- * Fan editions commit straight to main by design (spec: no pull request per
- * upload) — the uploader's confirm is the human check, and a pull request
- * nobody merges is a draft tier, which this product does not have. The one
- * pull request is the listing: a branch off the publish commit, opened against
- * main, for the owner to merge from the GitHub app.
+ * The owner's confirm commits straight to main by design — the tap is the
+ * human check, and a pull request nobody merges is a draft tier, which this
+ * product does not have. The one pull request is the watcher's review: a
+ * branch off the run's state commit, opened against main, for the owner to
+ * merge from the GitHub app.
  */
 export function githubRepository(
   env: Env = process.env,
@@ -233,9 +231,6 @@ export function githubRepository(
     async readPublished() {
       return readJson<PublishedFile>(PUBLISHED_PATH, { publishedAt: '', editions: {} });
     },
-    async readUploads() {
-      return readJson<UploadLedger>(UPLOADS_PATH, { uploads: [] });
-    },
     async readTranscription(hash) {
       return readJson<SavedTranscription | null>(`${TRANSCRIPTION_STORE_DIR}/${hash}.json`, null);
     },
@@ -271,6 +266,8 @@ export function githubRepository(
 /**
  * GitHub is the alert channel for everything machine-initiated (spec). An issue
  * lands in the owner's inbox; nothing is ever emailed, to anyone, by anything.
+ * The repository is public, so its issues are too: an issue carries the
+ * notice's title and body and nothing else.
  */
 export function githubNotifier(
   env: Env = process.env,
@@ -292,7 +289,7 @@ export function githubNotifier(
         },
         body: JSON.stringify({
           title: notification.title,
-          body: notification.email ? `${notification.body}\n\nUploader: ${notification.email}` : notification.body,
+          body: notification.body,
           labels: [notification.kind],
         }),
       });

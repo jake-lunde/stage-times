@@ -1,9 +1,8 @@
-# Owner runbook: the bookmark and the listing pull request
+# Owner runbook: the bookmark
 
-The **owner** publishes through the same upload, review and confirm screens as any uploader,
-recognized by a secret carried in a bookmarked link. Vocabulary is `CONTEXT.md`; the product
-decisions are in the vault spec (self-serve editions, 2026-09-06, "The owner path"). This page
-is the procedure.
+Every edition is the owner's (ADR-0005). The owner publishes through the upload, review and
+confirm screens at `/upload/`, recognized by a secret carried in a bookmarked link; nobody else
+can use them. Vocabulary is `CONTEXT.md`. This page is the procedure.
 
 ## The bookmark
 
@@ -19,66 +18,42 @@ How it works:
 
 - The secret rides in the **fragment** (after `#`), which a browser never sends to a server, so
   it never lands in a request log.
-- The page reads it once, **clears it from the address bar**, and sends it as `owner` with both
-  posts (`/api/upload`, `/api/confirm`). Reloading mid-flow drops it; open the bookmark again.
+- The page reads it once, **clears it from the address bar**, keeps it in the tab's session
+  storage so a reload mid-flow still has it, and sends it as `owner` with every post
+  (`/api/link`, `/api/upload`, `/api/confirm`). Closing the tab forgets it.
+- Without it the page sends the visitor home before a screen shows.
 - The publisher checks it against `OWNER_SECRET` in constant time (`ownerMatches()` in
-  `src/secrets.ts`, through the owner port in `src/ports.ts`). A wrong, stale, empty or missing
-  secret — or a deployment with none set — is treated exactly as no secret: the upload is a
-  fan's, and nothing in the response says a secret was tried.
+  `src/secrets.ts`, through the owner port in `src/ports.ts`) **before anything else**. A wrong,
+  stale, empty or missing secret — or a deployment with none set — is refused: no field is
+  judged, no page fetched, no model asked, nothing written. The page shows "Only I add festivals
+  here." on the first screen; that means the bookmark is stale.
 
-**Check the review screen.** It says where the page will live. With the owner secret it reads
-`stagetimes.app/<festival>-<year>/`; without it, `stagetimes.app/fan/<festival>-<year>/`. If
-you see `/fan/`, your bookmark is stale — stop, and fix the bookmark before you confirm. A fan
-edition can never move to the root afterwards (ADR-0001).
+## What the confirm does
 
-## What the owner's confirm does
-
-One commit to `main`, same as a fan's, except:
+One commit to `main`:
 
 - the YAML goes to `data/<festival>-<year>.yaml` with `namespace: owner`, and the log to
   `source/<festival>-<year>/TRANSCRIPTION.md`;
+- the stored source images go to `source/images/<hash>.<ext>`;
 - the edition is recorded in `state/published.json` under `<festival>-<year>` with
   **`listed: true`** in the same commit — your tap is the approval;
-- no listing pull request and no notification: nothing machine-initiated happened.
+- no pull request and no notification: nothing machine-initiated happened.
 
-The success screen still hands you an update link, as it would anyone — but keep it as a
-receipt, not a tool. The update link (ticket 09) corrects and takes down fan editions only, and
-its page is written for fan editions only, so an owner edition's link has nowhere to land.
+An edition that already exists at that path is **refused**, never replaced and never suffixed.
+To change a published edition's times, merge the watcher's review pull request when there is
+one, or edit its YAML (README, "Pushing a schedule change").
 
-An owner edition that already exists at that path is **refused**, never replaced and never
-suffixed — replacing one is a correction, not a new upload. To change an owner edition's times,
-edit its YAML (README, "Pushing a schedule change").
-
-The upload caps (3 per address per hour, 20 a day across everyone) apply to you too.
-
-## Listing a fan edition
-
-Every fan confirm does two machine-initiated things, both of which land in your GitHub inbox:
-
-1. an **issue** labeled `edition-published` — the set count, the images, the uploader's address
-   (the only place it exists; ADR-0003), and the page link;
-2. a **pull request** titled `List <Festival> <Year>` from branch `list/fan/<festival>-<year>`.
-   Its body has the page link and the set count. Its diff is one line in
-   `state/published.json`: that edition's `"listed": false` becomes `true`.
-
-Open the page link, look at it, and **merge the pull request from the GitHub app** to list it.
-The next deploy puts it on the homepage; no feed byte changes, so no `publishedAt` bump is
-needed. To decline, close the pull request. It stays uploader-verified at its own link and
-appears nowhere on the site.
-
-The branch starts at the publish commit, so the diff stays that one line whatever lands on
-`main` in between. If the edition is blocked before you merge, merging still sets `listed`, and
-the build still treats a blocked edition as unlisted.
-
-**If the pull request did not open**, the issue says "The listing pull request could not be
-opened … list it by hand" with GitHub's answer — usually the token lacks *Pull requests:
-read and write*. The edition is published either way. To list by hand, make the same one-line
-edit to `state/published.json` on `main` and push.
+**Stage ids are permanent from this commit** — and the commit deploys. The review screen does
+not let you rename a stage, so when the ids a reading derives are not ones you want forever
+(`tito-s-handmade-vodka-weekend-1`), build the edition locally instead: transcribe the stored
+readings with the stages you picked, each carrying `read_as:` so the watcher maps its readings
+back onto them (README, the watcher). ACL 2026 was made this way.
 
 ## Rotating the owner secret
 
 Rotate when the bookmark may have leaked (a shared screen, a synced browser you no longer
-control) or on whatever schedule you like.
+control) or on whatever schedule you like. The secret is the only thing between a stranger and
+a model call on your key.
 
 1. `scripts/provision-secrets.sh` — say yes at "OWNER_SECRET already exists on Vercel. Rotate
    it?". It mints a new secret, sets it for production and preview, prints the new link, and
@@ -88,9 +63,7 @@ control) or on whatever schedule you like.
    live, the old secret still works and the new one does not. The wizard's last stage offers
    the push or a redeploy, then polls `POST /api/health`, which says `owner: true` once the
    new secret is recognized.
-4. The old bookmark now publishes as a fan, silently — which is why the review screen check
-   above matters.
+4. The old bookmark is now refused on its first post.
 
-After a suspected leak, also check `state/published.json` in `git log` for root-namespace
-editions you did not publish. Block any you find ([takedown-runbook.md](./takedown-runbook.md));
-never delete one.
+After a suspected leak, also check `state/published.json` in `git log` for editions you did not
+publish. Block any you find ([takedown-runbook.md](./takedown-runbook.md)); never delete one.

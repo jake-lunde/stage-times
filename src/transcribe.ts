@@ -344,7 +344,7 @@ export interface TranscriptionOptions {
   edits?: SetEdit[];
   /**
    * True when a human has checked every set against the source image — the
-   * uploader's confirm, or the owner's. Writes `verified: true`, which is what
+   * owner's confirm, or the merge of a watcher's review. Writes `verified: true`, which is what
    * a production build requires. Defaults to false: a transcription nobody has
    * looked at is never pre-verified.
    */

@@ -19,7 +19,6 @@ import {
   MAX_UPLOAD_IMAGES,
   sha256,
   upload,
-  UPLOADS_PER_ADDRESS_PER_HOUR,
   type ConfirmIntent,
   type Review,
   type SourceImage,
@@ -29,25 +28,21 @@ import type { PublishedFile } from '../src/build.js';
 import { loadFestivalFromString } from '../src/schema.js';
 import {
   fakePorts,
-  fakeRepository,
-  FIXED_NOW,
   image,
-  ledgerOf,
+  OWNER_SECRET,
   recordedReply,
   weekendImages,
   weekendVision,
   type Fakes,
 } from './publisher-fakes.js';
 
-const UPLOADER = 'sam@example.com';
-
 function daysIntent(images: SourceImage[], overrides: Partial<UploadIntent> = {}): UploadIntent {
   return {
     kind: 'upload',
     festival: 'Low Tide',
     dates: { first: '2026-10-09', last: '2026-10-11' },
-    email: UPLOADER,
     images,
+    owner: OWNER_SECRET,
     ...overrides,
   };
 }
@@ -58,7 +53,7 @@ function confirmDays(review: Review, images: SourceImage[], overrides: Partial<C
     images,
     reviewed: review.images,
     festival: 'Low Tide',
-    email: UPLOADER,
+    owner: OWNER_SECRET,
     timezone: review.timezone,
     timezoneAssumed: review.timezoneAssumed,
     edits: [],
@@ -161,7 +156,7 @@ test('days: each image is cached on its own — a retry with two of three read b
   assert.equal(retry.reused, false, 'Sunday cost something');
 
   const written = retry.commit!.files.map((f) => f.path);
-  assert.deepEqual(written, [`state/transcriptions/${sha256(sun!.bytes)}.json`, 'state/uploads.json'], 'only the new reading is saved');
+  assert.deepEqual(written, [`state/transcriptions/${sha256(sun!.bytes)}.json`], 'only the new reading is saved');
   assert.equal(retry.review!.sets.length, 11, 'and the review still covers all three days');
 
   const again = await upload(daysIntent([fri!, sat!, sun!]), ports);
@@ -232,34 +227,8 @@ test('days: a duplicate image in the list is refused, named, before anything is 
 });
 
 // ---------------------------------------------------------------------------
-// The caps count the upload
+// How many images
 // ---------------------------------------------------------------------------
-
-test('days: the caps count one upload per request, however many images it carries', async () => {
-  // Two uploads this hour already; the limit is three. A three-image upload is
-  // one more, not three more.
-  const ports = weekendPorts({
-    repo: fakeRepository({
-      uploads: ledgerOf(
-        Array.from({ length: UPLOADS_PER_ADDRESS_PER_HOUR - 1 }, (_, i) => ({ email: UPLOADER, at: FIXED_NOW - (i + 1) * 60_000 })),
-      ),
-    }),
-  });
-  const result = await upload(daysIntent(weekendImages()), ports);
-  assert.ok(result.ok, result.rejection?.reason);
-
-  const ledger = JSON.parse(ports.repo.file('state/uploads.json')!) as { uploads: { at: number; image: string; images?: string[] }[] };
-  assert.equal(ledger.uploads.length, UPLOADS_PER_ADDRESS_PER_HOUR, 'one entry for the whole upload');
-  const entry = ledger.uploads.at(-1)!;
-  assert.equal(entry.at, FIXED_NOW);
-  assert.equal(entry.image, sha256(weekendImages()[0]!.bytes));
-  assert.deepEqual(entry.images, hashes(weekendImages()), 'every image it paid to read');
-
-  // And now the address is at its limit.
-  const [, , sun] = weekendImages();
-  const next = await upload(daysIntent([{ ...sun!, bytes: new TextEncoder().encode('a fourth poster') }]), ports);
-  assert.equal(next.rejection!.gate, 'address-cap');
-});
 
 test(`days: a request over ${MAX_UPLOAD_IMAGES} images is refused in a plain sentence before anything is read`, async () => {
   const ports = weekendPorts();
@@ -318,7 +287,7 @@ test('days: confirm stores every image under its content hash, and the log and t
   const { review, ports } = await weekendReview();
   const result = await confirm(confirmDays(review, weekendImages()), ports);
   assert.ok(result.ok, result.rejection?.reason);
-  assert.equal(result.editionPath, 'fan/low-tide-2026');
+  assert.equal(result.editionPath, 'low-tide-2026');
 
   const [fri, sat, sun] = hashes(weekendImages());
   const stored = result.commit!.images;
@@ -332,21 +301,18 @@ test('days: confirm stores every image under its content hash, and the log and t
   );
   stored.forEach((s, i) => assert.deepEqual(s.bytes, weekendImages()[i]!.bytes, `${s.path} is that image's bytes`));
 
-  const log = ports.repo.file('source/fan/low-tide-2026/TRANSCRIPTION.md')!;
+  const log = ports.repo.file('source/low-tide-2026/TRANSCRIPTION.md')!;
   assert.match(log, new RegExp(`Source images: \`${fri}\\.webp\`, \`${sat}\\.png\`, \`${sun}\\.jpg\`\\.`));
 
-  const yaml = ports.repo.file('data/fan/low-tide-2026.yaml')!;
+  const yaml = ports.repo.file('data/low-tide-2026.yaml')!;
   for (const name of [`${fri}.webp`, `${sat}.png`, `${sun}.jpg`]) assert.match(yaml, new RegExp(`# {3}${name}`));
-  const doc = loadFestivalFromString(yaml, 'data/fan/low-tide-2026.yaml');
+  const doc = loadFestivalFromString(yaml, 'data/low-tide-2026.yaml');
   assert.equal(doc.sets.length, 11);
   assert.deepEqual(doc.stages.map((s) => s.id), ['main', 'cellar', 'harbor']);
 
   const published = JSON.parse(ports.repo.file('state/published.json')!) as PublishedFile;
-  const uploader = published.editions['fan/low-tide-2026']!.uploader!;
-  assert.equal(uploader.image, fri);
-  assert.deepEqual(uploader.images, [fri, sat, sun], 'every image the edition was read from');
-
-  assert.match(result.notifications[0]!.body, /^11 sets across 3 stages, read off friday\.webp, saturday\.png and sunday\.jpg and checked/);
+  assert.deepEqual(published.editions['low-tide-2026']!.stages, ['cellar', 'harbor', 'main']);
+  assert.ok(result.ok);
 });
 
 test('days: an edit addresses a set on any day by its review index', async () => {
@@ -357,7 +323,7 @@ test('days: an edit addresses a set on any day by its review index', async () =>
     ports,
   );
   assert.ok(result.ok, result.rejection?.reason);
-  const doc = loadFestivalFromString(ports.repo.file('data/fan/low-tide-2026.yaml')!, 'committed');
+  const doc = loadFestivalFromString(ports.repo.file('data/low-tide-2026.yaml')!, 'committed');
   assert.equal(doc.sets.find((s) => s.artist === 'WAXAHATCHEE')!.start.raw, '2026-10-11T19:20:00');
 });
 
@@ -380,7 +346,7 @@ test('days: an edition uploaded as a list of one is byte-identical to one upload
   assert.ok(one.ok, one.rejection?.reason);
   await confirm(
     {
-      kind: 'confirm', image: image(), festival: 'Low Tide', email: UPLOADER,
+      kind: 'confirm', image: image(), festival: 'Low Tide', owner: OWNER_SECRET,
       timezone: one.review!.timezone, timezoneAssumed: one.review!.timezoneAssumed, edits: [], unverifiable: [],
     },
     single,
@@ -395,11 +361,6 @@ test('days: an edition uploaded as a list of one is byte-identical to one upload
   const everything = (p: Fakes) => p.repo.commits.map((c) => ({ ...c, images: c.images.map((i) => ({ ...i, bytes: [...i.bytes] })) }));
   assert.deepEqual(everything(listed), everything(single), 'the same commits, byte for byte');
   assert.deepEqual(listed.notify.sent, single.notify.sent);
-
-  const published = JSON.parse(listed.repo.file('state/published.json')!) as PublishedFile;
-  assert.equal('images' in published.editions['fan/low-tide-2026']!.uploader!, false, 'no list recorded for one image');
-  const ledger = JSON.parse(listed.repo.file('state/uploads.json')!) as { uploads: object[] };
-  assert.equal('images' in ledger.uploads[0]!, false);
 });
 
 // ---------------------------------------------------------------------------
@@ -412,23 +373,23 @@ test('days: confirm with the days as read changes nothing — the same edition, 
   const listed = await weekendReview();
   const same = await confirm(confirmDays(listed.review, weekendImages(), { days: ['2026-10-09', '2026-10-10', '2026-10-11'] }), listed.ports);
   assert.ok(asIs.ok && same.ok, `${asIs.rejection?.reason ?? ''}${same.rejection?.reason ?? ''}`);
-  assert.equal(listed.ports.repo.file('data/fan/low-tide-2026.yaml'), plain.ports.repo.file('data/fan/low-tide-2026.yaml'));
-  assert.equal(listed.ports.repo.file('source/fan/low-tide-2026/TRANSCRIPTION.md'), plain.ports.repo.file('source/fan/low-tide-2026/TRANSCRIPTION.md'), 'nothing moved, so the log says nothing about it');
+  assert.equal(listed.ports.repo.file('data/low-tide-2026.yaml'), plain.ports.repo.file('data/low-tide-2026.yaml'));
+  assert.equal(listed.ports.repo.file('source/low-tide-2026/TRANSCRIPTION.md'), plain.ports.repo.file('source/low-tide-2026/TRANSCRIPTION.md'), 'nothing moved, so the log says nothing about it');
 });
 
 test('days: a day moved on review moves every set printed under it, the year and the address with it, and the log says so', async () => {
   const { review, ports } = await weekendReview();
   const result = await confirm(confirmDays(review, weekendImages(), { days: ['2027-10-08', '2027-10-09', '2027-10-10'] }), ports);
   assert.ok(result.ok, result.rejection?.reason);
-  assert.equal(result.editionPath, 'fan/low-tide-2027', 'the year is read from the first day, so it moved');
-  const doc = loadFestivalFromString(ports.repo.file('data/fan/low-tide-2027.yaml')!, 'committed');
+  assert.equal(result.editionPath, 'low-tide-2027', 'the year is read from the first day, so it moved');
+  const doc = loadFestivalFromString(ports.repo.file('data/low-tide-2027.yaml')!, 'committed');
   assert.equal(doc.festival.year, 2027);
   const muna = doc.sets.find((s) => s.artist === 'MUNA')!;
   assert.equal(muna.start.raw, '2027-10-08T22:40:00', 'Friday\'s sets are on the new Friday');
   const late = doc.sets.find((s) => s.artist === 'MGNA CRRRTA')!;
   assert.equal(late.start.raw, '2027-10-08T23:45:00');
   assert.ok(doc.sets.every((s) => s.start.raw.startsWith('2027-10-')), 'every set moved');
-  const log = ports.repo.file('source/fan/low-tide-2027/TRANSCRIPTION.md')!;
+  const log = ports.repo.file('source/low-tide-2027/TRANSCRIPTION.md')!;
   assert.match(log, /Days moved on review: 2026-10-09 → 2027-10-08\./, 'the Friday reply notes its move');
   assert.match(log, /Days moved on review: 2026-10-11 → 2027-10-10\./, 'and the Sunday reply its own');
 });
@@ -440,6 +401,6 @@ test('days: a list that does not fit the reading is refused in a plain sentence,
     assert.equal(result.ok, false, `${JSON.stringify(days)} should be refused`);
     assert.equal(result.rejection?.gate, 'review');
     assert.equal(result.rejection?.reason, GATE_COPY.days);
-    assert.equal(ports.repo.file('data/fan/low-tide-2026.yaml'), undefined);
+    assert.equal(ports.repo.file('data/low-tide-2026.yaml'), undefined);
   }
 });

@@ -65,43 +65,37 @@ _Avoid_: OCR, extraction, parse
 **Verified**:
 A human has checked a transcription against its source, set by set. Only verified schedules can
 be published to production.
-_Avoid_: approved, reviewed, confirmed (confirmed is the uploader's act; verified is its result)
-
-**Trust tier**:
-How far a published edition is trusted, in increasing order:
-
-- **Uploader-verified** — the uploader confirmed the transcription against their own image. The
-  feeds are live at their own URL and appear nowhere on the site.
-- **Listed** — the owner has approved the edition for the homepage.
-
-Publishing an edition is not the same as listing it. Listing is always a human act by the owner.
-There is no draft tier: a feed URL that exists is always one a human checked. Unconfirmed
-transcriptions are pending review, not published.
-_Avoid_: draft, published (ambiguous between the two tiers), approved
+_Avoid_: approved, reviewed, confirmed (confirmed is the owner's act; verified is its result)
 
 **Listing**:
-The owner's one-tap act of moving an edition from uploader-verified to listed.
-_Avoid_: featuring, promoting, indexing
+The owner's act of putting an edition on the homepage. His confirm of an edition is its listing,
+in the same commit; so is merging the watcher's review. There is no draft tier: a feed URL that
+exists is always one a human checked. Unconfirmed transcriptions are pending review, not
+published.
+_Avoid_: featuring, promoting, indexing, approved
 
 **Namespace**:
 Which of two URL families an edition lives in. **Owner** editions sit at the root
-(`/coachella-2027/`); **fan** editions sit under `/fan/` (`/fan/coachella-2027/`). An edition
-never moves between namespaces, not even when it is listed.
+(`/coachella-2027/`); every edition is one now. **Fan** editions sat under `/fan/` while anyone
+could publish; the one ever made still serves there, blocked and moved, and nothing makes
+another. An edition never moves between namespaces.
 
 **Correction**:
-A re-upload by an edition's own uploader that replaces its sets. Subscribers receive the new
-times at their next refresh. Only the original uploader can correct an edition.
+A change to a published edition's sets that keeps every UID: the watcher's review of a change on
+the schedule page, merged, or a hand edit to the YAML. Subscribers receive the new times at
+their next refresh.
 _Avoid_: update, edit (an edit is one changed set on the review screen), overwrite
 
-**Update link**:
-The secret link shown once to an uploader on confirmation. Holding it is what makes someone an
-edition's uploader; the email address is only a contact.
-_Avoid_: edit link, admin link, token
-
 **Blocked**:
-An edition removed at a rights holder's request. Its feed URLs keep serving, but empty, and its
-page says it was removed. A blocked edition is never deleted and never listed.
+An edition taken down — at a rights holder's request, or because it **moved** to another
+edition. Its feed URLs keep serving, but empty, and its page says it was taken down, or points
+where it moved. A blocked edition is never deleted and never listed.
 _Avoid_: deleted, taken down (the request is a takedown; the state is blocked), removed
+
+**Moved**:
+A blocked edition whose set times now live in another edition, which its page points to. The
+calendars added from it go empty; a calendar cannot be moved.
+_Avoid_: redirected, migrated, replaced
 
 **Watcher**:
 The automation that notices a drop, or a change after a drop, on a festival's official schedule
@@ -114,21 +108,15 @@ social post), sent to the owner with a link. A signal carries no image and creat
 _Avoid_: alert (an alert is how a signal is delivered), notification
 
 **Sponsor**:
-One hand-sold image-and-link card on a listed edition's subscribe page. Fan editions never carry
-one.
+One hand-sold image-and-link card on a listed edition's subscribe page.
 _Avoid_: ad, advertiser, partner
 
 ### People
 
 **Owner**:
-Jake. The only person who lists, and the only person whose uploads publish into the owner
-namespace.
-_Avoid_: admin, maintainer, moderator
-
-**Uploader**:
-Anyone, owner included, who submits a source image for an edition and confirms its
-transcription. Identified by an email address, never by an account.
-_Avoid_: user, submitter, contributor, member
+Jake. The only person who publishes, and the only person who lists. Recognized by the secret in
+his bookmarked link, never by an account.
+_Avoid_: admin, maintainer, moderator, uploader
 
 **Rights holder**:
 A festival or its representative asking for an edition to be blocked. Their request is honored

@@ -60,7 +60,7 @@ test('ports: commit returns the new commit sha, for a pull request to branch fro
   assert.equal(refUpdate.body!['sha'], sha, 'main moves to the commit whose sha is returned');
 });
 
-test('ports: a listing pull request branches off the publish commit and opens against main', async () => {
+test('ports: a pull request branches off the commit it names and opens against main', async () => {
   const gh = fakeGitHub();
   await githubRepository({ GITHUB_TOKEN: 't' }, gh.fetch, 'o/r').openPullRequest(PR);
 
@@ -140,15 +140,12 @@ test('ports: the page port answers with bytes and the served type for an image, 
   assert.equal(await pages.image('https://cdn.example/nope.png'), null);
 });
 
-test('ports: an issue with nobody behind it carries no uploader line', async () => {
+test('ports: an issue carries the notice and nothing else — the repository is public', async () => {
   const gh = fakeGitHub();
   const notify = githubNotifier({ GITHUB_TOKEN: 't' }, gh.fetch, 'o/r');
   await notify.send({ kind: 'watch-failed', editionPath: 'low-tide-2026', title: 'Watcher: Low Tide 2026 could not be read', body: 'The images read as 2025.' });
-  await notify.send({ kind: 'edition-published', editionPath: 'fan/low-tide-2026', title: 'Fan edition published', body: 'Live.', email: 'sam@example.com' });
-  const [machine, fan] = gh.calls.filter((c) => c.path === '/repos/o/r/issues');
-  assert.equal(machine!.body!['body'], 'The images read as 2025.');
-  assert.deepEqual(machine!.body!['labels'], ['watch-failed']);
-  assert.equal(fan!.body!['body'], 'Live.\n\nUploader: sam@example.com');
+  const [issue] = gh.calls.filter((c) => c.path === '/repos/o/r/issues');
+  assert.deepEqual(issue!.body, { title: 'Watcher: Low Tide 2026 could not be read', body: 'The images read as 2025.', labels: ['watch-failed'] });
 });
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 /**
- * POST /api/link — the festival's schedule page and a contact address in; the
+ * POST /api/link — the owner's secret and the festival's schedule page in; the
  * review to check, the days and the link as read, and the images it was read
  * off, out. Confirm takes those images back as `images`, exactly as it takes
  * an upload's.
@@ -7,8 +7,8 @@
  * Read the fields, call the publisher, return what it said — and, when the
  * page asks for it, stream what the publisher reports on the way (tickets 20
  * and 21): the page being opened, the images found, then each one checked and
- * read, exactly as an upload reports. Every rule — which addresses may be
- * asked for, the caps, which images count, the cache, the review — is in
+ * read, exactly as an upload reports. Every rule — the owner's secret, which
+ * addresses may be asked for, which images count, the cache, the review — is in
  * `src/publisher.ts`, and every reason string it hands back goes out untouched.
  */
 
@@ -23,7 +23,6 @@ export async function handle(request: Request, ports: LinkPorts): Promise<Respon
     intent = {
       kind: 'link',
       url: str(body, 'url'),
-      email: str(body, 'email'),
       ...optOwner(body),
     };
   } catch (err) {

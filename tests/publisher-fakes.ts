@@ -15,7 +15,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  addressHash,
   type ClockPort,
   type Commit,
   type Notification,
@@ -30,11 +29,8 @@ import {
   type SavedTranscription,
   type ScheduleCheck,
   type SourceImage,
-  type UploadLedger,
-  type UploadRecord,
   type VisionPort,
   type WebPort,
-  sha256,
 } from '../src/publisher.js';
 import type { PublishedFile } from '../src/build.js';
 import type { FetchedImage, PagePort } from '../src/watcher.js';
@@ -146,7 +142,6 @@ export function weekendVision(options: Omit<FakeVisionOptions, 'replies'> = {}):
 
 export interface FakeRepository extends RepositoryPort {
   published: PublishedFile;
-  uploads: UploadLedger;
   transcriptions: Map<string, SavedTranscription>;
   /** Every commit applied, in order. */
   commits: Commit[];
@@ -162,7 +157,7 @@ export interface FakeRepository extends RepositoryPort {
 
 export const FIXED_PUBLISHED_AT = '20260101T000000Z';
 
-export interface FakeRepositoryOptions extends Partial<Pick<FakeRepository, 'published' | 'uploads'>> {
+export interface FakeRepositoryOptions extends Partial<Pick<FakeRepository, 'published'>> {
   /** Make opening a pull request fail, as GitHub would with a token missing that permission. */
   pullRequestsFail?: boolean;
   /** Text files already on main when the test starts, by path — the almanac, say. */
@@ -173,15 +168,11 @@ export function fakeRepository(initial: FakeRepositoryOptions = {}): FakeReposit
   const files = new Map<string, string>(Object.entries(initial.files ?? {}));
   const repo: FakeRepository = {
     published: initial.published ?? { publishedAt: FIXED_PUBLISHED_AT, editions: {} },
-    uploads: initial.uploads ?? { uploads: [] },
     transcriptions: new Map(),
     commits: [],
     pullRequests: [],
     async readPublished() {
       return repo.published;
-    },
-    async readUploads() {
-      return repo.uploads;
     },
     async readTranscription(hash) {
       return repo.transcriptions.get(hash) ?? null;
@@ -196,8 +187,6 @@ export function fakeRepository(initial: FakeRepositoryOptions = {}): FakeReposit
       // intent in the same test sees what the first one wrote.
       const published = commit.files.find((f) => f.path === 'state/published.json');
       if (published) repo.published = JSON.parse(published.contents) as PublishedFile;
-      const uploads = commit.files.find((f) => f.path === 'state/uploads.json');
-      if (uploads) repo.uploads = JSON.parse(uploads.contents) as UploadLedger;
       for (const f of commit.files) {
         const stored = /^state\/transcriptions\/([0-9a-f]{64})\.json$/.exec(f.path);
         if (stored) repo.transcriptions.set(stored[1]!, JSON.parse(f.contents) as SavedTranscription);
@@ -219,16 +208,6 @@ export function fakeRepository(initial: FakeRepositoryOptions = {}): FakeReposit
     },
   };
   return repo;
-}
-
-/** An upload ledger holding `count` entries for one address, all just now. */
-export function ledgerOf(entries: { email: string; at: number; image?: string }[]): UploadLedger {
-  const uploads: UploadRecord[] = entries.map((e, i) => ({
-    address: addressHash(e.email),
-    at: e.at,
-    image: e.image ?? sha256(`filler-${i}`),
-  }));
-  return { uploads };
 }
 
 // ---------------------------------------------------------------------------

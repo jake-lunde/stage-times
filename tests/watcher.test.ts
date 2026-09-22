@@ -227,7 +227,6 @@ test('watcher: a first schedule image is a drop — screened once, read once, re
   assert.equal(record.listed, true);
   assert.equal(record.blocked, false);
   assert.deepEqual(record.stages, ['cellar', 'main']);
-  assert.equal(record.uploader, undefined, 'the owner is the uploader; there is no update link');
   assert.equal(ports.repo.file('data/low-tide-2026.yaml'), pr.commit.files.find((f) => f.path === 'data/low-tide-2026.yaml')!.contents);
 
   // And the next poll of the same page is nothing: no spend, no write.
@@ -379,7 +378,6 @@ test('watcher: images that read as another year are a failure the owner hears ab
   const [n] = result.notifications;
   assert.equal(n!.kind, 'watch-failed');
   assert.equal(n!.editionPath, 'low-tide-2027');
-  assert.equal(n!.email, undefined, 'nobody uploaded anything');
   assert.match(n!.body, /read as 2026, and this entry watches 2027/);
   assert.ok(n!.body.includes(FRIDAY), 'the image, so he can go look');
   assert.deepEqual(ports.notify.sent, [n]);

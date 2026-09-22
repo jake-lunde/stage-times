@@ -20,14 +20,10 @@ import {
   SCREENED_PATH,
   sha256,
   upload,
-  UPLOADS_PATH,
-  UPLOADS_PER_ADDRESS_PER_HOUR,
-  UPLOADS_PER_DAY,
   type ConfirmIntent,
   type LinkIntent,
   type LinkResult,
   type SourceImage,
-  type UploadLedger,
 } from '../src/publisher.js';
 import { loadFestivalFromString } from '../src/schema.js';
 import {
@@ -36,9 +32,8 @@ import {
   fakeRepository,
   fakeVision,
   fakeWeb,
-  FIXED_NOW,
   jpegBytes,
-  ledgerOf,
+  OWNER_SECRET,
   pngBytes,
   recordedReply,
   webpBytes,
@@ -47,7 +42,6 @@ import {
   type LinkFakes,
 } from './publisher-fakes.js';
 
-const UPLOADER = 'sam@example.com';
 const SCHEDULE = 'https://lowtide.example/schedule';
 const IMG = 'https://lowtide.example/img';
 
@@ -93,10 +87,10 @@ function linkPorts(overrides: Partial<LinkFakes> = {}): LinkFakes {
 }
 
 function linkIntent(overrides: Partial<LinkIntent> = {}): LinkIntent {
-  return { kind: 'link', url: SCHEDULE, email: UPLOADER, ...overrides };
+  return { kind: 'link', url: SCHEDULE, owner: OWNER_SECRET, ...overrides };
 }
 
-/** The same posters as an uploader holding them would upload them, in the same order. */
+/** The same posters as someone holding them would upload them, in the same order. */
 function asUploaded(): SourceImage[] {
   return Object.entries(weekendOnTheWeb()).map(([url, { bytes, contentType }]) => ({
     filename: url.split('/').at(-1)!,
@@ -114,7 +108,7 @@ function confirmOf(result: LinkResult, overrides: Partial<ConfirmIntent> = {}): 
     images: result.images,
     reviewed: review.images,
     festival: review.festival,
-    email: UPLOADER,
+    owner: OWNER_SECRET,
     timezone: review.timezone,
     timezoneAssumed: review.timezoneAssumed,
     officialUrl: result.officialUrl!,
@@ -156,7 +150,7 @@ test('a link to a page of per-day schedule images returns one review across ever
       kind: 'upload',
       festival: 'Low Tide',
       dates: { first: '2026-10-09', last: '2026-10-11' },
-      email: UPLOADER,
+      owner: OWNER_SECRET,
       officialUrl: SCHEDULE,
       images: asUploaded(),
     },
@@ -198,7 +192,7 @@ test("a link to a festival on record reads in that festival's own zone, by the p
 
   const confirmed = await confirm(confirmOf(result), ports);
   assert.equal(confirmed.ok, true, confirmed.rejection?.reason);
-  const yaml = confirmed.commit!.files.find((f) => f.path === 'data/fan/low-tide-2026.yaml')!.contents;
+  const yaml = confirmed.commit!.files.find((f) => f.path === 'data/low-tide-2026.yaml')!.contents;
   assert.match(yaml, /timezone: "?America\/New_York"?/, 'published in that zone');
   assert.doesNotMatch(yaml, /ASSUMED/);
 });
@@ -220,9 +214,9 @@ test("a link's review confirms through the existing confirm: the link is the off
 
   const confirmed = await confirm(confirmOf(result), ports);
   assert.equal(confirmed.ok, true, `confirm was refused: ${confirmed.rejection?.reason}`);
-  assert.equal(confirmed.editionPath, 'fan/low-tide-2026');
+  assert.equal(confirmed.editionPath, 'low-tide-2026');
 
-  const yaml = confirmed.commit!.files.find((f) => f.path === 'data/fan/low-tide-2026.yaml')!.contents;
+  const yaml = confirmed.commit!.files.find((f) => f.path === 'data/low-tide-2026.yaml')!.contents;
   const doc = loadFestivalFromString(yaml, 'low-tide-2026.yaml');
   assert.equal(doc.festival.official_url, SCHEDULE, 'the official schedule is the link');
   assert.equal(doc.festival.name, 'Low Tide');
@@ -238,12 +232,6 @@ test("a link's review confirms through the existing confirm: the link is the off
     ['source/images/' + sha256(posters[0]!.bytes) + '.webp', 'source/images/' + sha256(posters[1]!.bytes) + '.png', 'source/images/' + sha256(posters[2]!.bytes) + '.jpg'],
     'each stored under its content hash',
   );
-});
-
-test('the owner secret rides on a link: the review is for the root, as an upload through the bookmark would be', async () => {
-  const result = await okLink(linkPorts(), linkIntent({ owner: 'the-owner-bookmark-secret' }));
-  assert.equal(result.review!.namespace, 'owner');
-  assert.equal(result.review!.editionPath, 'low-tide-2026');
 });
 
 test('publish() routes a link intent to the link intent', async () => {
@@ -359,12 +347,12 @@ test('a banner the check said no to is remembered, so a page with one still cost
   assert.equal(vision.checks, checks, 'the crowd was not asked about again');
 });
 
-test('a page whose images are already in the transcription store costs nothing and counts against nothing', async () => {
+test('a page whose images are already in the transcription store costs nothing', async () => {
   const repo = fakeRepository();
-  const uploader = fakeLinkPorts({ vision: weekendVision(), repo });
+  const first = fakeLinkPorts({ vision: weekendVision(), repo });
   const uploaded = await upload(
-    { kind: 'upload', festival: 'Low Tide', dates: { first: '2026-10-09', last: '2026-10-11' }, email: 'kai@example.com', officialUrl: SCHEDULE, images: asUploaded() },
-    uploader,
+    { kind: 'upload', festival: 'Low Tide', dates: { first: '2026-10-09', last: '2026-10-11' }, owner: OWNER_SECRET, officialUrl: SCHEDULE, images: asUploaded() },
+    first,
   );
   assert.equal(uploaded.ok, true, `the upload was refused: ${uploaded.rejection?.reason}`);
 
@@ -376,7 +364,6 @@ test('a page whose images are already in the transcription store costs nothing a
   assert.equal(vision.transcriptions, 0, 'a saved reply is not read again');
   assert.equal(repo.commits.length, commits, 'nothing written');
   assert.equal(result.reused, true);
-  assert.equal(repo.uploads.uploads.length, 1, 'only the upload is on the ledger');
 });
 
 test('a screenshot upload of the same poster after a link is free', async () => {
@@ -386,7 +373,7 @@ test('a screenshot upload of the same poster after a link is free', async () => 
   const commits = ports.repo.commits.length;
 
   const uploaded = await upload(
-    { kind: 'upload', festival: 'Low Tide', dates: { first: '2026-10-09', last: '2026-10-11' }, email: 'kai@example.com', images: asUploaded().slice(1, 2) },
+    { kind: 'upload', festival: 'Low Tide', dates: { first: '2026-10-09', last: '2026-10-11' }, owner: OWNER_SECRET, images: asUploaded().slice(1, 2) },
     ports,
   );
   assert.equal(uploaded.ok, true, `the upload was refused: ${uploaded.rejection?.reason}`);
@@ -471,7 +458,7 @@ test('a page with no schedule images returns one plain sentence naming screensho
   assertScreenshotSentence(result, 'no-schedule', LINK_COPY.noSchedule, 'a page whose images are not schedules');
   assert.equal(lineup.vision.checks, 3, 'each was asked about once');
   assert.equal(lineup.vision.transcriptions, 0);
-  assert.equal(lineup.repo.uploads.uploads.length, 1, 'the checks it paid for count as one upload');
+  assert.equal(lineup.repo.commits.length, 1, 'the checks it paid for are recorded');
   assert.equal(Object.keys(JSON.parse(lineup.repo.file(SCREENED_PATH)!).notSchedules).length, 3, 'and every no is remembered');
 
   await link(linkIntent(), lineup);
@@ -535,56 +522,6 @@ test("an image on a public page that points somewhere private is never fetched",
   for (const fetched of web.imageFetches) {
     assert.ok(fetched.startsWith(IMG), `only the festival's own images are fetched, not ${fetched}`);
   }
-});
-
-// ---------------------------------------------------------------------------
-// The caps: a link is one upload, checked before the page is fetched
-// ---------------------------------------------------------------------------
-
-test('the caps count a link as one upload per address per hour, checked before the page is fetched', async () => {
-  const repo = fakeRepository({
-    uploads: ledgerOf(Array.from({ length: UPLOADS_PER_ADDRESS_PER_HOUR }, (_, i) => ({ email: UPLOADER, at: FIXED_NOW - (i + 1) * 60_000 }))),
-  });
-  const ports = linkPorts({ repo });
-  const result = await link(linkIntent(), ports);
-  assert.equal(result.ok, false);
-  assert.equal(result.rejection!.gate, 'address-cap');
-  assert.deepEqual([...ports.web.resolved, ...ports.web.pageFetches, ...ports.web.imageFetches], [], 'nothing fetched');
-  assert.equal(ports.vision.checks, 0);
-});
-
-test('the caps count a link as one upload per day across everyone, checked before the page is fetched', async () => {
-  const repo = fakeRepository({
-    uploads: ledgerOf(Array.from({ length: UPLOADS_PER_DAY }, (_, i) => ({ email: `fan${i}@example.com`, at: FIXED_NOW - (i + 1) * 60 * 60_000 }))),
-  });
-  const ports = linkPorts({ repo });
-  const result = await link(linkIntent(), ports);
-  assert.equal(result.ok, false);
-  assert.equal(result.rejection!.gate, 'daily-cap');
-  assert.deepEqual(ports.web.pageFetches, [], 'nothing fetched');
-});
-
-test('a link that paid for three images is one entry on the ledger, and the next upload counts it', async () => {
-  const repo = fakeRepository({
-    uploads: ledgerOf(Array.from({ length: UPLOADS_PER_ADDRESS_PER_HOUR - 1 }, (_, i) => ({ email: UPLOADER, at: FIXED_NOW - (i + 1) * 60_000 }))),
-  });
-  const ports = linkPorts({ repo });
-  const result = await okLink(ports);
-
-  const ledger = JSON.parse(result.commit!.files.find((f) => f.path === UPLOADS_PATH)!.contents) as UploadLedger;
-  const mine = ledger.uploads.filter((u) => u.at === FIXED_NOW);
-  assert.equal(mine.length, 1, 'one entry for the link');
-  assert.deepEqual(mine[0]!.images, result.review!.images, 'naming every image it paid for');
-
-  const next = await link(linkIntent({ url: 'https://other.example/schedule' }), ports);
-  assert.equal(next.rejection?.gate, 'address-cap', 'the link counted');
-});
-
-test('an address that does not look right is refused before anything is fetched', async () => {
-  const ports = linkPorts();
-  const result = await link(linkIntent({ email: 'not an email' }), ports);
-  assert.equal(result.rejection?.gate, 'details');
-  assert.deepEqual(ports.web.pageFetches, []);
 });
 
 // ---------------------------------------------------------------------------

@@ -29,4 +29,6 @@ happen; the takedown runbook says what a block can and cannot do to an image. A 
 still the intended end state, and the seam is already shaped for it. Revisit before the first
 rights-holder request, or when a festival objects to the image rather than the times.
 
-Status: accepted, 2026-09-13; image store settled for now by the owner, 2026-09-21.
+Status: accepted, 2026-09-13; image store settled for now by the owner, 2026-09-21. Superseded by
+ADR-0005 (2026-09-22): no address is collected any more, and the premise that a GitHub issue is
+private was wrong — on a public repository it is public, and issue #12 showed an address.

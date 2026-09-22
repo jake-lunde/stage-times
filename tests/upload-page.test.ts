@@ -1,6 +1,6 @@
 /**
- * The upload flow (ticket 08): five screens on one static page, driven here
- * through the pages seam — render in, HTML string out.
+ * The owner's upload flow (ticket 08; ADR-0005): six screens on one static
+ * page, driven here through the pages seam — render in, HTML string out.
  *
  * Nothing here runs the browser script. What is pinned is the static markup
  * each screen ships with, the copy on it, and the contract the script has with
@@ -15,13 +15,13 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { ACCEPTED_IMAGE_TYPES, EMAIL_RE, GATE_COPY, MAX_IMAGE_EDGE, MAX_UPLOAD_IMAGES, MIN_IMAGE_EDGE, type Gate } from '../src/publisher.js';
+import { ACCEPTED_IMAGE_TYPES, GATE_COPY, MAX_IMAGE_EDGE, MAX_UPLOAD_IMAGES, MIN_IMAGE_EDGE, type Gate } from '../src/publisher.js';
 import { renderSitePages } from '../src/pages.js';
-import { addDay, confirmStatus, dayLabel, daysLabel, editedEnd, editedStart, festivalDays, GATE_SCREENS, linkStatus, loadingArt, nightOf, ownerFromFragment, ownerLink, percentDone, posterBlock, readAddress, readingStatus, renderUploadPage, REVIEW_ZONES, takeLines, updateLink, updatePagePath, weekdayName, weekendRuns, type Screen } from '../src/upload-pages.js';
+import { addDay, confirmStatus, dayLabel, daysLabel, editedEnd, editedStart, festivalDays, GATE_SCREENS, linkStatus, loadingArt, nightOf, ownerFromFragment, ownerLink, percentDone, posterBlock, readAddress, readingStatus, renderUploadPage, REVIEW_ZONES, takeLines, weekdayName, weekendRuns, type Screen } from '../src/upload-pages.js';
 import { slugify, weekendsOf } from '../src/transcribe.js';
 import { artGround } from '../src/pages.js';
 import { STREAM_TYPE } from '../src/publisher-http.js';
-import { buildFixtureSite, harborDoc, pierDoc, REPO_ROOT, visibleText } from './helpers.js';
+import { buildFixtureSite, harborDoc, REPO_ROOT, visibleText } from './helpers.js';
 
 const html = renderUploadPage();
 const text = visibleText(html);
@@ -35,18 +35,15 @@ function screen(name: Screen): string {
 }
 
 const SCREENS: Screen[] = ['link', 'details', 'upload', 'review', 'publishing', 'success'];
-const ALL_GATES: Gate[] = ['details', 'images', 'type', 'size', 'dimensions', 'address-cap', 'daily-cap', 'schedule', 'expired', 'review', 'schema', 'link', 'year', 'stages', 'removed', 'update-link', 'address', 'unreachable', 'login', 'no-schedule'];
+const ALL_GATES: Gate[] = ['owner', 'details', 'images', 'type', 'size', 'dimensions', 'schedule', 'expired', 'review', 'schema', 'link', 'address', 'unreachable', 'login', 'no-schedule'];
 
 // ===========================================================================
 // The screens
 // ===========================================================================
 
-test('upload page: every screen is in the static markup, and only the first one — the link — shows', () => {
-  for (const name of SCREENS) screen(name);
-  assert.doesNotMatch(screen('link'), /^<section[^>]*\bhidden\b/, 'the link screen is the one that shows (ticket 20)');
-  for (const name of SCREENS.slice(1)) {
-    assert.match(screen(name), /^<section[^>]*\bhidden\b/, `${name} waits its turn`);
-  }
+test('upload page: every screen is in the static markup, hidden until the owner is known; then the link shows first', () => {
+  for (const name of SCREENS) assert.match(screen(name), /^<section[^>]*\bhidden\b/, `${name} shows nothing to a visitor without the bookmark`);
+  assert.ok(html.indexOf('if (!OWNER) { location.replace(\'/\'); return; }') < html.indexOf("show('link');"), 'home first, before any screen shows');
   assert.ok(html.indexOf('data-screen="link"') < html.indexOf('data-screen="details"'), 'the front door comes first in the markup too');
 });
 
@@ -71,21 +68,17 @@ test('upload page: each deciding screen has exactly one primary pill; the wait h
   assert.equal(count(screen('publishing')), 0, 'nothing to tap while it builds — except copy the link');
 });
 
-test('upload page: the details screen asks for the festival, its days, and an email, and nothing else', () => {
+test('upload page: the details screen asks for the festival and its days, and nothing else', () => {
   const details = screen('details');
   const inputs = details.match(/<input[^>]*>/g) ?? [];
-  assert.equal(inputs.length, 5, 'four to fill in, and the schedule link waiting hidden');
-  for (const name of ['festival', 'first', 'last', 'email', 'link']) {
+  assert.equal(inputs.length, 4, 'three to fill in, and the schedule link waiting hidden');
+  for (const name of ['festival', 'first', 'last', 'link']) {
     assert.ok(inputs.some((i) => i.includes(`name="${name}"`)), `field ${name}`);
   }
   assert.match(details, /<label class="field" data-link hidden><span>Schedule link<\/span><input name="link" type="url"/, 'the link field is there but not asked for');
   assert.match(details, /name="first" type="date"/);
-  assert.match(details, /name="email" type="email"/);
+  assert.equal(/email/i.test(details), false, 'no address asked for');
   assert.ok(details.includes('>Next</button>'), 'the one label');
-  assert.ok(
-    visibleText(details).includes('Only so I can reach you about a wrong time. No account, and nothing gets sent to it.'),
-    'the email is a contact, not a sign-up',
-  );
 });
 
 test('upload page: one day is one file action that takes images only, and says what to pick', () => {
@@ -165,8 +158,8 @@ test('upload page: a source with no web address on it grows the one field for it
   assert.equal(GATE_SCREENS.link, 'details', 'lands on the form');
   assert.ok(html.includes("if (body.gate === 'link') $('[data-link]').hidden = false;"), 'the field appears only then');
   assert.ok(html.includes('if (d.link) body.officialUrl = d.link;'), 'and only goes out when typed');
-  assert.ok(html.includes("withImages(typed({ dates: { first: d.first, last: d.last }, update: updateClaim() }))"), 'upload');
-  assert.ok(html.includes("withImages(typed({ timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: [], update: updateClaim() }))"), 'confirm');
+  assert.ok(html.includes("withImages(typed({ dates: { first: d.first, last: d.last } }))"), 'upload');
+  assert.ok(html.includes("withImages(typed({ timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: [] }))"), 'confirm');
   assert.ok(html.includes('if (!multiDay() && state.images[0]) sendUpload();'), 'back from the form with the image still chosen, it is read again without another tap');
   assert.ok(visibleText(screen('details')).includes("Where the festival posted the times, since the image doesn't say."));
 });
@@ -174,7 +167,7 @@ test('upload page: a source with no web address on it grows the one field for it
 test('upload page: a rejection with nothing reviewed cannot strand the reader on the review screen', () => {
   assert.ok(html.includes("if (to === 'review' && !state.review) to = 'upload';"));
   assert.ok(html.includes("if (!rv) return show(state.via === 'link' ? 'link' : 'upload');"), 'confirm with nothing to confirm goes back to where it came from');
-  assert.ok(html.includes(".catch(function () {") && html.includes("'Something went wrong on my end. Try again in a minute.' } }, before: null }"), 'a save that throws still restores the button with a line');
+  assert.ok(html.includes("}).catch(function () {\n      return { ok: false, body: { reason: 'Something went wrong on my end. Try again in a minute.' } };\n    }).then(function (r) {"), 'a save that throws still restores the button with a line');
 });
 
 test('upload page: a rejection about one image lands under that day\'s row, in the publisher\'s own sentence', () => {
@@ -252,10 +245,9 @@ test('upload page: "Looks good" folds a flagged row away, and nothing on the rev
 
 test("upload page: the browser speaks the publisher's own sentences, injected, never retyped", () => {
   assert.ok(html.includes(`var COPY = ${JSON.stringify(GATE_COPY)};`));
-  assert.ok(html.includes(`var EMAIL_RE = ${EMAIL_RE.toString()};`));
   assert.ok(html.includes('function fill('), 'the placeholder filler rides along by source');
   const pageText = visibleText(html);
-  for (const sentence of [GATE_COPY.festival, GATE_COPY.email, GATE_COPY.notImage]) {
+  for (const sentence of [GATE_COPY.festival, GATE_COPY.owner, GATE_COPY.notImage]) {
     assert.equal(pageText.includes(sentence), false, `not baked into the markup: ${sentence}`);
   }
 });
@@ -271,37 +263,31 @@ test('upload page: the time zone is shown as a guess and is changeable, in spoke
   assert.ok(html.includes("state.timezoneAssumed = false;"), 'changing the zone clears the assumption');
 });
 
-test('upload page: the publishing state is honest about the wait, and hands over the update link while it builds', () => {
+test('upload page: the publishing state is honest about the wait', () => {
   const publishing = visibleText(screen('publishing'));
-  assert.ok(publishing.includes('Building your page'));
+  assert.ok(publishing.includes('Building the page'));
   assert.ok(publishing.includes('Checking again every ten seconds.'), 'the cadence it states is the cadence it polls at');
   assert.ok(html.includes('var POLL_MS = 10 * 1000;'));
-  assert.ok(publishing.includes('Your times are saved. The page and its calendars take a couple of minutes to build, and this waits for them.'));
-  assert.ok(publishing.includes("Keep this one now, while it builds. It's the only way to fix a time or take the page down later, and it's shown once."));
+  assert.ok(publishing.includes('The times are saved. The page and its calendars take a couple of minutes to build, and this waits for them.'));
+  assert.equal(screen('publishing').includes('data-update'), false, 'no update link to hand over');
   assert.ok(html.includes("'/all.ics'"), 'it waits by asking for the calendar itself');
   assert.ok(html.includes("cache: 'no-store'"), 'and never trusts a cached answer');
   assert.ok(html.includes("Still building after five minutes, which is longer than usual."), 'the timeout is a sentence, not a spinner');
 });
 
-test('upload page: the success screen shows the share link and the update link, the latter explained in one line', () => {
+test('upload page: the success screen shows the page link, and says it is on the homepage', () => {
   const success = screen('success');
   assert.match(success, /<code class="url" data-share><\/code><button class="icon-btn" data-copy aria-label="Copy page link">/);
-  assert.match(success, /<code class="url" data-update><\/code><button class="icon-btn" data-copy aria-label="Copy update link">/);
+  assert.equal(success.includes('data-update'), false, 'no update link');
   const t = visibleText(success);
-  assert.ok(t.includes("Keep this one. It's the only way to fix a time or take the page down later, and it's shown once."));
-  assert.ok(t.includes('Not on the homepage yet. I list festivals by hand.'));
-  assert.match(success, /<a class="btn btn--primary" data-open>Open your page<\/a>/);
-});
-
-test('updateLink: the secret rides in the fragment, under /update/ beside the edition', () => {
-  assert.equal(updateLink('fan/low-tide-2026', 'abc123'), 'https://stagetimes.app/update/fan/low-tide-2026/#abc123');
-  assert.ok(html.includes(`var UPDATE_LINK = ${JSON.stringify(updateLink('{path}', '{secret}'))};`), 'the page carries the same shape');
+  assert.ok(t.includes('On the homepage now. Add a stage from the page like anyone would, and send the link around.'), 'the confirm was the listing');
+  assert.match(success, /<a class="btn btn--primary" data-open>Open the page<\/a>/);
 });
 
 test('upload page: the review says where the page will live before anything is confirmed', () => {
   assert.match(screen('review'), /<p class="status" data-address><\/p>/);
   assert.ok(html.includes("var address = ORIGIN.replace("), 'filled from the review\'s edition path');
-  assert.ok(html.includes("!UPDATE ? 'Your page will be ' + address"));
+  assert.ok(html.includes("$('[data-address]').textContent = 'The page will be ' + address;"));
   assert.ok(html.includes("return state.via === 'link' ? readAddress(rv, nameField.value, readYear()) : rv.editionPath;"), 'after screenshots it is what the publisher claimed; after a link it follows the header');
   assert.ok(html.includes("function readYear() { var first = $('[data-read-day]', dayGrid); return first && first.value ? first.value.slice(0, 4) : ''; }"), 'the year is the first day\'s — there is no year field');
 });
@@ -310,34 +296,31 @@ test('upload page: the review says where the page will live before anything is c
 // The front door is the link (ticket 20)
 // ===========================================================================
 
-test('link screen: one decision — the link and the contact, one primary pill, and a text button to the screenshots', () => {
+test('link screen: one decision — the link, one primary pill, and a text button to the screenshots', () => {
   const link = screen('link');
   const inputs = link.match(/<input[^>]*>/g) ?? [];
-  assert.equal(inputs.length, 2, 'the link and the email, nothing else typed up front');
+  assert.equal(inputs.length, 1, 'the link, nothing else typed up front');
   assert.match(link, /<input name="url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https:\/\/" required>/);
-  assert.match(link, /<input name="email" type="email" inputmode="email" autocomplete="email" required>/);
   assert.match(link, /<button class="btn btn--primary" type="submit">Read the times<\/button>/, 'the one label, the same words as the read pill');
   assert.match(link, /<button class="text-btn" type="button" data-back="details">Use screenshots<\/button>/, 'today\'s flow is one tap away, as a text button');
   const said = visibleText(link);
   assert.ok(said.includes('The festival’s page with the set times on it, not the lineup.'), 'what to paste, in one line');
-  assert.ok(said.includes('Only so I can reach you about a wrong time. No account, and nothing gets sent to it.'), 'the same email line as the form');
   assert.doesNotMatch(said, /\bfestival name\b|\bfirst day\b/i, 'no name, no dates');
   assert.match(link, /<figure class="loading" data-loading hidden><\/figure>\s*<p class="status" aria-live="polite" hidden><\/p>/, 'the same drawn wait as an upload, above the pill');
   assert.ok(link.indexOf('data-loading') < link.indexOf('btn--primary'));
-  assert.ok(text.includes('From the festival’s schedule page, or your screenshots'), 'the header caption says both doors');
+  assert.ok(text.includes('From the festival’s schedule page, or screenshots'), 'the header caption says both doors');
 });
 
-test('link screen: the post carries the link, the email and the owner secret, asks for the stream, and lands every answer back here', () => {
-  assert.ok(html.includes("post('/api/link', withOwner({ url: url, email: email }), function (p) {"), 'the link intent, with the bookmark riding along');
+test('link screen: the post carries the link and the owner secret, asks for the stream, and lands every answer back here', () => {
+  assert.ok(html.includes("post('/api/link', withOwner({ url: url }), function (p) {"), 'the link intent, with the bookmark riding along');
   assert.ok(html.includes("if (p.kind === 'link') { work.say(linkStatus(p)); if (p.step === 'found') work.redraw(p.images); }"), 'the link\'s own steps, and the rings follow the images found');
   assert.ok(html.includes("if (p.kind === 'read') { work.say(readingStatus(p)); work.headliners(p.headliners); }"), 'then the same percentage and headliners as an upload');
   assert.ok(html.includes("function landLink(body) { fail('link', body); show('link'); }"), 'every answer, in the publisher\'s sentence, where the link was typed');
   assert.ok(html.includes('if (!r.ok) return landLink(r.body);'));
   for (const gate of ['address', 'unreachable', 'login', 'no-schedule'] as Gate[]) assert.equal(GATE_SCREENS[gate], 'link', `${gate} → the link screen`);
   assert.ok(html.includes("if (!screens[to]) to = fallback;"), 'a screen this page does not have never strands anyone');
-  assert.ok(html.includes("state.details = { festival: rv.festival, first: days[0], last: days[days.length - 1], email: email, link: r.body.officialUrl };"), 'what the form would have typed, as read; the link is the official schedule');
+  assert.ok(html.includes("state.details = { festival: rv.festival, first: days[0], last: days[days.length - 1], link: r.body.officialUrl };"), 'what the form would have typed, as read; the link is the official schedule');
   assert.ok(html.includes("var blob = new Blob([bytesOf(im.data)], { type: im.contentType });"), 'the fetched images are held like chosen ones');
-  assert.ok(html.includes("if (to === 'details' || to === 'link') carryEmail(to);"), 'the email typed on one first screen follows to the other');
   assert.ok(screen('details').includes('<button class="text-btn" type="button" data-back="link">Use a link</button>'), 'and the form offers the way back');
   assert.equal(linkStatus({ step: 'page' }), 'Opening that page.');
   assert.equal(linkStatus({ step: 'found', images: 3 }), 'Found 3 images that could be the schedule. Reading them now.');
@@ -413,12 +396,12 @@ test('read helpers: the weekday a date falls on, and the address the header deri
   assert.equal(weekdayName('2025-10-09'), 'THURSDAY', 'the same printed date a year off is another weekday — the tell');
   assert.equal(weekdayName('2026-02-29'), '', 'not a date');
   assert.equal(weekdayName(''), '');
-  const rv = { festival: 'Low Tide', year: 2026, namespace: 'fan', editionPath: 'fan/low-tide-2-2026' };
-  assert.equal(readAddress(rv, 'Low Tide', '2026'), 'fan/low-tide-2-2026', 'as read: what the publisher claimed, suffix and all');
-  assert.equal(readAddress(rv, ' Low Tide ', '2026'), 'fan/low-tide-2-2026', 'whitespace is not a change');
-  assert.equal(readAddress(rv, 'Low Tide Fest', '2026'), 'fan/low-tide-fest-2026', 'a changed name derives its own path');
-  assert.equal(readAddress(rv, 'Low Tide', '2027'), 'fan/low-tide-2027', 'a changed year too');
-  assert.equal(readAddress({ ...rv, namespace: 'owner', editionPath: 'low-tide-2026' }, 'Low Tide!', '2026'), 'low-tide-2026', 'the owner\'s at the root');
+  const rv = { festival: 'Low Tide', year: 2026, editionPath: 'low-tide-2026' };
+  assert.equal(readAddress(rv, 'Low Tide', '2026'), 'low-tide-2026', 'as read: what the publisher claimed');
+  assert.equal(readAddress(rv, ' Low Tide ', '2026'), 'low-tide-2026', 'whitespace is not a change');
+  assert.equal(readAddress(rv, 'Low Tide Fest', '2026'), 'low-tide-fest-2026', 'a changed name derives its own path');
+  assert.equal(readAddress(rv, 'Low Tide', '2027'), 'low-tide-2027', 'a changed year too');
+  assert.equal(readAddress(rv, 'Low Tide!', '2026'), 'low-tide-2026', 'at the root, the way confirm derives it');
 });
 
 // ===========================================================================
@@ -426,10 +409,11 @@ test('read helpers: the weekday a date falls on, and the address the header deri
 // ===========================================================================
 
 test("upload page: every gate's rejection has a screen to land on, and the script carries the same map", () => {
-  for (const gate of ALL_GATES) assert.ok([...SCREENS, 'remove'].includes(GATE_SCREENS[gate]), `${gate} → ${GATE_SCREENS[gate]}`);
+  for (const gate of ALL_GATES) assert.ok(SCREENS.includes(GATE_SCREENS[gate]), `${gate} → ${GATE_SCREENS[gate]}`);
   assert.equal(GATE_SCREENS.details, 'details', 'a typo goes back to the form');
-  for (const gate of ['type', 'size', 'dimensions', 'schedule', 'address-cap', 'daily-cap', 'expired'] as Gate[]) {
-    assert.equal(GATE_SCREENS[gate], 'upload', `${gate}: pick another image, or wait`);
+  assert.equal(GATE_SCREENS.owner, 'link', 'a secret that stopped matching lands on the front door');
+  for (const gate of ['type', 'size', 'dimensions', 'schedule', 'expired'] as Gate[]) {
+    assert.equal(GATE_SCREENS[gate], 'upload', `${gate}: pick another image`);
   }
   assert.equal(GATE_SCREENS.review, 'review');
   assert.equal(GATE_SCREENS.schema, 'review', 'a time that does not hold together is fixed on review');
@@ -467,24 +451,16 @@ test('upload page: the page embeds those helpers by source and reads a moved sta
   assert.ok(html.includes('editedEnd(start, en || s.end.slice(11, 16))'), 'the end follows a moved start');
 });
 
-test('upload page: the script posts exactly the fields the two adapters read', () => {
-  assert.ok(
-    html.includes(
-      "post('/api/upload', withOwner(withImages(typed({ dates: { first: d.first, last: d.last }, update: updateClaim() }))), function (p) {",
-    ),
-  );
-  assert.ok(
-    html.includes(
-      "var body = withOwner(withImages(typed({ timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: [], update: updateClaim() })));",
-    ),
-  );
-  assert.ok(html.includes('body.festival = d.festival;') && html.includes('body.email = d.email;'), 'the form fields ride on both');
+test('upload page: the script posts exactly the fields the adapters read', () => {
+  assert.ok(html.includes("post('/api/upload', withOwner(withImages(typed({ dates: { first: d.first, last: d.last } }))), function (p) {"));
+  assert.ok(html.includes('var body = withOwner(withImages(typed({ timezone: zone.value, timezoneAssumed: state.timezoneAssumed, edits: edits, unverifiable: [] })));'));
+  assert.ok(html.includes('body.festival = d.festival;'), 'the form fields ride on both');
+  assert.equal(/email|updateClaim|UPDATE_LINK|updateSecret|\/update\//i.test(html.slice(html.indexOf('<script>'))), false, 'no address and no update link go out, or exist on the page at all');
   assert.ok(html.includes("post('/api/confirm', body, function (p) {"));
-  assert.ok(html.includes('var UPDATE = null;'), 'on /upload/ there is no update link, so nothing extra goes out');
   assert.ok(html.includes('filename: im.filename, contentType: im.contentType, width: im.width, height: im.height, data: im.data'));
 });
 
-test('upload page: the owner bookmark is read from the fragment, cleared, and sent as owner with both posts', () => {
+test('upload page: the owner bookmark is read from the fragment, cleared, kept for the tab, and sent with every post — and without it, home', () => {
   assert.equal(ownerLink('a+b/c'), 'https://stagetimes.app/upload/#owner=a%2Bb%2Fc');
   assert.equal(ownerFromFragment(new URL(ownerLink('a+b/c')).hash), 'a+b/c', 'the page reads back what the link carries');
   assert.equal(ownerFromFragment(''), '');
@@ -493,7 +469,9 @@ test('upload page: the owner bookmark is read from the fragment, cleared, and se
   assert.ok(html.includes(ownerFromFragment.toString()), 'the page embeds the same reader by source');
   assert.ok(html.includes('var OWNER = ownerFromFragment(location.hash);'));
   assert.ok(html.includes("history.replaceState(null, '', location.pathname + location.search)"), 'cleared from the address bar');
-  assert.ok(html.includes('function withOwner(body) { if (OWNER) body.owner = OWNER; return body; }'), 'absent unless the bookmark carried one');
+  assert.ok(html.includes("try { if (OWNER) sessionStorage.setItem(OWNER_KEY, OWNER); else OWNER = sessionStorage.getItem(OWNER_KEY) || ''; } catch (e) {}"), 'kept for this tab, so a reload mid-flow still has it; storage that throws is no secret');
+  assert.ok(html.includes("if (!OWNER) { location.replace('/'); return; }"), 'nobody else has anything to do here');
+  assert.ok(html.includes('function withOwner(body) { body.owner = OWNER; return body; }'), 'every post carries it');
 });
 
 test('upload page: a failed request has a plain line and the button comes back', () => {
@@ -535,7 +513,7 @@ test('upload page: no "we", no machinery vocabulary, no exclamation marks, no ac
 
 test('upload page: the footer carries the unofficial line, where the times come from, and the wrong-time link', () => {
   assert.ok(text.includes('Unofficial. Not affiliated with any festival.'));
-  assert.ok(text.includes('Anything put on here is checked by the person who put it there, against their own image, before it goes live.'));
+  assert.ok(text.includes('Every time here is checked against the festival’s own schedule before it goes live.'));
   assert.ok(html.includes('Wrong time? <a href="https://github.com/jake-lunde/stage-times/issues">Tell me ↗</a>'));
 });
 
@@ -591,109 +569,29 @@ test('owner runbook: documents the bookmark link exactly as the page reads it, a
 });
 
 // ===========================================================================
-// The update link (ticket 09)
+// No fan flow left (ADR-0005)
 // ===========================================================================
 
-const pier = buildFixtureSite([pierDoc()]).site.editions[0]!;
-const updateHtml = renderUploadPage(pier);
-const updateText = visibleText(updateHtml);
-
-function updateScreen(name: Screen): string {
-  const re = new RegExp(`<section class="screen"[^>]*data-screen="${name}"[^>]*>[\\s\\S]*?</section>`);
-  const m = re.exec(updateHtml);
-  assert.ok(m, `screen "${name}" is in the update page`);
-  return m![0];
-}
-
-test('update link: the screen states the edition it is about to change before any upload', () => {
-  const header = /<header>[\s\S]*?<\/header>/.exec(updateHtml)![0];
-  assert.ok(header.includes('<h2>Pier Nine <span style="color:var(--ink-soft)">2026</span></h2>'), 'the festival and year, up top');
-  const details = updateScreen('details');
-  assert.doesNotMatch(details, /^<section[^>]*\bhidden\b/, 'on the first screen, the one that shows');
-  const said = visibleText(details).replace(/\s+([.,])/g, '$1').trim();
-  assert.ok(
-    said.startsWith(
-      'A new screenshot replaces every time on stagetimes.app/fan/pier-nine-2026/. Anyone who added a stage gets the new times the next time their calendar app checks.',
-    ),
-    `before the form, before any image is chosen: ${said}`,
-  );
-  assert.ok(details.indexOf('data-changing') < details.indexOf('<form'), 'the statement comes before the form');
-  assert.match(details, /name="festival"[^>]*value="Pier Nine"/, 'the name is filled in');
-  assert.match(details, /name="first"[^>]*value="2026-/, 'and the days');
-  assert.ok(updateHtml.includes('var UPDATE = {"editionPath":"fan/pier-nine-2026"};'), 'the script knows which edition');
-  assert.ok(updateHtml.includes("secret: location.hash.slice(1)"), 'the secret comes from the fragment only');
-});
-
-test('update link: the review says whether the link held, and where the times will land', () => {
-  assert.ok(updateHtml.includes("rv.correcting ? 'This replaces the times on ' + address"));
-  assert.ok(updateHtml.includes("'That update link didn\\'t match, so this will be a new page: ' + address"));
-});
-
-test('update link: taking it down is one destructive button behind one text button, with a way back', () => {
-  assert.ok(updateScreen('details').includes('<button class="text-btn" type="button" data-back="remove">Take it down</button>'));
-  const remove = updateScreen('remove');
-  assert.match(remove, /^<section[^>]*\bhidden\b/);
-  assert.ok(remove.includes('<button class="btn btn--tonal btn--danger" type="button" data-remove>Take it down</button>'), 'tonal with red text, not a red pill');
-  assert.ok(remove.includes('data-back="details">Keep it</button>'));
-  assert.ok(visibleText(remove).includes('Its calendars go empty and the page says it was taken down.'));
-  assert.ok(updateHtml.includes("post('/api/remove', { update: updateClaim() })"));
-  assert.ok(visibleText(updateScreen('removed')).includes('Taken down'));
-});
-
-test('update link: a correction waits for the calendar to change, and does not hand out the link again', () => {
-  assert.ok(updateHtml.includes('currentTag(rv.editionPath)'), 'the ETag before confirm');
-  assert.ok(updateHtml.includes("(!before || res.headers.get('etag') !== before)"), 'live only once it answers differently');
-  assert.equal(updateScreen('publishing').includes('data-update'), false, 'they already hold the link');
-  assert.equal(updateScreen('success').includes('data-update'), false);
-  assert.ok(visibleText(updateScreen('publishing')).includes('Your new times are saved.'));
-});
-
-test('update link: the update page keeps its flow — no link screen, the form first, no way to a link', () => {
-  assert.equal(updateHtml.includes('data-screen="link"'), false);
-  assert.doesNotMatch(updateScreen('details'), /^<section[^>]*\bhidden\b/, 'the form is the first screen, as before');
-  assert.equal(updateHtml.includes('Use a link'), false);
-  assert.equal(updateHtml.includes('Use screenshots'), false);
-});
-
-test('update link: the fresh upload page has no take-down screen', () => {
+test('upload page: no take-down, no update link, no address field anywhere', () => {
   assert.equal(html.includes('data-screen="remove"'), false);
   assert.equal(html.includes(' data-remove>'), false);
   assert.equal(html.includes('Take it down'), false);
+  assert.equal(html.includes('/api/remove'), false);
+  assert.equal(html.includes('/update/'), false);
+  assert.equal(/type="email"/.test(html), false);
 });
 
-test('update link: both scripts parse', () => {
-  for (const page of [html, updateHtml]) {
-    const scripts = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!);
-    for (const code of scripts) assert.doesNotThrow(() => new Function(code), 'the embedded script is valid JavaScript');
-  }
+test('upload page: the script parses', () => {
+  const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!);
+  for (const code of scripts) assert.doesNotThrow(() => new Function(code), 'the embedded script is valid JavaScript');
 });
 
-test('update link: same copy rules as the upload page', () => {
-  assert.doesNotMatch(updateText, /\b(we|we're|we've|our|ours|us)\b/i);
-  for (const re of [/\bfeeds?\b/i, /\.ics\b/, /\bedition\b/i, /\bsubscri(be|ption)\b/i, /\bblocked\b/i, /\bverif(y|ied)\b/i]) {
-    assert.doesNotMatch(updateText, re, `${re}`);
-  }
-  assert.equal(updateText.includes('!'), false);
-});
-
-test('update link: a taken-down edition\'s link says so and offers nothing to change', () => {
-  const blocked = buildFixtureSite([pierDoc()], { 'fan/pier-nine-2026': { blocked: true } }).site.editions[0]!;
-  const page = renderUploadPage(blocked);
-  assert.ok(visibleText(page).includes("This page was taken down, so there's nothing left to change here."));
-  assert.equal(page.includes('<form'), false);
-  assert.equal(page.includes('/api/'), false);
-});
-
-test('update link: the site build writes one update page per fan edition, and none for owner editions', () => {
+test('renderSitePages: no update pages are written, for any edition', () => {
   const out = mkdtempSync(join(tmpdir(), 'stage-times-update-'));
   try {
-    const { site } = buildFixtureSite([harborDoc(), pierDoc()]);
-    const written = renderSitePages(site, out);
-    assert.ok(written.includes('update/fan/pier-nine-2026/index.html'));
-    assert.equal(updatePagePath('fan/pier-nine-2026'), 'update/fan/pier-nine-2026');
-    assert.equal(readFileSync(join(out, 'update/fan/pier-nine-2026/index.html'), 'utf8'), renderUploadPage(site.editions.find((e) => e.namespace === 'fan')!));
-    assert.equal(existsSync(join(out, 'update', 'harbor-lights-2026')), false, 'the owner path is its own');
-    assert.equal(updateLink('fan/pier-nine-2026', 's3cret'), 'https://stagetimes.app/update/fan/pier-nine-2026/#s3cret', 'the link lands on that page');
+    const written = renderSitePages(buildFixtureSite([harborDoc()]).site, out);
+    assert.equal(written.some((p) => p.startsWith('update/')), false);
+    assert.equal(existsSync(join(out, 'update')), false);
   } finally {
     rmSync(out, { recursive: true, force: true });
   }
