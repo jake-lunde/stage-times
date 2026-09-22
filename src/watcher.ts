@@ -569,7 +569,11 @@ async function read(entry: WatchEntry, ports: WatcherPorts, found: Found[], prev
     saved.push(reading);
   }
 
-  const options = { namespace: 'owner' as const, name: entry.festival, slug: entry.slug, timezone: entry.timezone, timezoneAssumed: false, officialUrl: entry.source, verified: true };
+  // The edition as it is live, if it is: a new reading keeps its hand-picked
+  // stage ids and names (`read_as`) and its city.
+  const previousYaml = await ports.repo.readFile(`${OWNER_DATA_DIR}/${key}.yaml`);
+  const before = previousYaml === null ? null : loadFestivalFromString(previousYaml, `${OWNER_DATA_DIR}/${key}.yaml`);
+  const options = { namespace: 'owner' as const, name: entry.festival, slug: entry.slug, timezone: entry.timezone, timezoneAssumed: false, officialUrl: entry.source, verified: true, ...(before ? { live: before } : {}) };
   let transcription: Transcription;
   try {
     transcription = transcribe(modelOutputs(saved), options);
@@ -596,8 +600,6 @@ async function read(entry: WatchEntry, ports: WatcherPorts, found: Found[], prev
   ];
 
   if (live) {
-    const previousYaml = await ports.repo.readFile(`${OWNER_DATA_DIR}/${key}.yaml`);
-    const before = previousYaml === null ? null : loadFestivalFromString(previousYaml, `${OWNER_DATA_DIR}/${key}.yaml`);
     const kept = new Set(doc.stages.map((s) => s.id));
     const dropped = live.stages.filter((id) => !kept.has(id));
     if (dropped.length > 0) {

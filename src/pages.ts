@@ -74,6 +74,8 @@ export interface Manifest {
   listed: boolean;
   /** Taken down: feeds serve empty, and the page is the removed page, not the subscribe page. */
   blocked: boolean;
+  /** A blocked edition whose set times moved: where to, so its page can point there. */
+  movedTo?: { name: string; year: number; basePath: string };
   stages: StageEntry[];
   /** The weekends, in date order, when the edition runs more than one; every stage then names its weekend. */
   weekends?: { name: string; dayspan: DaySpan; stageCount: number; setCount: number }[];
@@ -1118,12 +1120,30 @@ document.addEventListener('click', function (e) {
  *
  * Copy: references/copy.md, "The removed page". The page does not say who asked
  * for the takedown: a rights-holder block and an uploader's self-removal read
- * the same to the person standing at the gate.
+ * the same to the person standing at the gate. When the set times moved to
+ * another edition (`movedTo`), the page says so and its one pill goes there.
  */
 export function renderBlockedPage(m: Manifest): string {
   const f = m.festival;
-  const title = `${f.name} ${f.year} — set times removed`;
-  const desc = `The ${f.name} ${f.year} set times were taken down. The official schedule still has them.`;
+  const moved = m.movedTo;
+  const title = moved ? `${f.name} ${f.year} — set times moved` : `${f.name} ${f.year} — set times removed`;
+  const desc = moved
+    ? `The ${f.name} ${f.year} set times moved to a new page.`
+    : `The ${f.name} ${f.year} set times were taken down. The official schedule still has them.`;
+  const section = moved
+    ? `  <section class="prose removed">
+    <h3>Moved</h3>
+    <p>These set times moved to a new page. If you added a stage from here, it will come up blank
+    the next time your calendar app checks — add it again from the new page.</p>
+    <a class="btn btn--primary" href="${esc(moved.basePath)}/">Set times</a>
+  </section>`
+    : `  <section class="prose removed">
+    <h3>Taken down</h3>
+    <p>This page was taken down and its calendars are empty now. If you added a stage from here,
+    it will come up blank the next time your calendar app checks — remove it whenever you like.</p>
+    <p>The official schedule still has the times.</p>
+    <a class="btn btn--primary" href="${esc(f.officialUrl)}">Official schedule</a>
+  </section>`;
 
   const body = `<main class="wrap">
   <nav class="topbar">
@@ -1135,13 +1155,7 @@ export function renderBlockedPage(m: Manifest): string {
     <h2>${esc(f.name)} <span style="color:var(--ink-soft)">${f.year}</span></h2>
   </header>
 
-  <section class="prose removed">
-    <h3>Taken down</h3>
-    <p>This page was taken down and its calendars are empty now. If you added a stage from here,
-    it will come up blank the next time your calendar app checks — remove it whenever you like.</p>
-    <p>The official schedule still has the times.</p>
-    <a class="btn btn--primary" href="${esc(f.officialUrl)}">Official schedule</a>
-  </section>
+${section}
 
   <footer>
     <p>Updated ${esc(humanStamp(m.lastUpdated))}.</p>

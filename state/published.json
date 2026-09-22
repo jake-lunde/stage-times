@@ -16,8 +16,33 @@
     "it becomes DTSTAMP / LAST-MODIFIED on every event the build touches and `lastUpdated` in feeds.json.",
     "It exists so the build never reads the wall clock — output must be byte-identical across runs."
   ],
-  "publishedAt": "20260922T182508Z",
+  "publishedAt": "20260922T210032Z",
   "editions": {
+    "austin-city-limits-2026": {
+      "slug": "austin-city-limits",
+      "year": 2026,
+      "namespace": "owner",
+      "listed": true,
+      "blocked": false,
+      "stages": [
+        "american-express-weekend-1",
+        "american-express-weekend-2",
+        "beatbox-weekend-1",
+        "beatbox-weekend-2",
+        "bmi-weekend-1",
+        "bmi-weekend-2",
+        "kiddie-limits-weekend-1",
+        "kiddie-limits-weekend-2",
+        "miller-lite-weekend-1",
+        "miller-lite-weekend-2",
+        "snapchat-weekend-1",
+        "snapchat-weekend-2",
+        "t-mobile-weekend-1",
+        "t-mobile-weekend-2",
+        "titos-weekend-1",
+        "titos-weekend-2"
+      ]
+    },
     "capitol-hill-block-party-2026": {
       "slug": "capitol-hill-block-party",
       "year": 2026,
@@ -36,7 +61,8 @@
       "year": 2026,
       "namespace": "fan",
       "listed": false,
-      "blocked": false,
+      "blocked": true,
+      "movedTo": "austin-city-limits-2026",
       "stages": [
         "american-express-weekend-1",
         "american-express-weekend-2",

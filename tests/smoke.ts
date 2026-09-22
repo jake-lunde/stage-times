@@ -134,6 +134,8 @@ async function checkFeed(url: string, blocked: boolean): Promise<Failure[]> {
 
 interface PageCheck {
   blocked?: boolean;
+  /** A blocked edition whose set times moved: its page must point at the new one. */
+  movedTo?: string;
   /** For the landing page: the editions whose cards must be there, and only those. */
   listed?: PageManifest[];
   /** For /upload/: every screen of the flow must be in the markup. */
@@ -141,7 +143,7 @@ interface PageCheck {
 }
 
 /** HTML pages must carry the analytics snippet — the positive half of the check. */
-async function checkPage(url: string, { blocked = false, listed, upload = false }: PageCheck = {}): Promise<Failure[]> {
+async function checkPage(url: string, { blocked = false, movedTo, listed, upload = false }: PageCheck = {}): Promise<Failure[]> {
   const failures: Failure[] = [];
   const add = (problem: string) => failures.push({ url, problem });
 
@@ -167,7 +169,9 @@ async function checkPage(url: string, { blocked = false, listed, upload = false 
   }
   if (blocked) {
     if (body.includes('webcal:')) add('blocked edition still serves the subscribe page — the removed page did not deploy');
-    if (!body.includes('Taken down')) add('blocked edition page does not say it was taken down');
+    if (movedTo) {
+      if (!body.includes(`href="${movedTo}/"`)) add(`moved edition page does not point at ${movedTo}/`);
+    } else if (!body.includes('Taken down')) add('blocked edition page does not say it was taken down');
   }
   if (listed) {
     const cards = (body.match(/class="shelf-card"/g) ?? []).length;
@@ -211,7 +215,7 @@ async function main(): Promise<void> {
   const listed = listedEditions(site);
   const pages: { path: string; check: PageCheck }[] = [
     { path: '/', check: { listed } },
-    ...site.editions.map((m) => ({ path: `${m.festival.basePath}/`, check: { blocked: m.blocked } })),
+    ...site.editions.map((m) => ({ path: `${m.festival.basePath}/`, check: { blocked: m.blocked, ...(m.movedTo ? { movedTo: m.movedTo.basePath } : {}) } })),
     { path: '/upload/', check: { upload: true } },
   ];
   const blockedCount = site.editions.filter((m) => m.blocked).length;
@@ -233,7 +237,7 @@ async function main(): Promise<void> {
     const url = new URL(p.path.replace(/^\//, ''), base).toString();
     const failures = await checkPage(url, p.check);
     allFailures.push(...failures);
-    const note = p.check.blocked ? '  (blocked: removed page)' : p.check.listed ? `  (${p.check.listed.length} listed card(s))` : p.check.upload ? '  (the upload flow)' : '';
+    const note = p.check.movedTo ? '  (blocked: moved page)' : p.check.blocked ? '  (blocked: removed page)' : p.check.listed ? `  (${p.check.listed.length} listed card(s))` : p.check.upload ? '  (the upload flow)' : '';
     process.stdout.write(`  ${failures.length === 0 ? 'ok  ' : 'FAIL'}  ${url}${note}\n`);
     for (const x of failures) process.stdout.write(`          ${x.problem}\n`);
   }

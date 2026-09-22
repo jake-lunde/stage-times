@@ -302,6 +302,29 @@ test('transcribe: human-supplied name, slug, URL and time zone override the post
   assert.doesNotMatch(t.log, /Timezone was assumed/);
 });
 
+test('transcribe: a new reading of a live edition keeps the stage ids and names the owner picked, and its city', () => {
+  const live = {
+    festival: { city: 'Tacoma' },
+    stages: [
+      { id: 'downstairs', name: 'The Cellar', read_as: 'cellar' },
+      { id: 'main', name: 'Main Stage' },
+    ],
+  };
+  const t = transcribe(outputs(), { ...OPTS, live });
+  assert.deepEqual(t.edition.stages.map((s) => [s.id, s.name, s.read_as]), [
+    ['main', 'Main Stage', undefined],
+    ['downstairs', 'The Cellar', 'cellar'],
+  ]);
+  assert.ok(t.edition.sets.some((s) => s.stage === 'downstairs'), 'the sets follow the stage to its picked id');
+  assert.ok(!t.edition.sets.some((s) => s.stage === 'cellar'), 'no set is left under the derived id');
+  assert.equal(t.edition.festival.city, 'Tacoma');
+  assert.match(t.yaml, /read_as: "cellar"/);
+
+  const plain = transcribe(outputs(), OPTS);
+  assert.deepEqual(plain.edition.stages.map((s) => s.id), ['main', 'cellar'], 'without a live edition the ids are the derived ones');
+  assert.equal(plain.edition.festival.city, undefined);
+});
+
 test('transcribe: the log flags inferred ends, casing, afters, repeats and the assumed time zone', () => {
   const raw = fixture();
   raw.days[1]!.stages[0]!.sets = [{ artist: 'SOMEONE ELSE', time: '9:00-10:00PM' }];

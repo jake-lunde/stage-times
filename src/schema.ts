@@ -48,6 +48,15 @@ export interface Stage {
    * of each night". Each name must match a set on this stage exactly.
    */
   headliners: string[];
+  /**
+   * The id a transcription of the source derives for this stage, when the
+   * owner picked a different `id` or `name` by hand (`tito-s-handmade-vodka-weekend-1`
+   * for `titos-weekend-1`). A later reading of the source — the watcher's —
+   * maps a stage it derives this id for back onto this one, so the hand-picked
+   * id and name survive it. Never touches a feed. Absent means the id is the
+   * derived one.
+   */
+  read_as?: string;
 }
 
 /** A local wall-clock datetime with no offset. Never a UTC instant. */
@@ -342,6 +351,7 @@ export function validateDoc(raw: unknown, sourcePath: string): FestivalDoc {
     problems.push('`stages:` must be a non-empty list');
   } else {
     const seen = new Map<string, number>();
+    const seenReadAs = new Map<string, number>();
     stagesRaw.forEach((sRaw, i) => {
       const where = `stages[${i}]`;
       const s = asRecord(sRaw);
@@ -378,7 +388,18 @@ export function validateDoc(raw: unknown, sourcePath: string): FestivalDoc {
           seen.set(id, i);
         }
       }
-      stages.push({ id, name, description, headliners, ...(weekend ? { weekend } : {}) });
+      const readAs = optString(s, 'read_as', where, problems).trim();
+      if (readAs) {
+        const problem = stageIdProblem(readAs);
+        if (problem) problems.push(`${where}: \`read_as\` "${readAs}" ${problem}; it is the id a reading derives, so it has the same shape.`);
+        const prev = seenReadAs.get(readAs);
+        if (prev !== undefined) {
+          problems.push(`${where}: \`read_as\` "${readAs}" is already stages[${prev}]'s — one reading cannot map onto two stages`);
+        } else {
+          seenReadAs.set(readAs, i);
+        }
+      }
+      stages.push({ id, name, description, headliners, ...(weekend ? { weekend } : {}), ...(readAs ? { read_as: readAs } : {}) });
     });
     // A weekend is a property of the whole edition: either every stage names
     // its weekend or none does, or the page would show half its stages under

@@ -330,6 +330,42 @@ test('watcher: a new image that reads the same is a change with nothing to revie
   assert.equal(ports.vision.transcriptions, 1);
 });
 
+/** Rename the live Cellar Stage by hand, as the owner would before first publish: id, name, and the id a reading derives. */
+async function ownerPickedCellar(ports: WatcherFakes): Promise<void> {
+  const path = 'data/low-tide-2026.yaml';
+  const yaml = ports.repo.file(path)!
+    .split('"cellar"     #').join('"downstairs"     #')
+    .split('name: "Cellar Stage"').join('name: "The Cellar"\n    read_as: "cellar"')
+    .split('stage: "cellar"').join('stage: "downstairs"')
+    .split('  official_url:').join('  city: "Tacoma"\n  official_url:');
+  const published = structuredClone(ports.repo.published);
+  published.editions['low-tide-2026']!.stages = ['downstairs', 'main'];
+  await ports.repo.commit({ message: 'Owner picks the Cellar id', files: [{ path, contents: yaml }, { path: 'state/published.json', contents: JSON.stringify(published) }], images: [] });
+}
+
+test('watcher: a new reading of a live edition keeps the stage ids and names the owner picked — the same times are nothing to review', async () => {
+  const { ports } = await liveThenChanged();
+  await ownerPickedCellar(ports);
+  ports.vision = fakeVision({ notSchedules: ['sponsor.jpg'] }); // friday-v2.png reads exactly as friday.png did
+  const result = await watch(intent(), ports);
+  assert.equal(result.reports[0]!.outcome, 'change', result.reports[0]!.problem ?? '');
+  assert.deepEqual(result.pullRequests, []);
+  assert.deepEqual(result.notifications, [], 'no stage reads as dropped');
+  assert.match(result.reports[0]!.problem!, /read the same as what is live/);
+});
+
+test('watcher: a change to a live edition with hand-picked stages commits them as picked', async () => {
+  const { ports } = await liveThenChanged();
+  await ownerPickedCellar(ports);
+  const result = await watch(intent(), ports);
+  const pr = result.pullRequests[0]!;
+  assert.equal(pr.title, 'Low Tide 2026: MAGDALENA BAY moved');
+  const doc = loadFestivalFromString(pr.commit.files.find((f) => f.path === 'data/low-tide-2026.yaml')!.contents, 'data/low-tide-2026.yaml');
+  assert.deepEqual(doc.stages.map((s) => [s.id, s.name]), [['main', 'Main Stage'], ['downstairs', 'The Cellar']]);
+  assert.equal(doc.stages[1]!.read_as, 'cellar');
+  assert.equal(doc.festival.city, 'Tacoma');
+});
+
 // ---------------------------------------------------------------------------
 // What stops a review
 // ---------------------------------------------------------------------------
@@ -480,7 +516,8 @@ test('watcher: the committed watch list names ACL, III Points, Camp Flog Gnaw, E
   }
   assert.equal(cadenceOf(list[0]!, Date.UTC(2026, 8, 21)), 'hourly', 'ACL is inside its window today');
   assert.equal(cadenceOf(list[2]!, Date.UTC(2026, 8, 21)), 'daily', 'Camp Flog Gnaw is not yet');
-  assert.equal(list[0]!.match, 'Wk2', 'ACL: one weekend, or the same artist on the same stage twice collides on UID');
+  assert.equal(list[0]!.match, 'ACL26-Schedule', 'ACL: both weekends are one edition — the six schedule images and nothing else on the page');
+  assert.equal(list[0]!.dates.first, '2026-10-02', 'ACL: from weekend one');
   const subreddits = Object.fromEntries(list.map((e) => [e.slug, e.subreddit]));
   assert.deepEqual(subreddits, {
     'austin-city-limits': undefined,

@@ -376,6 +376,37 @@ test('removed page: passes the copy rules — one person, no machinery, no excla
   assert.equal(text.includes('!'), false);
 });
 
+const movedSite = buildFixtureSite([harbor, pier], { [PIER_PATH]: { blocked: true, movedTo: HARBOR_PATH } });
+
+test('moved: a blocked edition that moved points its page at the new one, one pill, and its calendars are still empty', () => {
+  const m = movedSite.site.editions.find((e) => e.blocked)!;
+  assert.deepEqual(m.movedTo, { name: harbor.festival.name, year: 2026, basePath: `/${HARBOR_PATH}` });
+  assert.equal(m.allSetCount, 0, 'moving does not refill the calendars');
+  assert.equal(movedSite.nextPublished.editions[PIER_PATH]!.movedTo, HARBOR_PATH, 'the build carries the pointer forward');
+
+  const html = renderBlockedPage(m);
+  const text = visibleText(html);
+  assert.ok(html.includes('<title>Pier Nine 2026 — set times moved</title>'));
+  assert.ok(text.includes('Moved'));
+  assert.ok(text.includes('These set times moved to a new page.'));
+  assert.ok(text.includes('add it again from the new page.'));
+  assert.ok(html.includes(`<a class="btn btn--primary" href="/${HARBOR_PATH}/">Set times</a>`));
+  assert.equal(text.includes('Taken down'), false);
+  assert.equal(html.includes('.ics'), false, 'no feed URL anywhere on the page');
+  assert.doesNotMatch(text, /\b(we|our|us)\b/i);
+  assert.doesNotMatch(text, /\b(feeds?|edition|blocked)\b/i);
+});
+
+test('moved: only a blocked edition moves, and only to another edition the build publishes unblocked', () => {
+  assert.throws(() => buildFixtureSite([harbor, pier], { [PIER_PATH]: { movedTo: HARBOR_PATH } }), /not blocked/);
+  assert.throws(() => buildFixtureSite([harbor, pier], { [PIER_PATH]: { blocked: true, movedTo: 'nowhere-2026' } }), /not another edition/);
+  assert.throws(() => buildFixtureSite([harbor, pier], { [PIER_PATH]: { blocked: true, movedTo: PIER_PATH } }), /not another edition/);
+  assert.throws(
+    () => buildFixtureSite([harbor, pier], { [PIER_PATH]: { blocked: true, movedTo: HARBOR_PATH }, [HARBOR_PATH]: { blocked: true } }),
+    /not another edition/,
+  );
+});
+
 // ===========================================================================
 // The whole site on disk: run() twice, byte-identical, both namespaces, blocked page
 // ===========================================================================

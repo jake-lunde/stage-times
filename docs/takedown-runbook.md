@@ -71,6 +71,22 @@ edition.
 - `npm run smoke -- https://stagetimes.app` checks, for every blocked edition, that each feed
   is a valid empty calendar and the page is the removed page.
 
+## When the set times moved
+
+When an edition is replaced by another — the fan ACL 2026 edition by the owner's
+`austin-city-limits-2026` — block it as above and add `movedTo` beside the flag, naming the
+edition path it moved to:
+
+```diff
+-    "blocked": false,
++    "blocked": true,
++    "movedTo": "austin-city-limits-2026",
+```
+
+Its feeds go empty like any block; its page says *Moved* instead of *Taken down*, and its one
+pill goes to the new edition. The build refuses `movedTo` on an unblocked edition, or naming
+an edition it does not publish unblocked. The smoke test checks the page points there.
+
 ## Unblocking is a revert
 
 `git revert` the block commit. Nothing else. The YAML was never touched and the sequence

@@ -130,6 +130,11 @@ flags:
   its original calendar name, its page becomes the removed page, and `feeds.json` reports it
   `listed: false` whatever the flag above says. Setting it is the one-line takedown edit;
   unblocking is a `git revert`. Procedure: [docs/takedown-runbook.md](./docs/takedown-runbook.md).
+- **`movedTo`** — on a blocked edition only: the edition path its set times moved to. Its page
+  then says *Moved* and its one pill goes there; its feeds stay empty, because a calendar cannot
+  be moved. The build refuses one on an unblocked edition, or naming an edition it does not
+  publish unblocked. The first: the fan ACL 2026 edition, moved to `austin-city-limits-2026`
+  when every edition became the owner's (22 Sep 2026).
 
 `state/sequences.json` keeps the per-event SEQUENCE ledger **per edition path**, so an owner and
 a fan edition of the same festival-year (which share UIDs — UID derivation is frozen and ignores
@@ -340,7 +345,10 @@ the model's notes, each image inline from the branch, and a link to the log — 
 the committed YAML (`diffSets()`, keyed as the UID is), titled with what moved
 (`<Festival> <Year>: <artist> moved, <artist> added`), whose commit replaces the YAML and log
 in place under the same slug and stage ids and moves `publishedAt`, so the build advances
-SEQUENCE for exactly the events that changed. A change before the first review is merged
+SEQUENCE for exactly the events that changed. A new reading keeps the live edition's stage ids
+and names and its `city`: a stage whose id or name the owner picked by hand carries
+`read_as:`, the id a reading derives for it (`titos-weekend-1` reads as
+`tito-s-handmade-vodka-weekend-1`), and `transcribe()` maps it back. A change before the first review is merged
 replaces that review: a new branch, the whole schedule again, and what moved since the earlier
 reading. A new image that reads the same as what is live (or as the earlier reading) is a
 change with nothing to review, recorded and not asked about again.

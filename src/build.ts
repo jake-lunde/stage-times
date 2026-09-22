@@ -134,6 +134,12 @@ export interface PublishedEdition {
    * deleted, never listed. Unblocking is a revert of the commit that set this.
    */
   blocked: boolean;
+  /**
+   * On a blocked edition only: the edition path its set times moved to. Its
+   * page then points there instead of saying only that it was taken down.
+   * The feeds stay empty either way; a calendar cannot be moved.
+   */
+  movedTo?: string;
   /** Every stage slug ever served under this edition's path. Append-only. */
   stages: string[];
   /** Present on an edition a fan uploaded and confirmed. Never set by the build. */
@@ -235,6 +241,8 @@ export interface Manifest {
    */
   listed: boolean;
   blocked: boolean;
+  /** A blocked edition whose set times moved: the edition they moved to, for its page. */
+  movedTo?: { name: string; year: number; basePath: string };
   stages: StageManifest[];
   /**
    * The weekends, in date order, when the edition runs more than one (ACL,
@@ -564,6 +572,21 @@ export function buildSite(docs: FestivalDoc[], published: PublishedFile, sequenc
   }
   nextPublished.editions = sortObjectKeys(nextPublished.editions);
 
+  // A blocked edition that moved points at where its set times live now.
+  for (const e of editions) {
+    const target = published.editions[e.path]?.movedTo;
+    if (target === undefined) continue;
+    const to = editions.find((x) => x.path === target);
+    if (!published.editions[e.path]!.blocked) {
+      throw new Error(`state/published.json: editions["${e.path}"].movedTo is set but the edition is not blocked. Only a taken-down edition moves.`);
+    }
+    if (!to || to.path === e.path || to.result.manifest.blocked) {
+      throw new Error(`state/published.json: editions["${e.path}"].movedTo names "${target}", which is not another edition this build publishes unblocked.`);
+    }
+    const f = to.result.manifest.festival;
+    e.result.manifest.movedTo = { name: f.name, year: f.year, basePath: f.basePath };
+  }
+
   const site: SiteManifest = { editions: editions.map((e) => e.result.manifest) };
   files.set('feeds.json', stableJson(site));
 
@@ -685,6 +708,9 @@ export function readPublished(path: string): PublishedFile {
       throw new Error(`${path}: editions["${key}"] needs boolean \`listed\` and \`blocked\` flags`);
     }
     if (!Array.isArray(record.stages)) throw new Error(`${path}: editions["${key}"].stages must be a list`);
+    if (record.movedTo !== undefined && typeof record.movedTo !== 'string') {
+      throw new Error(`${path}: editions["${key}"].movedTo must be an edition path`);
+    }
   }
   return parsed;
 }

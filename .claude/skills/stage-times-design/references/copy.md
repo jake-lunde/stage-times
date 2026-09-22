@@ -144,6 +144,22 @@ Why it reads the way it does:
 - **The pill is the only action.** Bottom-anchored single action archetype. "Official
   schedule" is the destination in two plain words; no arrow, because a pill holds words only.
 
+When the set times moved to another page (`movedTo` in state), the same page says so instead:
+
+| Where | String |
+|---|---|
+| `<title>` | `{Festival} {Year} — set times moved` |
+| meta description | `The {Festival} {Year} set times moved to a new page.` |
+| Heading | `Moved` |
+| Body | `These set times moved to a new page. If you added a stage from here, it will come up blank the next time your calendar app checks — add it again from the new page.` |
+| Pill (primary, the one action) | `Set times` — to the new page |
+| Footer | as above |
+
+The line does the same three jobs as the taken-down line: what happened, when the reader
+notices ("the next time your calendar app checks"), and what to do. The pill names what they
+came for, not the mechanism ("New page", "Go there"). No official-schedule line: the new page
+has the times and its own attribution.
+
 ## Writing for the three readers
 
 Every new screen is checked against the same three people the live site was:

@@ -349,6 +349,13 @@ export interface TranscriptionOptions {
    * looked at is never pre-verified.
    */
   verified?: boolean;
+  /**
+   * The edition as it is live, when this reading is a new one of its source
+   * (the watcher's change). A stage read whose derived id is a live stage's
+   * `read_as`, or its id, keeps that stage's id and name, and the live `city`
+   * carries over, so what the owner set by hand survives the reading.
+   */
+  live?: { festival: { city?: string }; stages: { id: string; name: string; read_as?: string }[] };
 }
 
 export interface BuiltSet {
@@ -389,6 +396,8 @@ export interface BuiltStage {
   id: string;
   name: string;
   weekend?: string;
+  /** The derived id, when the live edition's owner picked another (`TranscriptionOptions.live`). */
+  read_as?: string;
 }
 
 /**
@@ -725,6 +734,22 @@ export function buildTranscription(
   // Sets, day by day, stage by stage, in printed order.
   const sets: BuiltSet[] = days.flatMap((day) => readDay(day, sourceOfDate.get(day.date)!, suffixOf(day.date)));
 
+  // A new reading of a live edition keeps the stage ids and names the owner
+  // picked: each live stage is found under the id a reading derives for it.
+  if (options.live) {
+    const liveByDerived = new Map(options.live.stages.map((s) => [s.read_as ?? s.id, s]));
+    const liveIdOf = new Map<string, string>();
+    for (const stage of stages) {
+      const live = liveByDerived.get(stage.id);
+      if (!live) continue;
+      liveIdOf.set(stage.id, live.id);
+      stage.id = live.id;
+      stage.name = live.name;
+      if (live.read_as) stage.read_as = live.read_as;
+    }
+    for (const set of sets) set.stage = liveIdOf.get(set.stage) ?? set.stage;
+  }
+
   // The same artist twice on one stage collides on UID — the known limitation
   // (README): UID excludes the start time on purpose. ACL runs a silent disco
   // on the same stage every night and repeats its kids' acts across days, so
@@ -738,7 +763,8 @@ export function buildTranscription(
   // exactly like a machine-read one.
   const edits = applyEdits(sets, options.edits ?? []);
 
-  const festival = { name, slug, year, timezone: options.timezone, official_url: officialUrl };
+  const city = options.live?.festival.city;
+  const festival = { name, slug, year, timezone: options.timezone, official_url: officialUrl, ...(city ? { city } : {}) };
   const yaml = renderYaml(festival, stages, sets, options, sources);
 
   // The one gatekeeper: reuse src/schema.ts on our own output. Duplicate UIDs
@@ -762,7 +788,7 @@ function q(value: string): string {
 }
 
 function renderYaml(
-  festival: { name: string; slug: string; year: number; timezone: string; official_url: string },
+  festival: { name: string; slug: string; year: number; timezone: string; official_url: string; city?: string },
   stages: BuiltStage[],
   sets: BuiltSet[],
   options: TranscriptionOptions,
@@ -799,6 +825,7 @@ function renderYaml(
   lines.push(`  year: ${festival.year}`);
   lines.push(`  timezone: ${q(festival.timezone)}${options.timezoneAssumed ? '   # ASSUMED — confirm before publish' : ''}`);
   lines.push(`  official_url: ${q(festival.official_url)}${festival.official_url ? '   # from the poster — unverified' : ''}`);
+  if (festival.city) lines.push(`  city: ${q(festival.city)}                      # display only (the homepage card); never in a feed`);
   lines.push('');
   if (stages.some((s) => s.weekend)) {
     lines.push('# Two weekends (or more): a stage that plays both is two stages here, one id and one feed');
@@ -810,6 +837,7 @@ function renderYaml(
     lines.push(`  - id: ${q(stage.id)}     # PERMANENT url slug — never change after publish`);
     lines.push(`    name: ${q(stage.name)}`);
     if (stage.weekend) lines.push(`    weekend: ${q(stage.weekend)}`);
+    if (stage.read_as) lines.push(`    read_as: ${q(stage.read_as)}     # the id a new reading of the source derives; maps it back here`);
   }
   lines.push('');
   lines.push('sets:');

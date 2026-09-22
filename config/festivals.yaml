@@ -32,11 +32,11 @@
   source: https://www.aclfestival.com/schedule
   timezone: America/Chicago
   form: poster
-  # One edition is one weekend; this is weekend two, as the watch list has it.
-  match: Wk2
+  # Two weekends, one edition (ADR-0004). The schedule images carry the year
+  # (ACL26-Schedule-…), so the watch entry's match is set per year.
   editions:
     - year: 2026
-      dates: { first: 2026-10-09, last: 2026-10-11 }
+      dates: { first: 2026-10-02, last: 2026-10-11 }
 
 - festival: III Points
   slug: iii-points

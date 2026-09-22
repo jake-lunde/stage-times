@@ -24,12 +24,12 @@
   year: 2026
   source: https://www.aclfestival.com/schedule
   timezone: America/Chicago
-  dates: { first: 2026-10-09, last: 2026-10-11 }
+  dates: { first: 2026-10-02, last: 2026-10-11 }
   window: { from: 2026-08-14 }
-  # Both weekends share one page and one edition is one weekend — the same
-  # artist on the same stage twice collides on UID (README, known limitation).
-  # This watches weekend two; its images are named Wk2.
-  match: Wk2
+  # Both weekends are one edition (ADR-0004): six schedule images, Wk1 and Wk2,
+  # among some forty others on the page. The stage ids and names are the
+  # owner's (`read_as` in the edition), so a new reading keeps them.
+  match: ACL26-Schedule
 
 - festival: III Points
   slug: iii-points
