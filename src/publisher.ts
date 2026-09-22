@@ -83,7 +83,8 @@ import {
   type SetEntry,
 } from './schema.js';
 import { NO_OFFICIAL_URL, slugify, TranscribeError, type SetEdit } from './transcribe.js';
-import { daysRead, movedDays, readImage, transcribe, type Headliner, type ModelOutput, type Transcription } from './transcription.js';
+import { daysRead, festivalRead, movedDays, readImage, transcribe, type Headliner, type ModelOutput, type Transcription } from './transcription.js';
+import { loadAlmanac, zoneOnRecord } from './almanac.js';
 import {
   filenameOf,
   hostOf,
@@ -142,6 +143,8 @@ export const TRANSCRIPTION_STORE_DIR = 'state/transcriptions';
 export const PUBLISHED_PATH = 'state/published.json';
 /** The images a link's schedule check said no to, so the same page never pays to ask twice. */
 export const SCREENED_PATH = 'state/screened.json';
+/** The almanac (src/almanac.ts): read for the zone a festival on record prints its times in. */
+export const ALMANAC_PATH = 'config/festivals.yaml';
 
 /**
  * The most images a link reads off one page, in page order, before any is
@@ -587,6 +590,12 @@ export interface Review {
   timezone: string;
   /** True while nobody has confirmed the zone. The source cannot carry it. */
   timezoneAssumed: boolean;
+  /**
+   * True when the zone is the festival's own, from the record of it
+   * (config/festivals.yaml, matched by the schedule page or the printed name)
+   * rather than the default. Not assumed, and not yet anyone's word either.
+   */
+  timezoneOnRecord: boolean;
   /** True when the source reads as a different year than the uploader typed. */
   yearMismatch: boolean;
   stages: { id: string; name: string }[];
@@ -1185,16 +1194,20 @@ async function readReview(
 
   const { target } = opts;
   const namespace = namespaceOf(opts, ports, target);
-  const timezone = opts.timezone ?? DEFAULT_TIMEZONE;
+  // The zone: the human's, else the festival's own from the record of it,
+  // else the default — assumed, and the review says so.
+  const outputs = modelOutputs(saved);
+  const onRecord = opts.timezone === undefined ? await zoneFromRecord(ports, outputs, opts) : null;
+  const timezone = opts.timezone ?? onRecord ?? DEFAULT_TIMEZONE;
   let transcription: Transcription;
   try {
-    transcription = transcribe(modelOutputs(saved), {
+    transcription = transcribe(outputs, {
       namespace,
       ...(opts.name !== undefined ? { name: opts.name } : {}),
       ...(opts.slug !== undefined ? { slug: opts.slug } : {}),
       officialUrl: opts.officialUrl,
       timezone,
-      timezoneAssumed: opts.timezone === undefined,
+      timezoneAssumed: opts.timezone === undefined && onRecord === null,
     });
   } catch (err) {
     return refused(readingProblem(err));
@@ -1226,6 +1239,7 @@ async function readReview(
     correcting: target !== null,
     timezone,
     timezoneAssumed: transcription.timezoneAssumed,
+    timezoneOnRecord: onRecord !== null,
     yearMismatch: opts.typedYear !== undefined && opts.typedYear !== String(festival.year),
     stages: stages.map((s) => ({ id: s.id, name: s.name })),
     sets: transcription.sets.map((set, index) => ({
@@ -1249,6 +1263,27 @@ async function readReview(
     result: { ok: true, rejection: null, review, commit: opts.commit, notifications: [], reused: opts.reused },
     transcription,
   };
+}
+
+/**
+ * The festival's own zone, from the almanac on main, when the reading matches
+ * a festival on record by its schedule page or its name (src/almanac.ts) —
+ * the name as typed first, then as printed. A missing or unreadable almanac
+ * is no zone, never a refusal: the record is a convenience, and the review
+ * shows whatever zone it has to change.
+ */
+async function zoneFromRecord(ports: PublisherPorts, outputs: ModelOutput[], opts: Pick<ReadingOf, 'name' | 'officialUrl'>): Promise<string | null> {
+  const text = await ports.repo.readFile(ALMANAC_PATH);
+  if (text === null) return null;
+  let almanac: ReturnType<typeof loadAlmanac>;
+  try {
+    almanac = loadAlmanac(text);
+  } catch {
+    return null;
+  }
+  const read = festivalRead(outputs);
+  const url = opts.officialUrl ?? read.officialUrl;
+  return zoneOnRecord(almanac, { url, name: opts.name ?? read.name }) ?? (opts.name !== undefined ? zoneOnRecord(almanac, { name: read.name }) : null);
 }
 
 // ---------------------------------------------------------------------------
@@ -1374,7 +1409,7 @@ export async function link(intent: LinkIntent, ports: LinkPorts): Promise<LinkRe
   if (candidates.length === 0) return refused(reject('no-schedule', LINK_COPY.noSchedule));
 
   // At most what one upload can carry, the largest first, then back into page
-  // order — the order an uploader holding the same images would give them in.
+  // order until they are read — day order after that, below.
   const area = (c: Candidate) => c.image.width * c.image.height;
   const kept = [...candidates]
     .sort((a, b) => area(b) - area(a) || a.order - b.order)
@@ -1452,6 +1487,11 @@ export async function link(intent: LinkIntent, ports: LinkPorts): Promise<LinkRe
     return refused(reject('no-schedule', LINK_COPY.noSchedule), commit);
   }
 
+  // Into day order — the order an uploader holding the same images would give
+  // them in, whatever order the page listed them. An image whose reply names
+  // no day keeps its page order, after the rest.
+  const firstDay = (i: number) => daysRead(modelOutputs([saved[i]!]))[0] ?? '\uffff';
+  schedule.sort((a, b) => (firstDay(a) < firstDay(b) ? -1 : firstDay(a) > firstDay(b) ? 1 : a - b));
   const images = schedule.map((i) => kept[i]!.image);
   const read = await readReview(ports, schedule.map((i) => saved[i]!), {
     reused: commit === null,

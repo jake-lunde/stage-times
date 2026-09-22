@@ -214,27 +214,33 @@ rejection and holds no rule of its own. Markup and copy in `src/upload-pages.ts`
 │                              │     what is being read and how many; after fifteen
 │                              │     seconds, how long it has been. Same while saving.
 │                              │
-│  Does this look right?       │  3. REVIEW — after a link (ticket 20), the name, the
-│  Festival [ Low Tide     ]   │     year and each day as read, as fields, the days
-│  Year [2026]  FRIDAY [Oct 9] │     labeled with the weekday that date falls on (a
-│  SATURDAY [ ] SUNDAY [   ]   │     wrong year shows as the wrong weekday), then the
-│  Your page will be …/fan/…/  │     address the page will live at, which follows the
-│                              │     name and the year as they are typed. After
-│  Check every set             │     screenshots the header is what was typed, unshown.
-│  Time zone [Pacific      ▾]  │     Then the time zone as a guess (select, spoken
-│                              │     names), then one section per image: its day as an
-│  FRI 9 OCT                   │     eyebrow (only with several), the image in a card,
-│  ┌────────────────────────┐  │     then a row list per stage: artist field, day +
-│  │   their Friday image   │  │     two time fields, the printed time in mono,
-│  └────────────────────────┘  │     yellow chips for "End is a guess" and "Look
-│  MAIN STAGE                  │     closer", and a tonal "Can't read it" toggle.
-│  [ MUNA               ]      │     A row's day is the night it belongs to (a 1 AM
-│  FRI [10:40 PM]–[11:40 PM]   │     set is Friday's), so it matches the image above.
-│  FRI · Printed 10:40-CLOSE   │     No dividers. Confirm is disabled with a plain
-│  (End is a guess)            │     reason while any set is marked.
-│  [ Can't read it ]           │
-│  SAT 10 OCT                  │
-│  ┌ their Saturday image ─┐   │
+│  Does this look right?       │  3. REVIEW — one heading for both doors. After a
+│  Festival [ Low Tide     ]   │     link (ticket 20), the name and each day as read,
+│  WEEKEND 1                   │     as fields, the days labeled with the weekday that
+│  FRIDAY [Oct 2] SATURDAY [ ] │     date falls on (a wrong year shows as the wrong
+│  SUNDAY [ ]                  │     weekday) and grouped a weekend at a time when
+│  WEEKEND 2                   │     there is more than one; the year is the first
+│  FRIDAY [Oct 9] SATURDAY [ ] │     day's, and moving it moves every day. Then the
+│  SUNDAY [ ]                  │     address the page will live at, following the name
+│  Your page will be …/fan/…/  │     and that year as typed. After screenshots the
+│                              │     header is what was typed, unshown. Then the time
+│  Time zone [Central      ▾]  │     zone (select, spoken names): the festival's own
+│  Where this festival is held.│     when it is on record in the almanac, else a guess
+│                              │     and said so. Then one section per image, in day
+│  WEEKEND 1 · FRI 2 OCT       │     order: its day as an eyebrow (only with several,
+│  ┌────────────────────────┐  │     with its weekend), the image in a card, a count
+│  │   their Friday image   │  │     ("34 sets read, 7 flagged."), then the flagged
+│  └────────────────────────┘  │     rows only — a guessed end, a look-closer note —
+│  34 sets read, 7 flagged.    │     by stage, and one text button that shows the
+│  T-MOBILE                    │     rest. A row: artist field, day + two time fields,
+│  [ LORDE              ]      │     the printed time in mono, yellow chips ("No end
+│  FRI [8:15 PM]–[        ]    │     printed" or "Til close", "Look closer"), a tonal
+│  FRI · Printed 8:15 · An hour│     "Can't read it" toggle. A guessed end is left
+│  on the calendar             │     blank, not filled in: the calendar gets an hour
+│  (No end printed)            │     unless one is typed. A row's day is the night it
+│  [ Can't read it ]           │     belongs to (a 1 AM set is Friday's). No dividers.
+│  Show all 34 sets            │     Confirm is disabled with a plain reason while any
+│  WEEKEND 1 · SAT 3 OCT       │     set is marked.
 │  …                           │
 │  [       Confirm      ]      │
 │                              │
@@ -287,6 +293,18 @@ Rules that came out of building it:
   misread name is caught before it is permanent. Every answer to a link, whatever its gate, lands
   back on the link screen: it is the only screen that came before it. The update link's page has
   no link screen; it already knows its festival.
+
+- **The flagged sets are the review; the rest wait behind one tap per day** (owner feedback,
+  2026-09-22). Two hundred rows is a page nobody checks. Each day counts its sets and its
+  flags — a guessed end, a look-closer note from the read — shows only those rows, and offers
+  "Show all N sets". Confirm still reads every row, shown or not, and is still the human's act
+  (the no-draft-tier ruling): what changed is what the human is asked to look at. The same
+  feedback dropped the Year field (each day carries its year; the first day's is the
+  festival's), grouped the days a weekend at a time, put a link's images into day order
+  whatever order the page listed them, left a guessed end blank with "No end printed" or "Til
+  close" instead of an invented time, and read the zone off the almanac
+  (`config/festivals.yaml`, matched by the schedule page's host or the printed name — Central
+  for ACL) with "Where this festival is held." under the select instead of "A guess".
 
 ### The update link's page — `/update/fan/<key>/`
 

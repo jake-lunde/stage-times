@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 
 import { loadAlmanac, lookAhead, LOOK_AHEAD_DAYS, type Almanac, type LookAheadResult } from '../src/look-ahead.js';
+import { zoneOnRecord } from '../src/almanac.js';
 import { keyOf, loadWatchList, type WatchList } from '../src/watcher.js';
 import { REPO_ROOT } from './helpers.js';
 import { fakeClock, fakeNotifier, type FakeNotifier } from './publisher-fakes.js';
@@ -223,4 +224,21 @@ test('look-ahead: the almanac refuses what the look-ahead cannot use, naming the
   assert.throws(() => load({ editions: [{ year: 2026, dates: { first: '2026-10-09', last: '2026-10-11' }, dropped: '2026-10-12' }] }), /dropped/);
   assert.throws(() => load({ editions: [base.editions[0], base.editions[0]] }), /on record twice/);
   assert.throws(() => loadAlmanac(JSON.stringify([base, base])), /twice/);
+});
+
+// ---------------------------------------------------------------------------
+// The zone on record
+// ---------------------------------------------------------------------------
+
+test("almanac: a festival's zone is found by its schedule page's host, else by its name, and never guessed", () => {
+  const almanac = loadAlmanac(readFileSync(join(REPO_ROOT, 'config', 'festivals.yaml'), 'utf8'));
+  assert.equal(zoneOnRecord(almanac, { url: 'https://www.aclfestival.com/schedule' }), 'America/Chicago', 'by host');
+  assert.equal(zoneOnRecord(almanac, { url: 'http://aclfestival.com/some/other/page?x=1' }), 'America/Chicago', 'www. and the path aside');
+  assert.equal(zoneOnRecord(almanac, { name: 'AUSTIN CITY LIMITS MUSIC FESTIVAL 25 YEARS' }), 'America/Chicago', 'by the printed name, which starts with the festival');
+  assert.equal(zoneOnRecord(almanac, { name: 'Austin City Limits' }), 'America/Chicago', 'by the name exactly');
+  assert.equal(zoneOnRecord(almanac, { name: 'III Points 2026' }), 'America/New_York', 'a festival with its own slug');
+  assert.equal(zoneOnRecord(almanac, { url: 'https://elsewhere.example/schedule', name: 'Low Tide' }), null, 'nothing on record is no zone');
+  assert.equal(zoneOnRecord(almanac, { url: 'not a link', name: '' }), null, 'garbage is no zone');
+  assert.equal(zoneOnRecord(almanac, {}), null);
+  assert.equal(zoneOnRecord(almanac, { url: 'https://elsewhere.example/', name: 'AUSTIN CITY LIMITS MUSIC FESTIVAL' }), 'America/Chicago', 'an unknown host does not stop the name matching');
 });

@@ -138,6 +138,23 @@ export function daysRead(outputs: ModelOutput[]): string[] {
 }
 
 /**
+ * What the replies say the festival is, for matching it against the record
+ * of it (src/almanac.ts): the first reply's printed name and the address
+ * printed on it, when the reply will parse. A link's uploader typed neither.
+ */
+export function festivalRead(outputs: ModelOutput[]): { name: string | null; officialUrl: string | null } {
+  for (const o of outputs) {
+    try {
+      const raw = parseModelOutput(o.output, o.source);
+      return { name: raw.festival_name || null, officialUrl: raw.official_url ?? null };
+    } catch {
+      continue;
+    }
+  }
+  return { name: null, officialUrl: null };
+}
+
+/**
  * The same replies with their days moved: `from[i]` becomes `to[i]` on every
  * image, and every set printed under it goes with it — the year of the
  * edition too, since that is read from the first day. Each moved reply says

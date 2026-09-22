@@ -166,6 +166,54 @@ test('a link to a page of per-day schedule images returns one review across ever
   assert.deepEqual(review, uploaded.review, 'a link and an upload of the same images give the same review');
 });
 
+test('a page that lists its days out of order still reads them into day order: the images, the sets and the days', async () => {
+  const urls = Object.keys(weekendOnTheWeb());
+  const [friday, saturday, sunday] = urls as [string, string, string];
+  const ports = linkPorts({ web: weekendWeb({ pages: { [SCHEDULE]: pageOf([sunday, friday, saturday]) } }) });
+  const result = await okLink(ports);
+  const review = result.review!;
+  assert.deepEqual(result.images.map((i) => i.filename), ['friday.webp', 'saturday.png', 'sunday.jpg'], 'the images come back Friday to Sunday');
+  assert.deepEqual(review.images, asUploaded().map((i) => sha256(i.bytes)), 'and the review lists them so');
+  assert.deepEqual([...new Set(review.sets.map((s) => s.image))], review.images, 'the sets run Friday to Sunday too');
+  assert.deepEqual(result.days, ['2026-10-09', '2026-10-10', '2026-10-11']);
+  assert.deepEqual(ports.web.imageFetches.slice(0, 3), [`${IMG}/share.png`, `${IMG}/logo.png`, sunday], 'fetched in page order, as before');
+});
+
+const ALMANAC = `
+- festival: Low Tide
+  source: https://www.lowtide.example/schedule
+  timezone: America/New_York
+  form: poster
+  editions:
+    - year: 2026
+      dates: { first: 2026-10-09, last: 2026-10-11 }
+`;
+
+test("a link to a festival on record reads in that festival's own zone, by the page's host, and the review says so", async () => {
+  const ports = linkPorts({ repo: fakeRepository({ files: { 'config/festivals.yaml': ALMANAC } }) });
+  const result = await okLink(ports);
+  assert.equal(result.review!.timezone, 'America/New_York');
+  assert.equal(result.review!.timezoneOnRecord, true);
+  assert.equal(result.review!.timezoneAssumed, false, 'on record is not a guess');
+
+  const confirmed = await confirm(confirmOf(result), ports);
+  assert.equal(confirmed.ok, true, confirmed.rejection?.reason);
+  const yaml = confirmed.commit!.files.find((f) => f.path === 'data/fan/low-tide-2026.yaml')!.contents;
+  assert.match(yaml, /timezone: "?America\/New_York"?/, 'published in that zone');
+  assert.doesNotMatch(yaml, /ASSUMED/);
+});
+
+test('a link to a festival not on record is read in the default zone, as a guess, and a broken almanac is no different', async () => {
+  const off = await okLink(linkPorts({ repo: fakeRepository({ files: { 'config/festivals.yaml': ALMANAC.replace('lowtide.example', 'elsewhere.example').replace('Low Tide', 'High Tide') } }) }));
+  assert.equal(off.review!.timezone, 'America/Los_Angeles');
+  assert.equal(off.review!.timezoneOnRecord, false);
+  assert.equal(off.review!.timezoneAssumed, true);
+
+  const broken = await okLink(linkPorts({ repo: fakeRepository({ files: { 'config/festivals.yaml': '- festival: Low Tide\n  timezone: Mars/Olympus\n' } }) }));
+  assert.equal(broken.review!.timezone, 'America/Los_Angeles', 'an almanac that will not load is no zone, not a refusal');
+  assert.equal(broken.review!.timezoneOnRecord, false);
+});
+
 test("a link's review confirms through the existing confirm: the link is the official schedule and the stored images are the fetched bytes", async () => {
   const ports = linkPorts();
   const result = await okLink(ports);
