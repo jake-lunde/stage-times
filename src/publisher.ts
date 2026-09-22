@@ -68,6 +68,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import {
   editionPath,
+  stageCountOf,
   type PublishedEdition,
   type PublishedFile,
   type UploaderRecord,
@@ -1650,7 +1651,8 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
   };
 
   const setCount = doc.sets.length;
-  const size = `${setCount} set${setCount === 1 ? '' : 's'} across ${doc.stages.length} stage${doc.stages.length === 1 ? '' : 's'}`;
+  const stageCount = stageCountOf(doc.stages);
+  const size = `${setCount} set${setCount === 1 ? '' : 's'} across ${stageCount} stage${stageCount === 1 ? '' : 's'}`;
   const pageUrl = `https://stagetimes.app/${path}/`;
   const commit: Commit = {
     message: `${owner ? 'Publish and list' : 'Publish'} ${doc.festival.name} ${doc.festival.year} (${path})`,

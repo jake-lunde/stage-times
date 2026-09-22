@@ -33,6 +33,15 @@ export interface Stage {
   name: string;
   description: string;
   /**
+   * The weekend this stage's feed covers, when the edition runs more than one
+   * ("Weekend 1"). A stage that plays both weekends of a festival is two
+   * stages here — one id per weekend, since the UID is per stage and the same
+   * act plays both. Display only: it groups the stage cards and names the
+   * calendar; the weekend a set belongs to is in the stage id forever.
+   * Absent on an edition with one run of days.
+   */
+  weekend?: string;
+  /**
    * The acts the stage bills as its closer each night, as printed — usually the last
    * set, but an afters DJ set does not count. Display only (the card art and the
    * headliner preview); never touches a feed. Optional: absent means "the last set
@@ -343,6 +352,7 @@ export function validateDoc(raw: unknown, sourcePath: string): FestivalDoc {
       const id = reqString(s, 'id', where, problems);
       const name = reqString(s, 'name', where, problems);
       const description = optString(s, 'description', where, problems);
+      const weekend = optString(s, 'weekend', where, problems).trim();
       const headlinersRaw = s['headliners'];
       let headliners: string[] = [];
       if (headlinersRaw !== undefined && headlinersRaw !== null) {
@@ -368,8 +378,19 @@ export function validateDoc(raw: unknown, sourcePath: string): FestivalDoc {
           seen.set(id, i);
         }
       }
-      stages.push({ id, name, description, headliners });
+      stages.push({ id, name, description, headliners, ...(weekend ? { weekend } : {}) });
     });
+    // A weekend is a property of the whole edition: either every stage names
+    // its weekend or none does, or the page would show half its stages under
+    // a weekend and the rest under nothing.
+    const withWeekend = stages.filter((s) => s.weekend);
+    if (withWeekend.length > 0 && withWeekend.length < stages.length) {
+      problems.push(
+        `stages: ${withWeekend.length} of ${stages.length} stages name a \`weekend\` (${withWeekend
+          .map((s) => `"${s.id}"`)
+          .join(', ')}). A festival either runs more than one weekend, with every stage under one, or it does not.`,
+      );
+    }
   }
 
   // --- sets ----------------------------------------------------------------

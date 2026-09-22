@@ -43,7 +43,7 @@
  */
 
 import { parse as parseYaml } from 'yaml';
-import { editionPath, type PublishedEdition, type PublishedFile } from './build.js';
+import { editionPath, feedLabel, stageCountOf, type PublishedEdition, type PublishedFile } from './build.js';
 import {
   changeLine,
   checkImage,
@@ -710,7 +710,8 @@ function dayHeading(iso: string): string {
 function reviewBody(entry: WatchEntry, key: string, found: Found[], transcription: Transcription, since: SetChange[], branch: string): string {
   const doc = transcription.edition;
   const name = `${entry.festival} ${entry.year}`;
-  const size = `${doc.sets.length} set${doc.sets.length === 1 ? '' : 's'} across ${doc.stages.length} stage${doc.stages.length === 1 ? '' : 's'}`;
+  const stageCount = stageCountOf(doc.stages);
+  const size = `${doc.sets.length} set${doc.sets.length === 1 ? '' : 's'} across ${stageCount} stage${stageCount === 1 ? '' : 's'}`;
   const lines: string[] = [
     since.length > 0
       ? `The schedule page for ${name} changed again before the earlier review was merged. This replaces it.`
@@ -725,7 +726,7 @@ function reviewBody(entry: WatchEntry, key: string, found: Found[], transcriptio
     lines.push('## Since the earlier reading', ...since.map(changeLine), '');
   }
   for (const stage of doc.stages) {
-    lines.push(`## ${stage.name}`);
+    lines.push(`## ${feedLabel(stage)}`);
     const sets = transcription.sets.filter((s) => s.stage === stage.id);
     let day = '';
     for (const set of sets) {

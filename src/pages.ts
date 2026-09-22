@@ -47,6 +47,8 @@ interface StageEntry {
   id: string;
   name: string;
   description?: string;
+  /** The weekend this stage's feed covers, on an edition that runs more than one. */
+  weekend?: string;
   setCount: number;
   dayspan: DaySpan;
   headliners: string[];
@@ -73,6 +75,8 @@ export interface Manifest {
   /** Taken down: feeds serve empty, and the page is the removed page, not the subscribe page. */
   blocked: boolean;
   stages: StageEntry[];
+  /** The weekends, in date order, when the edition runs more than one; every stage then names its weekend. */
+  weekends?: { name: string; dayspan: DaySpan; stageCount: number; setCount: number }[];
   all: { id: string; name: string; setCount: number; dayspan: DaySpan; icsPath: string };
   allSetCount: number;
   lastUpdated: string;
@@ -668,6 +672,10 @@ ${popKeyframes()}
 }
 .stage-body .desc{font-size:var(--t-small); color:rgba(252,249,244,.85); margin:var(--gap-2) 0 0}
 
+/* ── weekend pair: two tonal pills, 8pt apart; the pressed one is ink ──── */
+.weekends{display:flex; gap:var(--gap-1); margin-bottom:var(--gap-4)}
+.weekends .btn{flex:1}
+
 /* ── all-stages card (deliberately demoted: sunk, ink, full width) ────── */
 .card--all{
   background:var(--paper-sunk); color:var(--ink); border-radius:var(--r-card);
@@ -808,6 +816,27 @@ function stageColor(i: number): string {
 }
 
 /**
+ * The color of each stage, by its position among the stages of its own
+ * weekend: a stage that plays both weekends is two stages in the data and
+ * one color on the page, because color is identity (references/color.md).
+ */
+function stageColors(stages: StageEntry[]): Map<string, string> {
+  const colors = new Map<string, string>();
+  const seen = new Map<string | undefined, number>();
+  for (const s of stages) {
+    const i = seen.get(s.weekend) ?? 0;
+    seen.set(s.weekend, i + 1);
+    colors.set(s.id, stageColor(i));
+  }
+  return colors;
+}
+
+/** How many stages a festival-goer would count: a stage on both weekends is one. */
+function stageCount(m: Manifest): number {
+  return new Set(m.stages.map((s) => s.name)).size;
+}
+
+/**
  * The human name for a festival's time zone, for the footer stamp. The IANA id
  * stays in the data and the feeds; the page says what a festival-goer would say.
  * Unknown zones fall back to the zone's city name.
@@ -845,6 +874,17 @@ export function shortDates(first: string, last: string): string {
   return `${a.mon} ${a.d}, ${a.y}`;
 }
 
+/**
+ * The dates of an edition for a card or a caption: `Oct 2–4, 2026`, or over
+ * two weekends `Oct 2–4 & Oct 9–11, 2026`. Same form as `shortDates`.
+ */
+export function editionDates(m: Pick<Manifest, 'weekends' | 'all'>): string {
+  if (!m.weekends || m.weekends.length < 2) return shortDates(m.all.dayspan.first, m.all.dayspan.last);
+  const year = m.all.dayspan.first.slice(0, 4);
+  const spans = m.weekends.map((w) => shortDates(w.dayspan.first, w.dayspan.last).replace(new RegExp(`,? ?${year}$`), ''));
+  return `${spans.join(' & ')}, ${year}`;
+}
+
 // ---------------------------------------------------------------------------
 // Subscribe page
 // ---------------------------------------------------------------------------
@@ -877,10 +917,37 @@ export function renderSubscribePage(m: Manifest): string {
   const title = `${f.name} ${f.year} — set times by stage`;
   const desc = `${f.name} ${f.year} set times, one calendar per stage. Add the stages you care about to your phone.`;
 
-  const dayDates = m.all.dayspan.first ? dateRange(m.all.dayspan.first, m.all.dayspan.last) : [];
-  const cards = m.stages
-    .map((s, i) => stageCard(s, stageColor(i), `${PROD_ORIGIN}${s.icsPath}`, f.key, dayDates))
-    .join('\n');
+  const colors = stageColors(m.stages);
+  const carousel = (stages: StageEntry[], dayDates: string[]) =>
+    `<ul class="carousel">
+${stages.map((s) => stageCard(s, colors.get(s.id)!, `${PROD_ORIGIN}${s.icsPath}`, f.key, dayDates)).join('\n')}
+    </ul>`;
+
+  // One run of days: the stages, and that is the decision. More than one
+  // weekend: pick the weekend first — two pills, the pressed one ink — then
+  // its stages. Every weekend's stages are in the page; the script shows one
+  // weekend at a time, and without it the pills scroll to the weekend instead.
+  const weekends = m.weekends && m.weekends.length > 1 ? m.weekends : null;
+  const stages = weekends
+    ? `<p class="eyebrow">Pick your weekend</p>
+    <div class="weekends">
+${weekends.map((w, i) => `      <a class="btn btn--tonal btn--sm" href="#weekend-${i + 1}" data-weekend="${i}" aria-pressed="${i === 0 ? 'true' : 'false'}">${esc(w.name)}</a>`).join('\n')}
+    </div>
+${weekends
+  .map((w, i) => {
+    const mine = m.stages.filter((s) => s.weekend === w.name);
+    const days = w.dayspan.first ? dateRange(w.dayspan.first, w.dayspan.last) : [];
+    return `    <div id="weekend-${i + 1}" data-weekend-panel="${i}">
+    <p class="eyebrow">${esc(w.name)} · ${esc(w.dayspan.label.replace(/ \d{4}$/, ''))}</p>
+    ${carousel(mine, days)}
+    </div>`;
+  })
+  .join('\n')}`
+    : `<p class="eyebrow">Pick your stages</p>
+    ${carousel(m.stages, m.all.dayspan.first ? dateRange(m.all.dayspan.first, m.all.dayspan.last) : [])}`;
+  // Two weekends take the card's short form — the weekdays are on each
+  // weekend's own line below, and the caption is one line, not three.
+  const when = weekends ? `<span>${esc(editionDates(m))}</span>` : `<span>${esc(m.all.dayspan.label)}</span>`;
 
   const allUrl = `${PROD_ORIGIN}${m.all.icsPath}`;
   const allWebcal = allUrl.replace(/^https:/, 'webcal:');
@@ -903,18 +970,15 @@ export function renderSubscribePage(m: Manifest): string {
   <header>
     <p class="lockup">Stage&nbsp;Times</p>
     <h2>${esc(f.name)} <span style="color:var(--ink-soft)">${f.year}</span></h2>
-    <p class="title-meta mono-cap"><span>${esc(m.all.dayspan.label)}</span> · <span>${m.allSetCount} sets</span> · <span>${m.stages.length} stages</span></p>
+    <p class="title-meta mono-cap">${when} · <span>${m.allSetCount} sets</span> · <span>${stageCount(m)} stages</span></p>
   </header>
 
   <section>
-    <p class="eyebrow">Pick your stages</p>
-    <ul class="carousel">
-${cards}
-    </ul>
+    ${stages}
     <ul class="carousel-tail" style="margin:0;padding:0;list-style:none">
       <li class="card--all">
         <h3>${esc(m.all.name)}</h3>
-        <p class="meta">${m.all.setCount} sets · every stage in one calendar</p>
+        <p class="meta">${m.all.setCount} sets · every stage${weekends ? ', both weekends,' : ''} in one calendar</p>
         <div class="actions">
           <a class="btn btn--ink" href="${esc(allWebcal)}" data-festival="${esc(f.key)}" data-stage="${esc(m.all.id)}">Add calendar</a>
           <button class="icon-btn" data-copy="${esc(allUrl)}" aria-label="Copy calendar link">${ICON_LINK}${ICON_CHECK}</button>
@@ -923,7 +987,7 @@ ${cards}
       </li>
     </ul>
     <p class="small" style="margin-top:var(--gap-3)">
-      Pick two or three. All ${numberWord(m.stages.length)} at once turns a day view into a wall of
+      Pick two or three. All ${numberWord(stageCount(m))} at once turns a day view into a wall of
       overlapping blocks.
     </p>
     <a class="text-btn" href="${esc(f.officialUrl)}">See the full lineup ↗</a>
@@ -975,7 +1039,23 @@ ${cards}
 </main>
 
 <script>
+// More than one weekend: show one at a time. The pills are anchors, so with
+// no script they scroll to the weekend instead.
+var panels = document.querySelectorAll('[data-weekend-panel]');
+function showWeekend(k) {
+  panels.forEach(function (p) { p.hidden = p.getAttribute('data-weekend-panel') !== k; });
+  document.querySelectorAll('[data-weekend]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-weekend') === k)); });
+}
+if (panels.length) showWeekend('0');
+
 document.addEventListener('click', function (e) {
+  var pick = e.target.closest('[data-weekend]');
+  if (pick) {
+    e.preventDefault();
+    showWeekend(pick.getAttribute('data-weekend'));
+    return;
+  }
+
   var copy = e.target.closest('[data-copy]');
   if (copy) {
     var url = copy.getAttribute('data-copy');
@@ -1117,7 +1197,7 @@ export function listedEditions(site: SiteManifest): Manifest[] {
 function directoryCard(m: Manifest, image: string | undefined): string {
   const f = m.festival;
   const fan = m.namespace === 'fan';
-  const when = shortDates(m.all.dayspan.first, m.all.dayspan.last) + (f.city ? ` · ${f.city}` : '');
+  const when = editionDates(m) + (f.city ? ` · ${f.city}` : '');
   const eyebrow = fan
     ? `<span class="eyebrow eyebrow--fan">Fan-made</span>`
     : `<span class="eyebrow">${esc(when)}</span>`;
@@ -1132,7 +1212,7 @@ function directoryCard(m: Manifest, image: string | undefined): string {
       <span class="shelf-text">
         ${eyebrow}
         <span class="shelf-title">${esc(f.name)}</span>
-        <span class="shelf-lead">${count(m.allSetCount, 'set')} across ${count(m.stages.length, 'stage')}.</span>
+        <span class="shelf-lead">${count(m.allSetCount, 'set')} across ${count(stageCount(m), 'stage')}.</span>
         ${quiet}
       </span>
       <span class="shelf-art" style="background:${artGround(color)}">${art}</span>

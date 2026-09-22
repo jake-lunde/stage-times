@@ -190,6 +190,8 @@ export interface StageManifest {
   id: string;
   name: string;
   description: string;
+  /** The weekend this stage's feed covers, on an edition that runs more than one. Display only. */
+  weekend?: string;
   setCount: number;
   dayspan: DaySpan;
   firstSet: string;
@@ -200,6 +202,14 @@ export interface StageManifest {
   /** Every set on this stage in start order, local wall times, for the card art. */
   sets: { artist: string; start: string; end: string }[];
   icsPath: string;
+}
+
+/** One weekend of an edition that runs more than one: its name, its days, and what it holds. */
+export interface WeekendManifest {
+  name: string;
+  dayspan: DaySpan;
+  stageCount: number;
+  setCount: number;
 }
 
 /** One edition's manifest. */
@@ -226,6 +236,12 @@ export interface Manifest {
   listed: boolean;
   blocked: boolean;
   stages: StageManifest[];
+  /**
+   * The weekends, in date order, when the edition runs more than one (ACL,
+   * Coachella). Every stage then names its weekend, and the page picks a
+   * weekend before it shows the stages. Absent for one run of days.
+   */
+  weekends?: WeekendManifest[];
   all: {
     id: string;
     name: string;
@@ -295,6 +311,20 @@ function daySpanOf(sets: SetEntry[]): DaySpan {
   const label =
     first === last ? `${dayLabel(first)} ${year}` : `${dayLabel(first)} – ${dayLabel(last)} ${year}`;
   return { days: dates.length, first, last, label };
+}
+
+/**
+ * What a stage's calendar is called: the stage, and its weekend when the
+ * edition runs more than one — a person who adds a stage from both weekends
+ * gets two calendars, and they have to read apart in the list.
+ */
+export function feedLabel(stage: Pick<Stage, 'name' | 'weekend'>): string {
+  return stage.weekend ? `${stage.name} (${stage.weekend})` : stage.name;
+}
+
+/** How many stages a festival-goer would count: a stage on both weekends is one stage, twice. */
+export function stageCountOf(stages: Pick<Stage, 'name'>[]): number {
+  return new Set(stages.map((s) => s.name)).size;
 }
 
 /** Deterministic event ordering: start time, then normalized artist, then UID. */
@@ -369,7 +399,7 @@ export function buildFeeds(doc: FestivalDoc, state: BuildState, flags: EditionFl
     const icsPath = `${basePath}/${stage.id}.ics`;
     files.set(
       `${path}/${stage.id}.ics`,
-      renderCalendar({ festival, stageName: stage.name, events: mine.map((p) => p.rendered) }),
+      renderCalendar({ festival, stageName: feedLabel(stage), events: mine.map((p) => p.rendered) }),
     );
     const mySets = mine.map((p) => p.set);
     const starts = mySets.map((s) => isoLocal(s.start)).sort();
@@ -389,6 +419,7 @@ export function buildFeeds(doc: FestivalDoc, state: BuildState, flags: EditionFl
       id: stage.id,
       name: stage.name,
       description: stage.description,
+      ...(stage.weekend ? { weekend: stage.weekend } : {}),
       setCount: mySets.length,
       dayspan: daySpanOf(mySets),
       firstSet: starts[0] ?? '',
@@ -399,6 +430,15 @@ export function buildFeeds(doc: FestivalDoc, state: BuildState, flags: EditionFl
       icsPath,
     });
   }
+
+  // The weekends, in the order the stages name them (the first weekend's
+  // stages come first in the YAML), each with the span of its own sets.
+  const weekendNames = [...new Set(stages.map((s) => s.weekend).filter((w): w is string => !!w))];
+  const weekends: WeekendManifest[] = weekendNames.map((name) => {
+    const ids = new Set(stages.filter((s) => s.weekend === name).map((s) => s.id));
+    const theirs = prepared.filter((p) => ids.has(p.set.stage)).map((p) => p.set);
+    return { name, dayspan: daySpanOf(theirs), stageCount: ids.size, setCount: theirs.length };
+  });
 
   const allSorted = prepared.slice().sort(sortEvents);
   files.set(
@@ -421,6 +461,7 @@ export function buildFeeds(doc: FestivalDoc, state: BuildState, flags: EditionFl
     listed: flags.listed && !flags.blocked,
     blocked: flags.blocked,
     stages: stageManifests,
+    ...(weekends.length > 0 ? { weekends } : {}),
     all: {
       id: 'all',
       name: ALL_STAGES_LABEL,
