@@ -16,7 +16,7 @@
     "it becomes DTSTAMP / LAST-MODIFIED on every event the build touches and `lastUpdated` in feeds.json.",
     "It exists so the build never reads the wall clock — output must be byte-identical across runs."
   ],
-  "publishedAt": "20260808T211500Z",
+  "publishedAt": "20260922T182508Z",
   "editions": {
     "capitol-hill-block-party-2026": {
       "slug": "capitol-hill-block-party",
@@ -30,6 +30,45 @@
         "main",
         "neumos"
       ]
+    },
+    "fan/austin-city-limits-music-festival-25-years-2026": {
+      "slug": "austin-city-limits-music-festival-25-years",
+      "year": 2026,
+      "namespace": "fan",
+      "listed": false,
+      "blocked": false,
+      "stages": [
+        "american-express-weekend-1",
+        "american-express-weekend-2",
+        "austin-kiddie-limits-presented-by-lifeway-kefir-weekend-1",
+        "austin-kiddie-limits-presented-by-lifeway-kefir-weekend-2",
+        "beatbox-weekend-1",
+        "beatbox-weekend-2",
+        "bmi-weekend-1",
+        "bmi-weekend-2",
+        "miller-lite-weekend-1",
+        "miller-lite-weekend-2",
+        "snapchat-weekend-1",
+        "snapchat-weekend-2",
+        "t-mobile-weekend-1",
+        "t-mobile-weekend-2",
+        "tito-s-handmade-vodka-weekend-1",
+        "tito-s-handmade-vodka-weekend-2"
+      ],
+      "uploader": {
+        "secretHash": "d228e8942c61b1fc740cb8f2b4eb5ffed81189460e157f7ddf8351b2894221e0",
+        "addressHash": "f22f70def43af37a3e004df1641f14ad02e2060e214acc0cd924b9fca514b42f",
+        "verifiedAt": "20260922T182508Z",
+        "image": "a0077579c70ffd911a8e26af3305d6ecf60ae6ed28172ec5cbf78ef93b7bd9ee",
+        "images": [
+          "a0077579c70ffd911a8e26af3305d6ecf60ae6ed28172ec5cbf78ef93b7bd9ee",
+          "2f59cb68855475c265b5b9cf64fe9a7805ef6308fc7b69ff8a3719fe0ed56c8c",
+          "ae64837ba4ef45622147f6dcb11b8fd44cdcc7aea2514742a7c1f96c84423e4c",
+          "74085829f9a3ab9e8e3896753c49b0942b34428406a9d76783b96cf73673f7d3",
+          "1393eab849860378263657bae1362226059cf0eddbb66979a657a26e09d513e2",
+          "01edeabfdd8da54bbd8f0822d3486c40b3f504a5bbff03dcc68f4943fb3bab4b"
+        ]
+      }
     }
   }
 }
