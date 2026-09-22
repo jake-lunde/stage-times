@@ -371,7 +371,14 @@ export interface BuiltTranscription {
   /** Every human correction that was applied, field by field, in set order. */
   edits: AppliedEdit[];
   festival: { name: string; slug: string; year: number; timezone: string; official_url: string };
-  stages: { id: string; name: string }[];
+  stages: BuiltStage[];
+}
+
+/** One stage as the transcription declares it: the permanent id, the display name, and its weekend when the edition has more than one. */
+export interface BuiltStage {
+  id: string;
+  name: string;
+  weekend?: string;
 }
 
 /**
@@ -457,10 +464,17 @@ function buildRaw(set: RawSet): string {
 }
 
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function weekdayName(isoDate: string): string {
   const [y, m, d] = isoDate.split('-').map(Number) as [number, number, number];
   return WEEKDAY_NAMES[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]!;
+}
+
+/** `2026-10-02` → `Oct 2`. */
+function shortDate(isoDate: string): string {
+  const [, m, d] = isoDate.split('-').map(Number) as [number, number, number];
+  return `${MONTH_NAMES[m - 1]} ${d}`;
 }
 
 /** `2026-10-02T20:00:00` → `8:00 PM`. */
@@ -469,11 +483,49 @@ function clockOf(iso: string): string {
   return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
 }
 
+/** Whole days from one ISO date to the next. */
+function daysBetween(a: string, b: string): number {
+  const at = (iso: string) => {
+    const [y, m, d] = iso.split('-').map(Number) as [number, number, number];
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((at(b) - at(a)) / 86_400_000);
+}
+
+/**
+ * The weekends an edition's poster days make: each run of days with no more
+ * than two dark days between them, in date order. One run is the ordinary
+ * festival; ACL and Coachella make two, a week apart (CONTEXT: weekend).
+ * Dates are sorted and deduplicated first, so the input order does not matter.
+ */
+export function weekendsOf(dates: string[]): string[][] {
+  const sorted = [...new Set(dates)].sort();
+  const runs: string[][] = [];
+  for (const date of sorted) {
+    const run = runs[runs.length - 1];
+    if (run && daysBetween(run[run.length - 1]!, date) <= 3) run.push(date);
+    else runs.push([date]);
+  }
+  return runs;
+}
+
+/** `Weekend 1` — the display name of the n-th weekend, 1-based. */
+export function weekendName(n: number): string {
+  return `Weekend ${n}`;
+}
+
+/** The suffix a stage id carries under the n-th weekend: `-weekend-1`. Permanent, like the id. */
+export function weekendSuffix(n: number): string {
+  return `-weekend-${n}`;
+}
+
 /**
  * Suffix the artist of every set that shares its stage with another set of
- * the same artist, so each is its own event with its own UID. Same stage,
- * same normalized name, different days → `(Friday)`; any two on one day →
- * `(Friday 1:30 PM)` for the whole group, so a group reads one way.
+ * the same artist, so each is its own event with its own UID. The tag is the
+ * least a reader needs to tell the group apart, and one group reads one way:
+ * the weekday when the days differ (`Friday`), the weekday and the date when
+ * two of those days share a weekday (`Friday Oct 2`), and the printed start
+ * as well when two fall on one day (`Friday 1:30 PM`).
  */
 export function disambiguateRepeats(sets: BuiltSet[]): void {
   const groups = new Map<string, BuiltSet[]>();
@@ -483,9 +535,13 @@ export function disambiguateRepeats(sets: BuiltSet[]): void {
   }
   for (const group of groups.values()) {
     if (group.length < 2) continue;
-    const oneADay = new Set(group.map((s) => s.posterDate)).size === group.length;
+    const dates = new Set(group.map((s) => s.posterDate));
+    const weekdays = new Set(group.map((s) => weekdayName(s.posterDate)));
+    const oneADay = dates.size === group.length;
+    const dayTag = (s: BuiltSet) =>
+      weekdays.size === dates.size ? weekdayName(s.posterDate) : `${weekdayName(s.posterDate)} ${shortDate(s.posterDate)}`;
     for (const s of group) {
-      const tag = oneADay ? weekdayName(s.posterDate) : `${weekdayName(s.posterDate)} ${clockOf(s.start)}`;
+      const tag = oneADay ? dayTag(s) : `${dayTag(s)} ${clockOf(s.start)}`;
       s.printedArtist = s.artist;
       s.artist = `${s.artist} (${tag})`;
       s.notes = [s.notes, `Billed more than once on this stage; "(${tag})" tells the events apart.`].filter(Boolean).join(' ');
@@ -515,12 +571,13 @@ function buildNotes(set: RawSet, noEnd: 'close' | 'bare' | undefined): string {
  * One poster day's sets, stage by stage, in printed order, with every time
  * rule applied: meridiems resolved, midnight crossed, a missing end made start
  * plus an hour. One set per printed set, in the order `day.stages` prints
- * them, so the two can be read side by side.
+ * them, so the two can be read side by side. `stageSuffix` is the weekend's
+ * mark on every stage id when the edition runs more than one (`-weekend-2`).
  */
-export function readDay(day: RawDay, source: string): BuiltSet[] {
+export function readDay(day: RawDay, source: string, stageSuffix = ''): BuiltSet[] {
   const sets: BuiltSet[] = [];
   for (const stage of day.stages) {
-    const stageId = stageIdFromName(stage.name);
+    const stageId = stageIdFromName(stage.name) + stageSuffix;
     let dayOffset = 0;
     let prevAbsStart: number | null = null;
     for (const rawSet of stage.sets) {
@@ -602,21 +659,32 @@ export function buildTranscription(
     options.officialUrl ?? transcriptions.map((t) => t.official_url).find((u) => u) ?? '',
   );
 
-  // Stages: unique by derived id, in order of first appearance.
-  const stages: { id: string; name: string }[] = [];
-  const stageIds = new Map<string, string>();
+  // Weekends: a run of days a week apart is a second weekend, and a stage
+  // that plays both is two stages — one id, one feed, one calendar per
+  // weekend — because the UID is per stage and the same act plays both.
+  // One run of days is the ordinary festival: plain ids, no weekend.
+  const weekends = weekendsOf(days.map((d) => d.date));
+  const weekendOfDate = new Map<string, number>();
+  if (weekends.length > 1) weekends.forEach((run, i) => run.forEach((date) => weekendOfDate.set(date, i + 1)));
+  const suffixOf = (date: string) => (weekendOfDate.has(date) ? weekendSuffix(weekendOfDate.get(date)!) : '');
+
+  // Stages: unique by derived id, in order of first appearance — so the first
+  // weekend's stages come first, in printed order, then the second's.
+  const stages: BuiltStage[] = [];
+  const stageIds = new Set<string>();
   for (const day of days) {
+    const n = weekendOfDate.get(day.date);
     for (const stage of day.stages) {
-      const id = stageIdFromName(stage.name);
+      const id = stageIdFromName(stage.name) + suffixOf(day.date);
       if (!stageIds.has(id)) {
-        stageIds.set(id, stage.name);
-        stages.push({ id, name: titleCase(stage.name) });
+        stageIds.add(id);
+        stages.push({ id, name: titleCase(stage.name), ...(n ? { weekend: weekendName(n) } : {}) });
       }
     }
   }
 
   // Sets, day by day, stage by stage, in printed order.
-  const sets: BuiltSet[] = days.flatMap((day) => readDay(day, sourceOfDate.get(day.date)!));
+  const sets: BuiltSet[] = days.flatMap((day) => readDay(day, sourceOfDate.get(day.date)!, suffixOf(day.date)));
 
   // The same artist twice on one stage collides on UID — the known limitation
   // (README): UID excludes the start time on purpose. ACL runs a silent disco
@@ -641,7 +709,7 @@ export function buildTranscription(
   // would later commit, not an in-memory cousin of it.
   const doc = loadFestivalFromString(yaml, `transcription of ${sources.join(', ')}`);
 
-  const log = renderLog(transcriptions, days, festival, sets, edits, options, sources);
+  const log = renderLog(transcriptions, days, festival, stages, sets, edits, options, sources);
   return { doc, yaml, log, sets, edits, festival, stages };
 }
 
@@ -656,7 +724,7 @@ function q(value: string): string {
 
 function renderYaml(
   festival: { name: string; slug: string; year: number; timezone: string; official_url: string },
-  stages: { id: string; name: string }[],
+  stages: BuiltStage[],
   sets: BuiltSet[],
   options: TranscriptionOptions,
   sources: string[],
@@ -693,10 +761,16 @@ function renderYaml(
   lines.push(`  timezone: ${q(festival.timezone)}${options.timezoneAssumed ? '   # ASSUMED — confirm before publish' : ''}`);
   lines.push(`  official_url: ${q(festival.official_url)}${festival.official_url ? '   # from the poster — unverified' : ''}`);
   lines.push('');
+  if (stages.some((s) => s.weekend)) {
+    lines.push('# Two weekends (or more): a stage that plays both is two stages here, one id and one feed');
+    lines.push('# per weekend, because the same act plays both and the UID is per stage. `weekend` is');
+    lines.push('# display only; the weekend a stage belongs to is in its id forever.');
+  }
   lines.push('stages:');
   for (const stage of stages) {
     lines.push(`  - id: ${q(stage.id)}     # PERMANENT url slug — never change after publish`);
     lines.push(`    name: ${q(stage.name)}`);
+    if (stage.weekend) lines.push(`    weekend: ${q(stage.weekend)}`);
   }
   lines.push('');
   lines.push('sets:');
@@ -726,6 +800,7 @@ function renderLog(
   transcriptions: RawTranscription[],
   days: RawDay[],
   festival: { name: string; slug: string; year: number; timezone: string; official_url: string },
+  stages: BuiltStage[],
   sets: BuiltSet[],
   edits: AppliedEdit[],
   options: TranscriptionOptions,
@@ -848,13 +923,34 @@ function renderLog(
     for (const s of combined) L.push(`- ${s.stage}: ${s.raw}`);
   }
 
-  // 5. Artists appearing more than once (different stages ⇒ distinct UIDs).
+  // 4b. More than one weekend: the stage ids carry it.
+  const weekends = weekendsOf(sets.map((s) => s.posterDate));
+  if (weekends.length > 1) {
+    n += 1;
+    L.push('');
+    L.push(`### ${n}. ${weekends.length} weekends`);
+    L.push('');
+    L.push('The days fall in more than one run, a week or so apart, so each run is a weekend and');
+    L.push('every stage id carries its weekend: a stage that plays both is two stages, one feed');
+    L.push('per weekend, because the same act plays both and the UID is per stage. Check that the');
+    L.push('split is the festival\'s own and not a misread date:');
+    L.push('');
+    weekends.forEach((run, i) => {
+      const ids = stages.filter((st) => st.weekend === weekendName(i + 1)).map((st) => st.id);
+      L.push(`- ${weekendName(i + 1)}: ${run[0]} → ${run[run.length - 1]} (${ids.length} stages: ${ids.join(', ')})`);
+    });
+  }
+
+  // 5. Artists appearing more than once on different stages (distinct UIDs).
+  // The same stage on another weekend is the norm for a two-weekend festival,
+  // not a thing to check, so a stage counts without its weekend here.
+  const stageBase = (id: string) => id.replace(/-weekend-\d+$/, '');
   const byArtist = new Map<string, BuiltSet[]>();
   for (const s of sets) {
     const key = normalizeArtist(s.artist);
     (byArtist.get(key) ?? byArtist.set(key, []).get(key)!).push(s);
   }
-  const repeats = [...byArtist.values()].filter((g) => g.length > 1);
+  const repeats = [...byArtist.values()].filter((g) => new Set(g.map((s) => stageBase(s.stage))).size > 1);
   if (repeats.length > 0) {
     n += 1;
     L.push('');

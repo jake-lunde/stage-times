@@ -49,8 +49,16 @@ and leave the stale event behind — the most common failure in published feeds.
 > permanent decision, so do it before first publish or not at all. The transcription library
 > works around it in the data instead (`disambiguateRepeats()`, 21 Sep 2026, when ACL's nightly
 > silent disco and repeating kids' acts refused to publish): a repeat on one stage gets the day
-> in its name, `SILENT DISCO (Friday)`, or the day and printed start when two fall on one day.
+> in its name, `SILENT DISCO (Friday)`, the date too when two of its days share a weekday,
+> `(Friday Oct 2)`, and the printed start as well when two fall on one day.
 > The name is what the calendar shows; the log and the review say it happened.
+>
+> A festival over two weekends — ACL, Coachella — is one edition, and a stage that plays both
+> is **two stages**: `t-mobile-weekend-1` and `t-mobile-weekend-2`, each its own feed, each
+> named with its weekend on the calendar. The same act on the same stage both weekends is then
+> two events with two UIDs, because the stage id is in the UID. The weekend is in the id
+> forever, like the rest of it; the stage's `weekend:` field is display only
+> ([ADR-0004](./docs/adr/0004-weekend-scoped-stage-ids.md)). One run of days has no weekends.
 
 ---
 

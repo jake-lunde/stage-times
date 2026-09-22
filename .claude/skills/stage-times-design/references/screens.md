@@ -110,6 +110,21 @@ flood per *product surface*, and cream keeps the stage colors loud). The carouse
 scroll-snap; the peeking next card is the entire affordance and there are no dots, no arrows,
 no JS scroll handling.
 
+### Two weekends: pick the weekend, then the stages
+
+A festival that runs twice (ACL, Coachella; `CONTEXT.md`: weekend) is one page. Under the
+title, an eyebrow `PICK YOUR WEEKEND` over two tonal pills side by side, 8pt apart, `Weekend 1`
+and `Weekend 2`, the pressed one ink. Below, the pressed weekend's eyebrow — `WEEKEND 2 · FRI 9
+OCT – SUN 11 OCT` — and its carousel of stage cards, exactly the single-weekend carousel. The
+other weekend's carousel is in the page, hidden; the pills are anchors, so with no script both
+weekends show in order and a pill scrolls to its weekend. A stage that plays both weekends is
+two cards, one per weekend, in the **same color** — color is identity (`references/color.md`),
+so the color is assigned by the stage's position within its own weekend. The title caption
+takes the card's short dates, `OCT 2–4 & OCT 9–11, 2026`, and counts a stage once. The all-stages
+card says `every stage, both weekends, in one calendar`. Each weekend stage's calendar is named
+with its weekend, `T-Mobile (Weekend 1) — ACL 26`, so two calendars for one stage read apart in
+the list. Ticket 22, 2026-09-22.
+
 ### Card order is a product decision
 
 Per-stage cards come first and get color. `all.ics` comes last, uncolored, in a sunk-grey card.

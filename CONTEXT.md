@@ -23,6 +23,13 @@ A physical performance area within an edition, with a permanent id (`main`) and 
 ("Main Stage") that may change freely.
 _Avoid_: venue, area, tent (unless it is the stage's actual name)
 
+**Weekend**:
+One run of consecutive days within an edition, when the edition has more than one — ACL and
+Coachella run two, a week apart. A stage that plays both weekends is two stages, one per
+weekend, each with its own permanent id and its own feed. An edition with one run of days has
+no weekends.
+_Avoid_: week, leg, part, session, half
+
 **Set**:
 One artist playing one stage from a start time to an end time. A set whose end time was not
 printed on the source is an **inferred-end set**.
