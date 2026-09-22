@@ -17,15 +17,20 @@
  *               and one pill that reads whatever is chosen; a day with no
  *               times yet can be left out. A rejection about one image lands
  *               under that day's row.
- *   review      each day's own image above the sets read off it, with the
- *               inferred-end and look-closer flags, artist/start/end edits
- *               inline, a "can't read it" toggle that blocks confirm, and the
- *               time zone shown as a guess and changeable. Every row's day is
- *               the night it belongs to, so it matches the image above it.
- *               After a link, the name, the year and the days as read sit
- *               above the sets as fields, with the address the page will live
- *               at under them, so a misread name is caught before it is
- *               permanent; a changed name changes the address as it is typed.
+ *   review      each day's own image above the sets read off it, in day
+ *               order, with the flagged sets — a guessed end, a look-closer
+ *               note — shown and the rest folded behind one text button per
+ *               day; artist/start/end edits inline, a guessed end left blank
+ *               rather than filled in, a "can't read it" toggle that blocks
+ *               confirm, and the time zone changeable: the festival's own
+ *               when it is on record, else a guess and said so. Every row's
+ *               day is the night it belongs to, so it matches the image above
+ *               it. After a link, the name and the days as read sit above the
+ *               sets as fields, the days grouped by weekend when there is more
+ *               than one, with the address the page will live at under them,
+ *               so a misread name is caught before it is permanent; a changed
+ *               name changes the address as it is typed, and the year is the
+ *               first day's.
  *   publishing  the honest wait: the times are saved, the page is building,
  *               and the update link is handed over now rather than after
  *   success     the share link and the update link, explained in one line
@@ -192,6 +197,23 @@ export function weekdayName(iso: string): string {
   var d = new Date(Date.UTC(p[0]!, p[1]! - 1, p[2]!));
   if (d.getUTCDate() !== p[2]) return '';
   return ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'][d.getUTCDay()]!;
+}
+
+/**
+ * The weekends the days make, as the transcription decides them (`weekendsOf`
+ * in src/transcribe.ts, pinned equal by test): runs of days no more than three
+ * apart, in date order, once each. One run is the ordinary festival.
+ */
+export function weekendRuns(days: string[]): string[][] {
+  var sorted = days.slice().sort().filter(function (d, i, all) { return all.indexOf(d) === i; });
+  var runs: string[][] = [];
+  for (var i = 0; i < sorted.length; i++) {
+    var run = runs[runs.length - 1];
+    var apart = run ? (Date.parse(sorted[i]! + 'T00:00:00Z') - Date.parse(run[run.length - 1]! + 'T00:00:00Z')) / 86400000 : 0;
+    if (run && apart <= 3) run.push(sorted[i]!);
+    else runs.push([sorted[i]!]);
+  }
+  return runs;
 }
 
 /**
@@ -413,9 +435,11 @@ button.text-btn{background:none; border:0; padding:0; font-family:inherit}
 .file-btn{position:relative; overflow:hidden}
 .file-btn input{position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; font-size:0}
 
-/* the read, as fields (ticket 20): the name, then the year beside each day */
+/* the read, as fields (ticket 20): the name, then the days — a weekend at a time */
 .read{margin-top:var(--gap-3)}
-.read .field-pair{margin-top:var(--gap-3)}
+.read .weekend{margin-top:var(--gap-3)}
+.read .weekend>.eyebrow{margin:0 0 var(--gap-1)}
+.read .weekend>.eyebrow[hidden]{display:none}
 .read .field-pair>.field{margin-top:0}
 .read+.status{margin-top:var(--gap-2)}
 
@@ -463,6 +487,9 @@ button.text-btn{background:none; border:0; padding:0; font-family:inherit}
 .day-review:not(:first-child)>.eyebrow{margin-top:0}
 .day-review>.eyebrow+.source{margin-top:var(--gap-1)}
 .day-review>.small{margin:var(--gap-2) 0 0}
+/* the unflagged sets wait behind one text button per day */
+.day-review>.text-btn{margin-top:var(--gap-3)}
+.set[hidden],.stage-group[hidden]{display:none}
 
 /* the review rows: one set at a time, no dividers */
 .stage-group{margin-top:var(--gap-5)}
@@ -660,13 +687,14 @@ ${linkScreen}
   </section>
 
   <section class="screen" data-screen="review" hidden>
-    <h3 data-review-title>Check every set</h3>
-    <p class="lead" data-review-lead>Against your image. Fix what's off, and mark anything you can't read.</p>
+    <h3>Does this look right?</h3>
+    <p class="lead" data-review-lead>Against your image. Check the flagged sets, fix what's off, and mark any you can't read.</p>
     <div class="read" data-as-read hidden>
       <label class="field"><span>Festival</span><input name="name" type="text" autocomplete="off" autocapitalize="words" data-read-name></label>
-      <div class="field-pair" data-read-days>
-        <label class="field"><span>Year</span><input name="year" type="number" inputmode="numeric" min="2000" max="2100" data-read-year></label>
-      </div>
+      <div data-read-days></div>
+      <template id="read-weekend">
+        <div class="weekend"><p class="eyebrow" data-weekend hidden></p><div class="field-pair" data-weekend-days></div></div>
+      </template>
       <template id="read-day">
         <label class="field"><span data-weekday></span><input type="date" data-read-day></label>
       </template>
@@ -688,8 +716,8 @@ ${linkScreen}
           <span aria-hidden="true">–</span>
           <input type="time" aria-label="End" data-field="end">
         </div>
-        <p class="small printed"><span class="mono-cap" data-day></span> · Printed <span data-printed></span></p>
-        <div class="chips"><span class="chip" data-flag="end">End is a guess</span><span class="chip" data-flag="low">Look closer</span></div>
+        <p class="small printed"><span class="mono-cap" data-day></span> · Printed <span data-printed></span><span data-hour hidden> · An hour on the calendar</span></p>
+        <div class="chips"><span class="chip" data-flag="end">No end printed</span><span class="chip" data-flag="low">Look closer</span></div>
         <button class="btn btn--sm btn--tonal" type="button" data-unreadable aria-pressed="false">Can't read it</button>
       </li>
     </template>
@@ -805,7 +833,7 @@ ${linkScreen}
   // state.days is every day an image can be chosen for; state.images is what
   // has been, by day, in day order and without gaps — the rows are offered one at a time.
   // state.via says which first screen the review came from: 'link' or 'upload'.
-  var state = { via: 'upload', details: null, days: [], images: [], review: null, unreadable: {}, timezoneAssumed: true, published: null, live: false };
+  var state = { via: 'upload', details: null, days: [], images: [], review: null, unreadable: {}, timezoneAssumed: true, timezoneOnRecord: false, published: null, live: false };
   function chosen() { return state.images.filter(function (im) { return !!im; }); }
   function multiDay() { return state.days.length > 1; }
 
@@ -929,6 +957,7 @@ ${linkScreen}
   // ── link ─────────────────────────────────────────────────────────────────
   ${slugify.toString()}
   ${weekdayName.toString()}
+  ${weekendRuns.toString()}
   ${readAddress.toString()}
   ${linkStatus.toString()}
   var linkForm = $('#link');
@@ -974,6 +1003,7 @@ ${linkScreen}
       state.review = rv;
       state.unreadable = {};
       state.timezoneAssumed = rv.timezoneAssumed;
+      state.timezoneOnRecord = rv.timezoneOnRecord;
       renderReview();
       show('review');
     });
@@ -1170,6 +1200,7 @@ ${linkScreen}
       state.review = r.body.review;
       state.unreadable = {};
       state.timezoneAssumed = state.review.timezoneAssumed;
+      state.timezoneOnRecord = state.review.timezoneOnRecord;
       renderReview();
       show('review');
     });
@@ -1183,33 +1214,44 @@ ${linkScreen}
   function zoneHint() {
     $('[data-zone-hint]').textContent = state.timezoneAssumed
       ? 'A guess, since the image can\\'t say. Change it if the festival is somewhere else.'
+      : state.timezoneOnRecord
+      ? 'Where this festival is held. Change it if that\\'s wrong.'
       : 'Every time above is read in this zone.';
   }
-  zone.addEventListener('change', function () { state.timezoneAssumed = false; zoneHint(); });
+  zone.addEventListener('change', function () { state.timezoneAssumed = false; state.timezoneOnRecord = false; zoneHint(); });
 
-  // The read, as fields (ticket 20): the name, the year, and each day the
-  // images were read as, labeled with the weekday that date falls on — so a
-  // wrong year shows up as the wrong weekday against the poster. The address
-  // under them follows the name and the year as they are typed.
-  var readBlock = $('[data-as-read]'), nameField = $('[data-read-name]'), yearField = $('[data-read-year]'), dayGrid = $('[data-read-days]'), dayTpl = $('#read-day');
+  // The read, as fields (ticket 20): the name, and each day the images were
+  // read as, labeled with the weekday that date falls on — so a wrong year
+  // shows up as the wrong weekday against the poster — a weekend at a time
+  // when the days make more than one. The year is the first day's; the
+  // address under them follows the name and that year as they are typed.
+  var readBlock = $('[data-as-read]'), nameField = $('[data-read-name]'), dayGrid = $('[data-read-days]'), weekendTpl = $('#read-weekend'), dayTpl = $('#read-day');
   function renderRead(rv, viaLink) {
     readBlock.hidden = !viaLink;
     if (!viaLink) return;
     nameField.value = rv.festival;
-    yearField.value = String(rv.year);
-    $$('[data-read-day]', dayGrid).forEach(function (input) { input.parentNode.remove(); });
-    state.days.forEach(function (day) {
-      var label = dayTpl.content.firstElementChild.cloneNode(true);
-      $('[data-read-day]', label).value = day;
-      $('[data-weekday]', label).textContent = weekdayName(day);
-      dayGrid.appendChild(label);
+    dayGrid.textContent = '';
+    var runs = weekendRuns(state.days);
+    runs.forEach(function (run, w) {
+      var block = weekendTpl.content.firstElementChild.cloneNode(true);
+      var head = $('[data-weekend]', block);
+      head.textContent = 'Weekend ' + (w + 1);
+      head.hidden = runs.length < 2;
+      run.forEach(function (day) {
+        var label = dayTpl.content.firstElementChild.cloneNode(true);
+        $('[data-read-day]', label).value = day;
+        $('[data-weekday]', label).textContent = weekdayName(day);
+        $('[data-weekend-days]', block).appendChild(label);
+      });
+      dayGrid.appendChild(block);
     });
   }
   function readDays() { return $$('[data-read-day]', dayGrid).map(function (input) { return input.value; }); }
+  function readYear() { var first = $('[data-read-day]', dayGrid); return first && first.value ? first.value.slice(0, 4) : ''; }
   function labelDay(input) { $('[data-weekday]', input.parentNode).textContent = weekdayName(input.value) || 'DAY'; }
   function readPath() {
     var rv = state.review;
-    return state.via === 'link' ? readAddress(rv, nameField.value, yearField.value.trim()) : rv.editionPath;
+    return state.via === 'link' ? readAddress(rv, nameField.value, readYear()) : rv.editionPath;
   }
   function updateAddress() {
     var rv = state.review;
@@ -1219,18 +1261,16 @@ ${linkScreen}
       : 'That update link didn\\'t match, so this will be a new page: ' + address;
   }
   nameField.addEventListener('input', updateAddress);
-  // The year moves every day with it; a first day moved into another year moves the year.
-  yearField.addEventListener('input', function () {
-    var y = yearField.value.trim();
-    if (/^\\d{4}$/.test(y)) $$('[data-read-day]', dayGrid).forEach(function (input) { if (input.value) { input.value = y + input.value.slice(4); labelDay(input); } });
-    updateAddress();
-  });
+  // The first day's year is the festival's: moving it moves every other day into that year.
   dayGrid.addEventListener('input', function (e) {
     var input = e.target.closest('[data-read-day]');
     if (!input) return;
     labelDay(input);
-    var first = $('[data-read-day]', dayGrid);
-    if (first && first.value && first.value.slice(0, 4) !== yearField.value.trim()) yearField.value = first.value.slice(0, 4);
+    var inputs = $$('[data-read-day]', dayGrid);
+    if (input === inputs[0] && /^\\d{4}-/.test(input.value)) {
+      var y = input.value.slice(0, 4);
+      inputs.slice(1).forEach(function (other) { if (other.value && other.value.slice(0, 4) !== y) { other.value = y + other.value.slice(4); labelDay(other); } });
+    }
     updateAddress();
   });
 
@@ -1238,12 +1278,11 @@ ${linkScreen}
     var rv = state.review;
     var multi = rv.images.length > 1;
     var viaLink = state.via === 'link';
-    $('[data-review-title]').textContent = viaLink ? 'Does this look right?' : 'Check every set';
     $('[data-review-lead]').textContent = viaLink
-      ? 'As read off the page. Fix what\\'s off, and mark any set you can\\'t read.'
+      ? 'As read off the page. Check the flagged sets, fix what\\'s off, and mark any you can\\'t read.'
       : multi
-      ? 'Each day against its own image. Fix what\\'s off, and mark anything you can\\'t read.'
-      : 'Against your image. Fix what\\'s off, and mark anything you can\\'t read.';
+      ? 'Each day against its own image. Check the flagged sets, fix what\\'s off, and mark any you can\\'t read.'
+      : 'Against your image. Check the flagged sets, fix what\\'s off, and mark any you can\\'t read.';
     var swap = $('[data-swap]');
     swap.textContent = viaLink ? 'Different link' : multi ? 'Swap an image' : 'Different image';
     swap.setAttribute('data-back', viaLink ? 'link' : 'upload');
@@ -1263,10 +1302,14 @@ ${linkScreen}
     year.hidden = !rv.yearMismatch;
 
     // One day at a time: the image the sets were read from, then those sets
-    // by stage. The review's images are in the order they were posted, which
-    // is the order they were chosen in. A row's day is the night it belongs
-    // to, so it reads the same as the image above it.
+    // by stage. The review's images are in day order — the order they were
+    // chosen in, or the order a link's were read as. A row's day is the night
+    // it belongs to, so it reads the same as the image above it. The flagged
+    // sets show; the rest of a day's wait behind one text button.
     var host = $('#sets'), tpl = $('#set-row'), figTpl = $('#day-figure'), images = chosen();
+    var runs = weekendRuns(state.days);
+    function weekendOf(night) { for (var w = 0; w < runs.length; w++) if (runs[w].indexOf(night) >= 0) return w + 1; return 0; }
+    function flagged(s) { return s.lowConfidence || s.endInferred; }
     host.textContent = '';
     rv.images.forEach(function (hash, k) {
       var im = images[k];
@@ -1275,10 +1318,11 @@ ${linkScreen}
       day.className = 'day-review';
       var nights = daySets.map(function (s) { return nightOf(s.start); }).sort();
       var label = nights.length ? daysLabel(nights[0], nights[nights.length - 1]) : dayLabel(state.days[k] || state.days[0], true);
+      var w = runs.length > 1 && nights.length ? weekendOf(nights[0]) : 0;
       if (multi) {
         var head = document.createElement('p');
         head.className = 'eyebrow';
-        head.textContent = label;
+        head.textContent = (w ? 'Weekend ' + w + ' · ' : '') + label;
         day.appendChild(head);
       }
       var fig = figTpl.content.firstElementChild.cloneNode(true);
@@ -1290,12 +1334,20 @@ ${linkScreen}
         none.className = 'small';
         none.textContent = 'No times were read off this one.';
         day.appendChild(none);
+      } else {
+        var toCheck = daySets.filter(flagged).length;
+        var count = document.createElement('p');
+        count.className = 'small';
+        count.textContent = daySets.length + (daySets.length === 1 ? ' set read, ' : ' sets read, ') + (toCheck ? toCheck + ' flagged.' : 'nothing flagged.');
+        day.appendChild(count);
       }
+      var folded = 0;
       rv.stages.forEach(function (stage) {
         var sets = daySets.filter(function (s) { return s.stage === stage.id; });
         if (!sets.length) return;
         var group = document.createElement('div');
         group.className = 'stage-group';
+        group.hidden = !sets.some(flagged);
         var stageHead = document.createElement('p');
         stageHead.className = 'eyebrow';
         stageHead.textContent = stage.name;
@@ -1308,15 +1360,33 @@ ${linkScreen}
           $('[data-field="artist"]', li).value = s.artist;
           $('[data-day]', li).textContent = dayLabel(nightOf(s.start));
           $('[data-field="start"]', li).value = s.start.slice(11, 16);
-          $('[data-field="end"]', li).value = s.end.slice(11, 16);
+          // A guessed end is left blank rather than filled in: the source has
+          // none, and the calendar gets an hour unless one is typed here.
+          $('[data-field="end"]', li).value = s.endInferred ? '' : s.end.slice(11, 16);
           $('[data-printed]', li).textContent = s.printedTime;
-          if (!s.endInferred) $('[data-flag="end"]', li).remove();
+          if (s.endInferred) {
+            $('[data-hour]', li).hidden = false;
+            $('[data-flag="end"]', li).textContent = /close/i.test(s.printedTime) ? 'Til close' : 'No end printed';
+          } else $('[data-flag="end"]', li).remove();
           if (!s.lowConfidence) $('[data-flag="low"]', li).remove();
+          if (!flagged(s)) { li.hidden = true; folded += 1; }
           ol.appendChild(li);
         });
         group.appendChild(ol);
         day.appendChild(group);
       });
+      if (folded) {
+        var more = document.createElement('button');
+        more.type = 'button';
+        more.className = 'text-btn';
+        more.setAttribute('data-show-all', '');
+        more.textContent = daySets.length === 1 ? 'Show the set' : 'Show all ' + daySets.length + ' sets';
+        more.addEventListener('click', function () {
+          $$('.set[hidden], .stage-group[hidden]', day).forEach(function (el) { el.hidden = false; });
+          more.remove();
+        });
+        day.appendChild(more);
+      }
       host.appendChild(day);
     });
 
@@ -1356,8 +1426,7 @@ ${linkScreen}
       name = nameField.value.trim();
       days = readDays();
       if (!name) return problem('review', COPY.festival);
-      var y = yearField.value.trim();
-      if (!/^\\d{4}$/.test(y) || days.some(function (d, i) { return !weekdayName(d) || days.indexOf(d) !== i; })) return problem('review', COPY.days);
+      if (days.some(function (d, i) { return !weekdayName(d) || days.indexOf(d) !== i; })) return problem('review', COPY.days);
     }
     var edits = [], unverifiable = [];
     $$('#sets [data-index]').forEach(function (li) {
@@ -1370,7 +1439,8 @@ ${linkScreen}
       var start = st && st !== s.start.slice(11, 16) ? editedStart(s.start, st) : s.start;
       if (start !== s.start) e.start = start;
       // The end follows the start: a moved start can put an unchanged end before it.
-      var end = (start !== s.start || (en && en !== s.end.slice(11, 16))) ? editedEnd(start, en || s.end.slice(11, 16)) : s.end;
+      // A guessed end left blank stays the publisher's guess, moved with the start there.
+      var end = s.endInferred && !en ? s.end : (start !== s.start || (en && en !== s.end.slice(11, 16))) ? editedEnd(start, en || s.end.slice(11, 16)) : s.end;
       if (end !== s.end) e.end = end;
       if (Object.keys(e).length > 1) edits.push(e);
       if ($('[data-unreadable]', li).getAttribute('aria-pressed') === 'true') unverifiable.push(i);

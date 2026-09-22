@@ -312,6 +312,33 @@ test('review: the time zone is marked assumed until someone says otherwise', asy
   assert.equal(told.review!.timezoneAssumed, false);
 });
 
+test("review: an upload of a festival on record reads in that festival's own zone, by the typed name or the printed one", async () => {
+  const almanac = `
+- festival: Low Tide
+  source: https://lowtide.example/schedule
+  timezone: America/New_York
+  form: poster
+  editions:
+    - year: 2026
+      dates: { first: 2026-10-09, last: 2026-10-11 }
+`;
+  const typed = await reviewOf(fakePorts({ repo: fakeRepository({ files: { 'config/festivals.yaml': almanac } }) }));
+  assert.equal(typed.review.timezone, 'America/New_York', 'the typed name is on record');
+  assert.equal(typed.review.timezoneOnRecord, true);
+  assert.equal(typed.review.timezoneAssumed, false);
+
+  const printed = await reviewOf(fakePorts({ repo: fakeRepository({ files: { 'config/festivals.yaml': almanac } }) }), uploadIntent({ festival: 'Tide Fest' }));
+  assert.equal(printed.review.timezone, 'America/New_York', 'the name printed on the poster is on record even when the typed one is not');
+  assert.equal(printed.review.timezoneOnRecord, true);
+
+  const told = await reviewOf(fakePorts({ repo: fakeRepository({ files: { 'config/festivals.yaml': almanac } }) }), uploadIntent({ timezone: 'America/Denver' }));
+  assert.equal(told.review.timezone, 'America/Denver', 'a zone someone gave wins over the record');
+  assert.equal(told.review.timezoneOnRecord, false);
+
+  const { review } = await reviewOf();
+  assert.equal(review.timezoneOnRecord, false, 'no almanac, no record');
+});
+
 test('review: it says where the edition would live, and flags a year the source disagrees with', async () => {
   const { review } = await reviewOf();
   assert.equal(review.namespace, 'fan');

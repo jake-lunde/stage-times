@@ -165,10 +165,12 @@ export const FIXED_PUBLISHED_AT = '20260101T000000Z';
 export interface FakeRepositoryOptions extends Partial<Pick<FakeRepository, 'published' | 'uploads'>> {
   /** Make opening a pull request fail, as GitHub would with a token missing that permission. */
   pullRequestsFail?: boolean;
+  /** Text files already on main when the test starts, by path — the almanac, say. */
+  files?: Record<string, string>;
 }
 
 export function fakeRepository(initial: FakeRepositoryOptions = {}): FakeRepository {
-  const files = new Map<string, string>();
+  const files = new Map<string, string>(Object.entries(initial.files ?? {}));
   const repo: FakeRepository = {
     published: initial.published ?? { publishedAt: FIXED_PUBLISHED_AT, editions: {} },
     uploads: initial.uploads ?? { uploads: [] },

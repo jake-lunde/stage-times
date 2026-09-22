@@ -386,9 +386,18 @@ export interface BuiltStage {
  * machine's reading, and report each one for the log.
  *
  * An edited end is no longer an inference, so `end_inferred` clears: the human
- * typed the time off the source. An edited start leaves it alone — the end is
- * still whatever it was.
+ * typed the time off the source. An edited start on a set whose end was a
+ * guess moves the guess with it — still an hour after the start, still a
+ * guess; on any other set the start moves alone and the end is whatever it was.
  */
+/** The wall time an hour after `YYYY-MM-DDTHH:MM:SS` — the no-end rule, applied again. */
+function hourAfter(wall: string): string {
+  const [date, clock] = wall.split('T') as [string, string];
+  const [y, m, d] = date.split('-').map(Number) as [number, number, number];
+  const [hh, mm, ss] = clock.split(':').map(Number) as [number, number, number?];
+  return new Date(Date.UTC(y, m - 1, d, hh, mm, ss ?? 0) + 3_600_000).toISOString().slice(0, 19);
+}
+
 export function applyEdits(sets: BuiltSet[], edits: SetEdit[]): AppliedEdit[] {
   const applied: AppliedEdit[] = [];
   for (const edit of edits) {
@@ -410,6 +419,7 @@ export function applyEdits(sets: BuiltSet[], edits: SetEdit[]): AppliedEdit[] {
     if (edit.start !== undefined) {
       record('start', set.start, edit.start);
       set.start = edit.start;
+      if (set.end_inferred && edit.end === undefined) set.end = hourAfter(edit.start);
     }
     if (edit.end !== undefined) {
       record('end', set.end, edit.end);

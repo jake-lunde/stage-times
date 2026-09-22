@@ -440,6 +440,32 @@ test('transcribe: a headliner printed with a start alone gets an hour, marked as
   assert.match(t.log, /\| main \| SKRILLEX \| 8:15 \| 21:15 \|/);
 });
 
+test('transcribe: a moved start on a guessed end moves the guess with it — still an hour, still a guess — unless an end is typed too', () => {
+  const raw = fixture();
+  raw.days[0]!.stages[0]!.sets.splice(1, 0, { artist: 'SKRILLEX', time: '8:15' });
+  const plain = transcribe(outputs(raw), OPTS);
+  const skrillex = plain.sets.findIndex((s) => s.artist === 'SKRILLEX');
+
+  const moved = transcribe(outputs(raw), { ...OPTS, edits: [{ index: skrillex, start: '2026-08-07T20:30:00' }] });
+  const set = moved.sets.find((s) => s.artist === 'SKRILLEX')!;
+  assert.equal(set.start, '2026-08-07T20:30:00');
+  assert.equal(set.end, '2026-08-07T21:30:00', 'the guess follows the start');
+  assert.equal(set.end_inferred, true, 'and is still a guess');
+  assert.equal(moved.edits.filter((e) => e.index === skrillex).map((e) => e.field).join(), 'start', 'only the start is recorded as an edit');
+
+  const late = transcribe(outputs(raw), { ...OPTS, edits: [{ index: skrillex, start: '2026-08-07T23:30:00' }] });
+  assert.equal(late.sets.find((s) => s.artist === 'SKRILLEX')!.end, '2026-08-08T00:30:00', 'across midnight too');
+
+  const both = transcribe(outputs(raw), { ...OPTS, edits: [{ index: skrillex, start: '2026-08-07T20:30:00', end: '2026-08-07T22:00:00' }] });
+  const typed = both.sets.find((s) => s.artist === 'SKRILLEX')!;
+  assert.equal(typed.end, '2026-08-07T22:00:00');
+  assert.equal(typed.end_inferred, false, 'a typed end is no longer a guess');
+
+  const avery = plain.sets.findIndex((s) => s.artist === 'AVERY COCHRANE');
+  const printed = transcribe(outputs(raw), { ...OPTS, edits: [{ index: avery, start: '2026-08-07T15:20:00' }] });
+  assert.equal(printed.sets.find((s) => s.artist === 'AVERY COCHRANE')!.end, '2026-08-07T15:45:00', 'a printed end stays where it was printed');
+});
+
 test('parseTimeRange: ordinary range with meridiem on the end only', () => {
   const r = parseTimeRange('3:15-3:45PM');
   assert.deepEqual(r.start, { hour: 3, minute: 15, meridiem: null });
