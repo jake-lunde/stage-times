@@ -1,0 +1,10 @@
+{
+  "$comment": [
+    "COMMITTED STATE — images a link's \"is this a schedule\" check said no to, by content hash, with",
+    "when. A link that shows the same image again does not pay to ask again. An image the check said",
+    "yes to is in state/transcriptions/ instead. Nothing in the build reads this file."
+  ],
+  "notSchedules": {
+    "7c38d9c4d09484a8414908253b3f0d829c39076cbdb411ece0c85eb573d61c84": "20260922T155628Z"
+  }
+}
