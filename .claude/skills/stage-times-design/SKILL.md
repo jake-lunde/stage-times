@@ -254,7 +254,8 @@ Two sources of art, one per card, image area always edge-to-edge:
 2. **The beads** on every stage card (owner pick, 2026-09-21; `beadsArt()` in `src/pages.ts`,
    explorer and rationale in `_ref/stage-art-explorer/`). The art area is the stage color mixed
    45% toward cream. On it: a ring per festival day, evenly spaced from the center to the card
-   edge (the outer ring clips top and bottom); a cream bead per set at its clock position, 2 PM
+   edge (the outer ring clips top and bottom); a bead per set in the card's text color (cream,
+   or ink on a light festival color; `references/color.md`) at its clock position, 2 PM
    at twelve, clockwise through the night, bead size from set length; the ring drawn solid only
    across the hours the stage runs that day. Each night's billed headliner (the stage's
    `headliners:` list, else the last set of the night; a night runs until 6 AM) is a four-point

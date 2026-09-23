@@ -6,6 +6,7 @@ NAME:The Yard — DST Check 26
 X-WR-CALNAME:The Yard — DST Check 26
 DESCRIPTION:DST Check 2026 set times for The Yard. stagetimes.app
 X-WR-CALDESC:DST Check 2026 set times for The Yard. stagetimes.app
+X-APPLE-CALENDAR-COLOR:#045CAC
 X-WR-TIMEZONE:America/Chicago
 REFRESH-INTERVAL;VALUE=DURATION:PT12H
 X-PUBLISHED-TTL:PT12H

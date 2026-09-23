@@ -31,6 +31,7 @@ import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderUploadPage } from './upload-pages.js';
+import { CREAM, HOUSE_COLORS, INK, mix, textOn } from './colors.js';
 
 // ---------------------------------------------------------------------------
 // Manifest shape (structurally typed — build.ts owns the real type)
@@ -53,6 +54,8 @@ interface StageEntry {
   dayspan: DaySpan;
   headliners: string[];
   sets: { artist: string; start: string; end: string }[];
+  /** The stage's color: the festival's own or a house color (src/colors.ts). */
+  color: string;
   icsPath: string;
 }
 
@@ -97,23 +100,6 @@ export interface SiteManifest {
  * there is no way to reach into someone's calendar to fix it.
  */
 export const PROD_ORIGIN = 'https://stagetimes.app';
-
-// Per-stage colors, assigned by order and then frozen. See references/color.md.
-//
-// Note stage-1 is `--red-deep` (#C42408, 5.5:1 with cream) rather than the hero's
-// `--red` (#EC300C, 4.0:1). Card text runs at 13–17px, which is not "large text"
-// under WCAG, so the brighter vermillion fails AA there. The hero keeps #EC300C
-// because display type only needs 3:1. Same family, different job, deliberate.
-const STAGE_COLORS = [
-  '#C42408', // red
-  '#045CAC', // blue
-  '#1F7A4C', // green
-  '#B5307A', // magenta
-  '#A85100', // orange
-  '#5B3FA8', // violet
-  '#0C6B78', // teal
-  '#8A1B2E', // oxblood
-];
 
 // ---------------------------------------------------------------------------
 // Escaping + formatting
@@ -172,18 +158,9 @@ const RING_SPIN_S = [300, 220, 380];
 const NAME_HOLD_S = 4.5;
 const WEEKDAYS_FULL = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
 
-/** Mix a #rrggbb toward another by `t` (0..1). Integer math — stable output. */
-function mix(a: string, b: string, t: number): string {
-  const A = parseInt(a.slice(1), 16);
-  const B = parseInt(b.slice(1), 16);
-  const ch = (shift: number) => Math.round(((A >> shift) & 0xff) * (1 - t) + ((B >> shift) & 0xff) * t);
-  const to2 = (v: number) => v.toString(16).padStart(2, '0');
-  return `#${to2(ch(16))}${to2(ch(8))}${to2(ch(0))}`;
-}
-
 /** The light ground behind a stage's art: the stage color mixed 45% toward cream. */
 export function artGround(color: string): string {
-  return mix(color, '#FCF9F4', 0.45);
+  return mix(color, CREAM, 0.45);
 }
 
 /** Minutes since midnight → `10:40 PM`, wrapping past 24h. */
@@ -266,8 +243,10 @@ const popStyle = (i: number, n: number) =>
   `animation:pop${n} ${n * NAME_HOLD_S}s linear infinite;animation-delay:${(i * NAME_HOLD_S).toFixed(1)}s`;
 
 export function beadsArt(stage: StageEntry, color: string, dayDates: string[]): string {
-  const cream = '#FCF9F4';
-  const ink = '#12181F';
+  // The marks take the card's text color: cream beads on a dark stage color, ink
+  // beads on a light one, where cream would vanish into the ground.
+  const mark = textOn(color);
+  const ink = INK;
   const nd = Math.max(1, dayDates.length);
   const sets = shapeSets(stage.sets, dayDates);
   const rOf = (d: number) => Math.round(nd === 1 ? RING_OUTER : RING_INNER + (d * (RING_OUTER - RING_INNER)) / (nd - 1));
@@ -287,13 +266,13 @@ export function beadsArt(stage: StageEntry, color: string, dayDates: string[]): 
     const r = rOf(d);
     const ds = sets.filter((s) => s.day === d);
     const spin = RING_SPIN_S[d % 3]! * (d >= 3 ? 1.3 : 1);
-    const parts = [`<circle cx="${ART_CX}" cy="${ART_CY}" r="${r}" fill="none" stroke="${cream}" stroke-opacity=".12" stroke-width="1"/>`];
+    const parts = [`<circle cx="${ART_CX}" cy="${ART_CY}" r="${r}" fill="none" stroke="${mark}" stroke-opacity=".12" stroke-width="1"/>`];
     if (ds.length) {
       const a0 = angOf(Math.min(...ds.map((s) => s.x)));
       const a1 = angOf(Math.min(1, Math.max(...ds.map((s) => (s.endMin - DAY_T0) / (DAY_T1 - DAY_T0)))));
       const large = a1 - a0 > Math.PI ? 1 : 0;
       parts.push(
-        `<path d="M${px(a0, r)}A${r} ${r} 0 ${large} 1 ${px(a1, r)}" fill="none" stroke="${cream}" stroke-opacity=".45" stroke-width="2" stroke-linecap="round"/>`,
+        `<path d="M${px(a0, r)}A${r} ${r} 0 ${large} 1 ${px(a1, r)}" fill="none" stroke="${mark}" stroke-opacity=".45" stroke-width="2" stroke-linecap="round"/>`,
       );
     }
     for (const s of ds) {
@@ -306,12 +285,12 @@ export function beadsArt(stage: StageEntry, color: string, dayDates: string[]): 
         const k = Math.round(rad * 2.4);
         parts.push(
           `<g class="unrot" style="transform-origin:${x}px ${y}px;--spin:${spin}s">` +
-            sparkle(x, y, k, cream, ' fill-opacity=".95"') +
+            sparkle(x, y, k, mark, ' fill-opacity=".95"') +
             `<g class="pop${li === 0 ? ' first' : ''}" style="${popStyle(li, n)}">${sparkle(x, y, Math.round(k * 1.8), color)}</g>` +
             `</g>`,
         );
       } else {
-        parts.push(`<circle cx="${x}" cy="${y}" r="${rad}" fill="${cream}" fill-opacity=".95"/>`);
+        parts.push(`<circle cx="${x}" cy="${y}" r="${rad}" fill="${mark}" fill-opacity=".95"/>`);
       }
     }
     rings.push(`<g class="rot" style="--spin:${spin}s">${parts.join('')}</g>`);
@@ -599,6 +578,12 @@ ${popKeyframes()}
   text-transform:uppercase; color:rgba(252,249,244,.85); margin:6px 0 0;
 }
 .stage-body .desc{font-size:var(--t-small); color:rgba(252,249,244,.85); margin:var(--gap-2) 0 0}
+/* A light festival color takes ink, as its poster prints it: ink type at full
+   strength (a softened ink drops under 4.5:1 on the darkest of them), the pill
+   flips to ink with a cream label, the copy button to an ink wash. */
+.stage-card--ink,.stage-card--ink .stage-body h3,.stage-card--ink .stage-body .meta,.stage-card--ink .stage-body .desc{color:#12181F}
+.stage-card--ink .btn--on-color{background:#12181F; color:#FCF9F4}
+.stage-card--ink .icon-btn--on-color{background:rgba(18,24,31,.12); color:#12181F}
 
 /* ── desktop: the carousel reflows into a two-up grid (owner, 2026-09-22) ── */
 /* A carousel is a phone gesture; on a wide screen it is a strip cut off at the
@@ -751,27 +736,6 @@ function count(n: number, noun: string): string {
   return `${n} ${noun}${n === 1 ? '' : 's'}`;
 }
 
-/** The color of the stage at YAML position `i`: assigned by order and then frozen (references/color.md). */
-function stageColor(i: number): string {
-  return STAGE_COLORS[i % STAGE_COLORS.length]!;
-}
-
-/**
- * The color of each stage, by its position among the stages of its own
- * weekend: a stage that plays both weekends is two stages in the data and
- * one color on the page, because color is identity (references/color.md).
- */
-function stageColors(stages: StageEntry[]): Map<string, string> {
-  const colors = new Map<string, string>();
-  const seen = new Map<string | undefined, number>();
-  for (const s of stages) {
-    const i = seen.get(s.weekend) ?? 0;
-    seen.set(s.weekend, i + 1);
-    colors.set(s.id, stageColor(i));
-  }
-  return colors;
-}
-
 /** How many stages a festival-goer would count: a stage on both weekends is one. */
 function stageCount(m: Manifest): number {
   return new Set(m.stages.map((s) => s.name)).size;
@@ -830,13 +794,16 @@ export function editionDates(m: Pick<Manifest, 'weekends' | 'all'>): string {
 // Subscribe page
 // ---------------------------------------------------------------------------
 
-function stageCard(stage: StageEntry, color: string, feedUrl: string, festivalKey: string, dayDates: string[]): string {
+function stageCard(stage: StageEntry, feedUrl: string, festivalKey: string, dayDates: string[]): string {
   const webcal = feedUrl.replace(/^https:/, 'webcal:');
   const sets = count(stage.setCount, 'set');
+  const color = stage.color;
   // The year lives in the page title; repeating it on every card just makes the
   // mono caption wrap.
   const span = stage.dayspan.label.replace(/ \d{4}$/, '');
-  return `<li class="stage-card" style="background:${color}">
+  // A light festival color prints ink, the way its poster does (src/colors.ts).
+  const onInk = textOn(color) === INK ? ' stage-card--ink' : '';
+  return `<li class="stage-card${onInk}" style="background:${color}">
   <div class="stage-art" style="background:${artGround(color)}">
     ${beadsArt(stage, color, dayDates)}
   </div>
@@ -858,10 +825,9 @@ export function renderSubscribePage(m: Manifest): string {
   const title = `${f.name} ${f.year} — set times by stage`;
   const desc = `${f.name} ${f.year} set times, one calendar per stage. Add the stages you care about to your phone.`;
 
-  const colors = stageColors(m.stages);
   const carousel = (stages: StageEntry[], dayDates: string[]) =>
     `<ul class="carousel">
-${stages.map((s) => stageCard(s, colors.get(s.id)!, `${PROD_ORIGIN}${s.icsPath}`, f.key, dayDates)).join('\n')}
+${stages.map((s) => stageCard(s, `${PROD_ORIGIN}${s.icsPath}`, f.key, dayDates)).join('\n')}
     </ul>`;
 
   // One run of days: the stages, and that is the decision. More than one
@@ -1168,7 +1134,7 @@ function directoryCard(m: Manifest, image: string): string {
     .map((line) => `<span class="shelf-meta">${esc(line)}</span>`)
     .join('\n        ');
   // Behind the image while it loads: the light ground of the edition's first stage color.
-  const color = stageColor(0);
+  const color = m.stages[0]?.color ?? HOUSE_COLORS[0]!;
   return `<li><a class="shelf-card" href="${esc(f.basePath)}/">
       <span class="shelf-text">
         ${eyebrow}

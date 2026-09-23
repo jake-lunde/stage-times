@@ -9,6 +9,7 @@
     "dev": "npm run build && npx --yes serve dist -l 4173 --no-clipboard",
     "ingest": "tsx src/ingest.ts",
     "ingest:eval": "tsx tests/ingest-eval.ts",
+    "palette": "python3 scripts/palette.py",
     "test": "tsx --test tests/*.test.ts",
     "smoke": "tsx tests/smoke.ts",
     "watch": "tsx src/watch.ts",

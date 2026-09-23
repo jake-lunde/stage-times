@@ -25,6 +25,9 @@ festival:
   timezone: "America/Chicago"
   official_url: "https://www.aclfestival.com/schedule"   # from the poster — unverified
   city: "Austin"                      # display only (the homepage card); never in a feed
+  # The festival's own colors, off its art: one per stage, in the order a weekend lists them.
+  # Each stage card and each stage calendar's color. Absent or short means the house colors.
+  colors: ["#EE79B5", "#FF7800", "#0088D3", "#FFAC00", "#FF004B", "#00CFFA", "#FCCA76", "#A7DDF9"]
 
 # Two weekends (or more): a stage that plays both is two stages here, one id and one feed
 # per weekend, because the same act plays both and the UID is per stage. `weekend` is

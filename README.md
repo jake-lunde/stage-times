@@ -449,6 +449,8 @@ smoke a protected preview).
    it — nothing is ever a "default" edition.
 4. Commit the festival's own art at `assets/festivals/<slug>-<year>.webp`. A listed edition
    stays off the homepage until it lands; the build log says so.
+5. `npm run palette -- <slug>-<year>` and paste its `colors:` line under `festival:`, in the
+   order you want the stages to take them.
 
 The homepage is the directory: one card per listed edition, earliest first festival day first,
 then name; nothing unlisted or blocked. A card's art is the edition's committed festival image
@@ -457,6 +459,15 @@ without one is left off the homepage — its page and feeds still publish — an
 names the missing file.
 An optional `city:` under `festival:` joins the dates in the card's eyebrow. It is display only
 — never in a feed, a UID, or a slug — so it may change freely and needs no `publishedAt` bump.
+
+An optional `colors:` under `festival:` gives each stage the festival's own color, one per stage
+in the order a weekend lists them, on its card and as its calendar's `X-APPLE-CALENDAR-COLOR`.
+`npm run palette -- <key>` proposes them off the festival art and the edition's source images
+(Pillow); the owner orders them and pastes the line in. The schema refuses a color that neither
+cream nor ink text can be read on, or two too close to tell apart; fewer colors than a weekend's
+stages means the house colors and a line in the build log. A new reading of the source keeps
+them, like `city:`. Set them before the edition goes out: a calendar app takes the color when
+the calendar is added, and a later change may reach only the page and new subscribers. The rules are in the design skill's `references/color.md`.
 
 ## The `verified` gate
 

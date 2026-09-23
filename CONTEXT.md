@@ -77,6 +77,11 @@ human checked. Unconfirmed transcriptions are pending review, not published.
 The festival's own artwork for an edition, committed to the repo: the image on its homepage
 card. Never drawn by the build.
 _Avoid_: cover image, hero, thumbnail, poster (a poster is a source)
+
+**Festival colors**:
+An edition's own colors, sampled off its festival art and its sources: one per stage, on its
+card and its calendar. Absent, the edition takes the house colors.
+_Avoid_: palette, theme, brand colors
 _Avoid_: featuring, promoting, indexing, approved
 
 **Namespace**:

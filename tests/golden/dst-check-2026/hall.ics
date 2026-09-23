@@ -6,6 +6,7 @@ NAME:Fallback Hall — DST Check 26
 X-WR-CALNAME:Fallback Hall — DST Check 26
 DESCRIPTION:DST Check 2026 set times for Fallback Hall. stagetimes.app
 X-WR-CALDESC:DST Check 2026 set times for Fallback Hall. stagetimes.app
+X-APPLE-CALENDAR-COLOR:#C42408
 X-WR-TIMEZONE:America/Chicago
 REFRESH-INTERVAL;VALUE=DURATION:PT12H
 X-PUBLISHED-TTL:PT12H

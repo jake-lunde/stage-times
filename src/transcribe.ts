@@ -353,9 +353,9 @@ export interface TranscriptionOptions {
    * The edition as it is live, when this reading is a new one of its source
    * (the watcher's change). A stage read whose derived id is a live stage's
    * `read_as`, or its id, keeps that stage's id and name, and the live `city`
-   * carries over, so what the owner set by hand survives the reading.
+   * and `colors` carry over, so what the owner set by hand survives the reading.
    */
-  live?: { festival: { city?: string }; stages: { id: string; name: string; read_as?: string }[] };
+  live?: { festival: { city?: string; colors?: string[] }; stages: { id: string; name: string; read_as?: string }[] };
 }
 
 export interface BuiltSet {
@@ -764,7 +764,8 @@ export function buildTranscription(
   const edits = applyEdits(sets, options.edits ?? []);
 
   const city = options.live?.festival.city;
-  const festival = { name, slug, year, timezone: options.timezone, official_url: officialUrl, ...(city ? { city } : {}) };
+  const colors = options.live?.festival.colors;
+  const festival = { name, slug, year, timezone: options.timezone, official_url: officialUrl, ...(city ? { city } : {}), ...(colors ? { colors } : {}) };
   const yaml = renderYaml(festival, stages, sets, options, sources);
 
   // The one gatekeeper: reuse src/schema.ts on our own output. Duplicate UIDs
@@ -788,7 +789,7 @@ function q(value: string): string {
 }
 
 function renderYaml(
-  festival: { name: string; slug: string; year: number; timezone: string; official_url: string; city?: string },
+  festival: { name: string; slug: string; year: number; timezone: string; official_url: string; city?: string; colors?: string[] },
   stages: BuiltStage[],
   sets: BuiltSet[],
   options: TranscriptionOptions,
@@ -826,6 +827,11 @@ function renderYaml(
   lines.push(`  timezone: ${q(festival.timezone)}${options.timezoneAssumed ? '   # ASSUMED — confirm before publish' : ''}`);
   lines.push(`  official_url: ${q(festival.official_url)}${festival.official_url ? '   # from the poster — unverified' : ''}`);
   if (festival.city) lines.push(`  city: ${q(festival.city)}                      # display only (the homepage card); never in a feed`);
+  if (festival.colors) {
+    lines.push('  # The festival\'s own colors, off its art: one per stage, in the order a weekend lists them.');
+    lines.push('  # Each stage card and each stage calendar\'s color. Absent or short means the house colors.');
+    lines.push(`  colors: [${festival.colors.map(q).join(', ')}]`);
+  }
   lines.push('');
   if (stages.some((s) => s.weekend)) {
     lines.push('# Two weekends (or more): a stage that plays both is two stages here, one id and one feed');

@@ -41,6 +41,7 @@ import {
   type EventContent,
   type RenderedEvent,
 } from './ics.js';
+import { colorsNeeded, stageColors } from './colors.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = resolve(HERE, '..');
@@ -177,6 +178,8 @@ export interface StageManifest {
   headliners: string[];
   /** Every set on this stage in start order, local wall times, for the card art. */
   sets: { artist: string; start: string; end: string }[];
+  /** The stage's color, `#RRGGBB`: its card and its calendar (src/colors.ts). */
+  color: string;
   icsPath: string;
 }
 
@@ -371,13 +374,15 @@ export function buildFeeds(doc: FestivalDoc, state: BuildState, flags: EditionFl
 
   const files = new Map<string, string>();
   const stageManifests: StageManifest[] = [];
+  const colors = stageColors(stages, festival.colors);
 
   for (const stage of stages) {
     const mine = prepared.filter((p) => p.set.stage === stage.id).sort(sortEvents);
     const icsPath = `${basePath}/${stage.id}.ics`;
+    const color = colors.get(stage.id)!;
     files.set(
       `${path}/${stage.id}.ics`,
-      renderCalendar({ festival, stageName: feedLabel(stage), events: mine.map((p) => p.rendered) }),
+      renderCalendar({ festival, stageName: feedLabel(stage), color, events: mine.map((p) => p.rendered) }),
     );
     const mySets = mine.map((p) => p.set);
     const starts = mySets.map((s) => isoLocal(s.start)).sort();
@@ -405,6 +410,7 @@ export function buildFeeds(doc: FestivalDoc, state: BuildState, flags: EditionFl
       lastSetEnd: ends[ends.length - 1] ?? '',
       headliners,
       sets: mySets.map((s) => ({ artist: s.artist, start: isoLocal(s.start), end: isoLocal(s.end) })),
+      color,
       icsPath,
     });
   }
@@ -770,6 +776,13 @@ export async function run(options: RunOptions = {}): Promise<SiteBuildResult> {
     if (options.production && !doc.verified) throw new UnverifiedScheduleError(doc);
     if (!doc.verified) {
       log(`  ⚠ ${editionPathOf(doc)} is UNVERIFIED — preview only, will not deploy to production.`);
+    }
+    // A color list too short for its stages is a display fault, never a failed
+    // deploy: the edition takes the house colors and the log says why.
+    const colors = doc.festival.colors;
+    const needed = colorsNeeded(doc.stages);
+    if (colors && colors.length < needed) {
+      log(`  ⚠ ${editionPathOf(doc)} names ${colors.length} colors for ${needed} stages a weekend — house colors until it names ${needed}.`);
     }
   }
 

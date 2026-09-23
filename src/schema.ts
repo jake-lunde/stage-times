@@ -9,6 +9,7 @@
 import { readFileSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
 import { DateTime } from 'luxon';
+import { colorProblems } from './colors.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -26,6 +27,15 @@ export interface FestivalMeta {
    * UID, or a slug, so it may change freely.
    */
   city?: string;
+  /**
+   * The festival's own colors, sampled off its art: one per stage, in the order
+   * the stages of a weekend are listed (a stage that plays both weekends is one
+   * color). The stage cards and each stage calendar's color. Optional: absent,
+   * or fewer than a weekend's stages, means the house colors. Never touches a
+   * UID or a slug, so it may change freely — though a calendar app takes the
+   * color when it is added, and a later change may reach only new subscribers.
+   */
+  colors?: string[];
 }
 
 export interface Stage {
@@ -340,6 +350,16 @@ export function validateDoc(raw: unknown, sourcePath: string): FestivalDoc {
         problems.push(`festival: \`city\` must be a non-empty string when present (got ${JSON.stringify(city)})`);
       } else {
         festival.city = city.trim();
+      }
+    }
+    const colors = fRaw['colors'];
+    if (colors !== undefined) {
+      if (!Array.isArray(colors) || colors.length === 0 || colors.some((c) => typeof c !== 'string')) {
+        problems.push(`festival: \`colors\` must be a list of #RRGGBB colors when present (got ${JSON.stringify(colors)})`);
+      } else {
+        const found = colorProblems(colors as string[]);
+        if (found.length > 0) problems.push(...found);
+        else festival.colors = (colors as string[]).map((c) => c.toUpperCase());
       }
     }
   }

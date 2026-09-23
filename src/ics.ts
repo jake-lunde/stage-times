@@ -388,6 +388,14 @@ export interface CalendarSpec {
   festival: FestivalMeta;
   /** Display name of the stage this feed represents, or "All Stages" for all.ics. */
   stageName: string;
+  /**
+   * The stage's color (`#RRGGBB`), as `X-APPLE-CALENDAR-COLOR`: Apple's own
+   * property, the one a calendar app might take as the calendar's color when it
+   * is added. Google and Outlook read no color from a feed. RFC 7986's `COLOR`
+   * is left out: its value is a CSS color name, and a festival's colors are not
+   * names. Absent on all.ics, which has no one stage's color.
+   */
+  color?: string;
   events: RenderedEvent[];
 }
 
@@ -403,7 +411,7 @@ export function calendarDescription(festival: FestivalMeta, stageName: string): 
 }
 
 export function renderCalendar(spec: CalendarSpec): string {
-  const { festival, stageName, events } = spec;
+  const { festival, stageName, color, events } = spec;
 
   const years = new Set<number>();
   for (const ev of events) {
@@ -428,6 +436,7 @@ export function renderCalendar(spec: CalendarSpec): string {
     `X-WR-CALNAME:${escapeText(name)}`,
     `DESCRIPTION:${escapeText(desc)}`,
     `X-WR-CALDESC:${escapeText(desc)}`,
+    ...(color ? [`X-APPLE-CALENDAR-COLOR:${color}`] : []),
     `X-WR-TIMEZONE:${festival.timezone}`,
     `REFRESH-INTERVAL;VALUE=DURATION:${REFRESH_INTERVAL}`,
     `X-PUBLISHED-TTL:${REFRESH_INTERVAL}`,

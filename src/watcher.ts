@@ -570,7 +570,7 @@ async function read(entry: WatchEntry, ports: WatcherPorts, found: Found[], prev
   }
 
   // The edition as it is live, if it is: a new reading keeps its hand-picked
-  // stage ids and names (`read_as`) and its city.
+  // stage ids and names (`read_as`), its city and its colors.
   const previousYaml = await ports.repo.readFile(`${OWNER_DATA_DIR}/${key}.yaml`);
   const before = previousYaml === null ? null : loadFestivalFromString(previousYaml, `${OWNER_DATA_DIR}/${key}.yaml`);
   const options = { namespace: 'owner' as const, name: entry.festival, slug: entry.slug, timezone: entry.timezone, timezoneAssumed: false, officialUrl: entry.source, verified: true, ...(before ? { live: before } : {}) };
