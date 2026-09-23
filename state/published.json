@@ -16,7 +16,7 @@
     "it becomes DTSTAMP / LAST-MODIFIED on every event the build touches and `lastUpdated` in feeds.json.",
     "It exists so the build never reads the wall clock — output must be byte-identical across runs."
   ],
-  "publishedAt": "20260923T162246Z",
+  "publishedAt": "20260923T221315Z",
   "editions": {
     "austin-city-limits-2026": {
       "slug": "austin-city-limits",

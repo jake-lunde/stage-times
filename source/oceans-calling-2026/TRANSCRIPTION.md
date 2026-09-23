@@ -2,7 +2,7 @@
 
 Machine transcription, checked set by set against the source image by a human.
 
-Source images: `bd946ec54af58cb825367176250c95a397aacaa526610a495bb19b08d64a39a0.png`, `4002ceee6a13d901a02fac4e76965288d01c5951aad9b3e2d638cd20f65f549b.png`, `0d6373d3981c814c208e584b489a796356d167a962a006abefed3b53d0b778bd.png`.
+Source images: `340cce83deba8c73795adc2f211874d3839d3b6c1a0cd6be3250b58c0e7ff933.png`, `4002ceee6a13d901a02fac4e76965288d01c5951aad9b3e2d638cd20f65f549b.png`, `0d6373d3981c814c208e584b489a796356d167a962a006abefed3b53d0b778bd.png`.
 
 ---
 
@@ -14,30 +14,30 @@ Times are exactly as printed. `CLOSE` is reproduced literally — it is not a ti
 
 **SEA BRIGHT PRESENTED BY VERIZON**
 ```
-LINKA MOJA              12:15-1:00
-KT TUNSTALL             1:45-2:30
-BETTER THAN EZRA        3:15-4:00  ASL interpreted performance
-SHAGGY                  5:00-6:00  ASL interpreted performance
-HOOTIE & THE BLOWFISH   7:00-8:00  ASL interpreted performance
-DAVE MATTHEWS BAND      9:00-11:00  ASL interpreted performance
+LINKA MOJA              1:15-2:00
+KT TUNSTALL             2:45-3:30
+BETTER THAN EZRA        4:15-5:00  ASL interpreted performance
+SHAGGY                  6:00-7:00  ASL interpreted performance
+HOOTIE & THE BLOWFISH   8:00-9:00  ASL interpreted performance
+DAVE MATTHEWS BAND      10:00-12:00  ASL interpreted performance
 ```
 
 **ROCKVILLE PRESENTED BY ALLIANZ**
 ```
-KING STINGRAY    1:00-1:45
-SONS OF LEGION   2:30-3:15
-EVERLAST         4:00-5:00
-O.A.R.           6:00-7:00  ASL interpreted performance
-LUDACRIS         8:00-9:00  ASL interpreted performance
+KING STINGRAY    2:00-2:45
+SONS OF LEGION   3:30-4:15
+EVERLAST         5:00-6:00
+O.A.R.           7:00-8:00  ASL interpreted performance
+LUDACRIS         9:00-10:00  ASL interpreted performance
 ```
 
 **CAROUSEL**
 ```
-CHEF ROBERT IRVINE   12:15-1:00
-SHWAYZE              1:45-2:30
-GAVIN DEGRAW         3:15-4:00  ASL interpreted performance
-LIZ PHAIR            5:00-6:00
-YELLOWCARD           7:00-8:00  ASL interpreted performance
+CHEF ROBERT IRVINE   1:15-2:00
+SHWAYZE              2:45-3:30
+GAVIN DEGRAW         4:15-5:00  ASL interpreted performance
+LIZ PHAIR            6:00-7:00
+YELLOWCARD           8:00-9:00  ASL interpreted performance
 ```
 
 ### SATURDAY SEPTEMBER 26
@@ -110,25 +110,28 @@ None — every set is exactly as the machine read it.
 
 ## Ambiguities — every one of these needs a human decision before publish
 
-### 1. Artist casing cannot be derived from this source
+### 1. Post-midnight times shifted to the next calendar date
+
+- DAVE MATTHEWS BAND (sea-bright): printed 10:00-12:00 under 2026-09-25, resolved 2026-09-25T22:00:00 → 2026-09-26T00:00:00.
+
+### 2. Artist casing cannot be derived from this source
 
 Poster casing is preserved exactly as printed (typically all-uppercase), because
 the poster carries no information about official stylization. Correct casing
 against the official lineup page if wanted — UID normalization lowercases before
 hashing, so casing fixes are display-only and orphan no subscriber events.
 
-### 2. Official URL not verified
+### 3. Official URL not verified
 
 `https://oceanscallingfestival.com/schedule` is derived from the poster footer (normalized to a
 lowercase https URL). The link has not been fetched — confirm before publish.
 
-### 3. Transcriber observations (verbatim from the vision model)
+### 4. Transcriber observations (verbatim from the vision model)
 
-- Poster shows 'DOORS OPEN AT 12:00 PM' banner across all stages before the schedule begins.
-- Poster shows 'CURFEW AT 11:00 PM' banner across all stages at the end of the schedule.
-- A hand icon (ASL) legend at the bottom indicates ASL interpreted performances; applied as an annotation to sets marked with that icon.
-- Rockville stage has an empty/blank block between 12:00 PM and 1:00 PM before King Stingray's set, suggesting no scheduled act or a gap; not transcribed as a set.
-- No official URL was printed on this poster image.
+- The hand icon on the poster denotes ASL interpreted performances; applied as an annotation to each set marked with that icon.
+- The Carousel stage includes a non-musical act, 'CHEF ROBERT IRVINE' (a chef demonstration), transcribed exactly as printed.
+- No official festival URL was visible on the provided poster image; set to null.
+- Doors open at 1:00 PM and curfew at 12:00 AM are printed as header/footer bars rather than stage sets, and were omitted from the stage listings as they are not artist sets.
 - The poster does not print a year; the year 2026 was inferred because September 26 falls on a Saturday only in 2026 among nearby years, matching the printed 'SATURDAY SEPTEMBER 26' header.
 - A hand-sign icon appears next to several sets; per the poster's legend this indicates ASL interpreted performances, which was recorded in the 'annotations' field for those sets.
 - The banner 'DOORS OPEN AT 12:00 PM' at the top and 'CURFEW AT 11:00 PM' at the bottom are schedule-wide notices, not individual artist sets, so they were omitted from the stage set lists.
