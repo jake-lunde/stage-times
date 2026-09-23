@@ -379,6 +379,7 @@ body{margin:0}
   --pad-shelf:28px; --gap-shelf:20px; --gap-section:clamp(48px, 6vw, 64px);
   --h-shelf-card:450px; --w-shelf-card:calc(100vw - 2 * var(--margin) - 24px);
   --t-shelf:24px;  /* the shelf header and the card title: one size (Store: 28 / 28) */
+  --w-poster:128px;  /* a poster tile; wider from 735px */
   --t-display:60px; --t-title:40px; --t-card:30px; --t-large:24px;
   --t-body:17px; --t-small:14px; --t-mono:13px; --t-micro:12px;
   --w-heading:630;
@@ -386,7 +387,7 @@ body{margin:0}
   --measure:520px;
 }
 @media (min-width:735px){
-  :root{--h-shelf-card:500px; --w-shelf-card:400px; --t-shelf:28px}
+  :root{--h-shelf-card:500px; --w-shelf-card:400px; --t-shelf:28px; --w-poster:150px}
 }
 
 @media (prefers-color-scheme: dark){
@@ -571,30 +572,42 @@ h3{font-size:var(--t-card); line-height:1.05; margin:0}
 .bar[data-watch].is-scrolled .bar-title{opacity:1}
 
 /* ── subscribe: the top area ─────────────────────────────────────────── */
-/* Eyebrow, big title, two plain lines; the festival's posted schedule beside
-   it on a wide screen and under it on a phone. */
-.top{display:grid; gap:var(--gap-4); margin-top:var(--gap-3)}
+/* Eyebrow, big title, two plain lines, then the festival's posters in one
+   row across the page (owner, 2026-09-23). */
+.top{display:grid; gap:var(--gap-5); margin-top:var(--gap-3)}
+/* min-width:0 — a grid item's default is its content width, which the scrolling
+   poster row would otherwise force on the page. */
+.top-text,.top-side{min-width:0}
 .top .lockup{margin-top:0}
 .top h2{margin:0}
 .top h2 .year{color:var(--ink-soft)}
 .lede{margin:0; font-size:var(--t-body); font-weight:500; line-height:1.4; max-width:44ch}
 .top h2+.lede{margin-top:var(--gap-3)}
 .lede+.lede{margin-top:4px}
-@media (min-width:735px){
-  .top{grid-template-columns:minmax(0, 1fr) auto; gap:var(--gap-5); align-items:start}
-  .top-side{justify-self:end}
-}
 
-/* ── the official schedule: a tile per day, tap for the lightbox ─────── */
+/* ── official posters: a tile per day in one horizontal row, tap for the lightbox ── */
+/* The row is the carousel pattern: scroll-snap x, no scrollbar, bleeding to
+   the margin on a phone so the next day peeks; on a wide screen it sits in
+   the column and only scrolls when there are more days than fit. */
 .top-side .eyebrow{margin-bottom:var(--gap-2)}
-.posters{display:flex; flex-wrap:wrap; gap:var(--gap-1); list-style:none; margin:0; padding:0; max-width:calc(3 * 104px + 2 * var(--gap-1))}
+.posters{
+  display:flex; gap:var(--gap-2); list-style:none;
+  margin:0 calc(-1 * var(--margin)); padding:4px var(--margin);
+  overflow-x:auto; scroll-snap-type:x mandatory; scroll-padding:0 var(--margin);
+  -webkit-overflow-scrolling:touch; scrollbar-width:none;
+}
+.posters::-webkit-scrollbar{display:none}
+.posters>li{flex:none; scroll-snap-align:start}
 .poster{
-  display:block; width:104px; text-decoration:none; color:var(--ink-soft);
+  display:block; width:var(--w-poster); text-decoration:none; color:var(--ink-soft);
   -webkit-tap-highlight-color:transparent;
 }
 .poster img{
-  display:block; width:104px; aspect-ratio:4/5; object-fit:cover; object-position:top;
+  display:block; width:var(--w-poster); aspect-ratio:4/5; object-fit:cover; object-position:top;
   border-radius:var(--r-card); background:var(--paper-sunk);
+}
+@media (min-width:735px){
+  .posters{margin:0; padding:4px 0}
 }
 .poster-day{
   display:block; margin-top:6px; text-align:center;
@@ -879,7 +892,7 @@ export function editionDates(m: Pick<Manifest, 'weekends' | 'all'>): string {
 }
 
 // ---------------------------------------------------------------------------
-// The official schedule — the festival's posted images, one per day
+// The official posters — the festival's posted schedule images, one per day
 // ---------------------------------------------------------------------------
 
 /** One posted schedule image on the subscribe page: a tile, and the lightbox on tap. */
@@ -924,7 +937,7 @@ export function committedPosters(site: SiteManifest, assetsDir: string = ASSETS_
 
 function posterTiles(posters: Poster[]): string {
   return `<div class="top-side">
-      <p class="eyebrow">The official schedule</p>
+      <p class="eyebrow">Official posters</p>
       <ul class="posters">
 ${posters.map((p, i) => `        <li><a class="poster" href="${esc(p.src)}" data-poster="${i}"><img src="${esc(p.src)}" alt="" loading="lazy"><span class="poster-day">${esc(p.label)}</span></a></li>`).join('\n')}
       </ul>
@@ -941,7 +954,7 @@ function lightbox(posters: Poster[]): string {
   </div>
 `
       : '';
-  return `<dialog class="lightbox" aria-label="The official schedule">
+  return `<dialog class="lightbox" aria-label="Official posters">
   <div class="lb-body"><img class="lb-img" alt=""></div>
   <div class="lb-top">
     <p class="lb-cap mono-cap"></p>

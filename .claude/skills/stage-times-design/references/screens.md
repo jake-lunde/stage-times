@@ -82,11 +82,11 @@ product. Every design decision here is subordinate to that tap.
 │  One calendar per stage.     │
 │  Add the ones you want.      │
 │                              │
-│  THE OFFICIAL SCHEDULE       │  the posted images, one tile per day (SKILL.md, The
-│  ┌────┐ ┌────┐ ┌────┐        │  official schedule): 104pt, 4:5, 18pt radius; the day
-│  │ ▒▒ │ │ ▒▒ │ │ ▒▒ │        │  under each in mono caps; tap for the lightbox. On a
-│  └────┘ └────┘ └────┘        │  wide screen this column sits top-right of the title.
-│  FRI 7   SAT 8   SUN 9       │
+│  OFFICIAL POSTERS            │  the posted images, one tile per day in a horizontal
+│ ┌─────┐ ┌─────┐ ┌─────┐ ┌──  │  row (SKILL.md, Official posters): scroll-snap x, the
+│ │ ▒▒▒ │ │ ▒▒▒ │ │ ▒▒▒ │ │    │  next day peeking on a phone; 128 / 150pt, 4:5, 18pt
+│ └─────┘ └─────┘ └─────┘ └──  │  radius; the day under each in mono caps; tap for the
+│  FRI 7   SAT 8   SUN 9       │  lightbox
 │  Tap a day to check the times│  mono, --ink-soft
 │                              │
 │  PICK YOUR STAGES            │  eyebrow, mono
