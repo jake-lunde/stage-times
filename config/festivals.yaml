@@ -102,3 +102,16 @@
       # The Friday schedule image was uploaded 2026-09-11 (its Last-Modified);
       # Saturday's and Sunday's followed on 2026-09-17.
       dropped: 2026-09-11
+
+- festival: Ohana Festival
+  slug: ohana
+  source: https://ohanafest.com/schedule
+  timezone: America/Los_Angeles
+  form: poster
+  match: SetTimes
+  editions:
+    - year: 2026
+      dates: { first: 2026-09-25, last: 2026-09-27 }
+      # The Saturday set-times image was uploaded 2026-08-17 (its Last-Modified);
+      # Sunday's 2026-08-21, and Friday's was replaced 2026-09-16.
+      dropped: 2026-08-17

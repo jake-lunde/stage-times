@@ -86,3 +86,14 @@
   # The page carries the admat and a wall of sponsor marks; only the three
   # per-day schedule images are read.
   match: OC26_Schedules
+
+- festival: Ohana Festival
+  slug: ohana
+  year: 2026
+  source: https://ohanafest.com/schedule
+  timezone: America/Los_Angeles
+  dates: { first: 2026-09-25, last: 2026-09-27 }
+  window: { from: 2026-09-23 }
+  # The page also carries the partners' logos and the site's own art; only
+  # the three per-day set-times images are read.
+  match: SetTimes

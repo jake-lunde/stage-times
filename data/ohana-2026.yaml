@@ -1,0 +1,239 @@
+# Ohana Festival 2026 — machine transcription of the schedule poster(s).
+#
+# Source images:
+#   2ff9fea64d889d2a021c554083d058c1d34ac3c647438de9ad4a1ab874a758b3.jpg
+#   e49cbb1384c6269c3b69a5ee0133f179031b474a7e5c0de8ee76ab3609619520.jpg
+#   976af6f686f09314a6bd1abb472ffc2a5af419bff4b9c40f7af59aa76d200bde.jpg
+#
+# verified: true — a human checked every set against the source image above and
+# confirmed it. Corrections made on review are listed in the TRANSCRIPTION log
+# next to this file.
+
+verified: true
+
+# PERMANENT — decides the URL family: owner editions live at /<slug>-<year>/, fan editions at
+# /fan/<slug>-<year>/ (docs/adr/0001-fan-namespace-prefix.md). Never changes after first publish.
+namespace: owner
+
+festival:
+  name: "Ohana Festival"
+  slug: "ohana"     # PERMANENT — appears in every subscription URL
+  year: 2026
+  timezone: "America/Los_Angeles"
+  official_url: "https://ohanafest.com/schedule"   # from the poster — unverified
+  city: "Dana Point"                      # display only (the homepage card); never in a feed
+  # The festival's own colors, off its art: one per stage, in the order a weekend lists them.
+  # Each stage card and each stage calendar's color. Absent or short means the house colors.
+  colors: ["#AB2814", "#DDAD47"]
+
+stages:
+  - id: "ohana"     # PERMANENT url slug — never change after publish
+    name: "Ohana Stage"
+  - id: "tiki"     # PERMANENT url slug — never change after publish
+    name: "Tiki Stage"
+
+sets:
+  # ═══ 2026-09-25 ═══
+  - stage: "ohana"
+    artist: "MUTTLEE"
+    raw: "MUTTLEE"
+    start: "2026-09-25T13:00:00"
+    end: "2026-09-25T13:30:00"
+    end_inferred: false
+  - stage: "ohana"
+    artist: "FLORENCE ROAD"
+    raw: "FLORENCE ROAD"
+    start: "2026-09-25T14:00:00"
+    end: "2026-09-25T14:30:00"
+    end_inferred: false
+  - stage: "ohana"
+    artist: "SUGAR"
+    raw: "SUGAR"
+    start: "2026-09-25T15:05:00"
+    end: "2026-09-25T15:45:00"
+    end_inferred: false
+  - stage: "ohana"
+    artist: "BAD RELIGION"
+    raw: "BAD RELIGION"
+    start: "2026-09-25T16:40:00"
+    end: "2026-09-25T17:25:00"
+    end_inferred: false
+  - stage: "ohana"
+    artist: "MANÁ"
+    raw: "MANÁ"
+    start: "2026-09-25T18:45:00"
+    end: "2026-09-25T20:00:00"
+    end_inferred: false
+  - stage: "ohana"
+    artist: "EDDIE VEDDER & FRIENDS"
+    raw: "EDDIE VEDDER & FRIENDS"
+    start: "2026-09-25T20:40:00"
+    end: "2026-09-25T22:10:00"
+    end_inferred: true
+    notes: "End time not printed; assumed 90 minutes."
+  - stage: "tiki"
+    artist: "MEREBA"
+    raw: "MEREBA"
+    start: "2026-09-25T12:30:00"
+    end: "2026-09-25T13:00:00"
+    end_inferred: false
+  - stage: "tiki"
+    artist: "MIDNIGHT GENERATION"
+    raw: "MIDNIGHT GENERATION"
+    start: "2026-09-25T13:30:00"
+    end: "2026-09-25T14:00:00"
+    end_inferred: false
+  - stage: "tiki"
+    artist: "OTOBOKE BEAVER"
+    raw: "OTOBOKE BEAVER"
+    start: "2026-09-25T14:30:00"
+    end: "2026-09-25T15:00:00"
+    end_inferred: false
+  - stage: "tiki"
+    artist: "COURTNEY BARNETT"
+    raw: "COURTNEY BARNETT"
+    start: "2026-09-25T15:50:00"
+    end: "2026-09-25T16:30:00"
+    end_inferred: false
+  - stage: "tiki"
+    artist: "BILLY IDOL"
+    raw: "BILLY IDOL"
+    start: "2026-09-25T17:35:00"
+    end: "2026-09-25T18:30:00"
+    end_inferred: false
+  # ═══ 2026-09-26 ═══
+  - stage: "ohana"
+    artist: "ELLERY HARPER"
+    raw: "ELLERY HARPER"
+    start: "2026-09-26T13:00:00"
+    end: "2026-09-26T13:30:00"
+    end_inferred: false
+  - stage: "ohana"
+    artist: "MARLON FUNAKI"
+    raw: "MARLON FUNAKI"
+    start: "2026-09-26T14:05:00"
+    end: "2026-09-26T14:40:00"
+    end_inferred: false
+  - stage: "ohana"
+    artist: "THE FRONT BOTTOMS"
+    raw: "THE FRONT BOTTOMS"
+    start: "2026-09-26T15:25:00"
+    end: "2026-09-26T16:05:00"
+    end_inferred: false
+  - stage: "ohana"
+    artist: "MEN I TRUST"
+    raw: "MEN I TRUST"
+    start: "2026-09-26T17:00:00"
+    end: "2026-09-26T17:45:00"
+    end_inferred: false
+  - stage: "ohana"
+    artist: "ALABAMA SHAKES"
+    raw: "ALABAMA SHAKES"
+    start: "2026-09-26T19:05:00"
+    end: "2026-09-26T20:05:00"
+    end_inferred: false
+  - stage: "ohana"
+    artist: "TYLER CHILDERS"
+    raw: "TYLER CHILDERS"
+    start: "2026-09-26T20:45:00"
+    end: "2026-09-26T22:15:00"
+    end_inferred: true
+    notes: "End time not printed; assumed 90 minutes."
+  - stage: "tiki"
+    artist: "JAKE WESLEY ROGERS"
+    raw: "JAKE WESLEY ROGERS"
+    start: "2026-09-26T12:30:00"
+    end: "2026-09-26T13:00:00"
+    end_inferred: false
+  - stage: "tiki"
+    artist: "P.E.S.T."
+    raw: "P.E.S.T."
+    start: "2026-09-26T13:30:00"
+    end: "2026-09-26T14:05:00"
+    end_inferred: false
+  - stage: "tiki"
+    artist: "ALICE PHOEBE LOU"
+    raw: "ALICE PHOEBE LOU"
+    start: "2026-09-26T14:45:00"
+    end: "2026-09-26T15:20:00"
+    end_inferred: false
+  - stage: "tiki"
+    artist: "STEPHEN WILSON JR."
+    raw: "STEPHEN WILSON JR."
+    start: "2026-09-26T16:10:00"
+    end: "2026-09-26T16:50:00"
+    end_inferred: false
+  - stage: "tiki"
+    artist: "JON BATISTE"
+    raw: "JON BATISTE"
+    start: "2026-09-26T17:55:00"
+    end: "2026-09-26T18:50:00"
+    end_inferred: false
+  # ═══ 2026-09-27 ═══
+  - stage: "ohana"
+    artist: "VILLANELLE"
+    raw: "VILLANELLE"
+    start: "2026-09-27T13:00:00"
+    end: "2026-09-27T13:30:00"
+    end_inferred: false
+  - stage: "ohana"
+    artist: "LINKA MOJA"
+    raw: "LINKA MOJA"
+    start: "2026-09-27T14:00:00"
+    end: "2026-09-27T14:30:00"
+    end_inferred: false
+  - stage: "ohana"
+    artist: "ECCA VANDAL"
+    raw: "ECCA VANDAL"
+    start: "2026-09-27T15:05:00"
+    end: "2026-09-27T15:35:00"
+    end_inferred: false
+  - stage: "ohana"
+    artist: "RILO KILEY"
+    raw: "RILO KILEY"
+    start: "2026-09-27T16:30:00"
+    end: "2026-09-27T17:15:00"
+    end_inferred: false
+  - stage: "ohana"
+    artist: "FONTAINES D.C."
+    raw: "FONTAINES D.C."
+    start: "2026-09-27T18:30:00"
+    end: "2026-09-27T19:30:00"
+    end_inferred: false
+  - stage: "ohana"
+    artist: "PEARL JAM"
+    raw: "PEARL JAM"
+    start: "2026-09-27T20:10:00"
+    end: "2026-09-27T21:40:00"
+    end_inferred: true
+    notes: "End time not printed; assumed 90 minutes."
+  - stage: "tiki"
+    artist: "SPEED OF LIGHT"
+    raw: "SPEED OF LIGHT"
+    start: "2026-09-27T12:30:00"
+    end: "2026-09-27T13:00:00"
+    end_inferred: false
+  - stage: "tiki"
+    artist: "HORSEGIRL"
+    raw: "HORSEGIRL"
+    start: "2026-09-27T13:30:00"
+    end: "2026-09-27T14:00:00"
+    end_inferred: false
+  - stage: "tiki"
+    artist: "TOM ODELL"
+    raw: "TOM ODELL"
+    start: "2026-09-27T14:30:00"
+    end: "2026-09-27T15:00:00"
+    end_inferred: false
+  - stage: "tiki"
+    artist: "THE FORMAT"
+    raw: "THE FORMAT"
+    start: "2026-09-27T15:40:00"
+    end: "2026-09-27T16:20:00"
+    end_inferred: false
+  - stage: "tiki"
+    artist: "PIXIES"
+    raw: "PIXIES"
+    start: "2026-09-27T17:25:00"
+    end: "2026-09-27T18:15:00"
+    end_inferred: false
