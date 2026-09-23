@@ -84,7 +84,7 @@ product. Every design decision here is subordinate to that tap.
 │                              │
 │  OFFICIAL POSTERS            │  the posted images, one tile per day in a horizontal
 │ ┌─────┐ ┌─────┐ ┌─────┐ ┌──  │  row (SKILL.md, Official posters): scroll-snap x, the
-│ │ ▒▒▒ │ │ ▒▒▒ │ │ ▒▒▒ │ │    │  next day peeking on a phone; 128 / 150pt, 4:5, 18pt
+│ │ ▒▒▒ │ │ ▒▒▒ │ │ ▒▒▒ │ │    │  next day peeking on a phone; 72 / 80pt, 4:5, 18pt
 │ └─────┘ └─────┘ └─────┘ └──  │  radius; the day under each in mono caps; tap for the
 │  FRI 7   SAT 8   SUN 9       │  lightbox
 │  Tap a day to check the times│  mono, --ink-soft

@@ -379,7 +379,7 @@ body{margin:0}
   --pad-shelf:28px; --gap-shelf:20px; --gap-section:clamp(48px, 6vw, 64px);
   --h-shelf-card:450px; --w-shelf-card:calc(100vw - 2 * var(--margin) - 24px);
   --t-shelf:24px;  /* the shelf header and the card title: one size (Store: 28 / 28) */
-  --w-poster:128px;  /* a poster tile; wider from 735px */
+  --w-poster:72px;  /* a poster tile, half the height it launched at (owner, 2026-09-23); wider from 735px */
   --t-display:60px; --t-title:40px; --t-card:30px; --t-large:24px;
   --t-body:17px; --t-small:14px; --t-mono:13px; --t-micro:12px;
   --w-heading:630;
@@ -387,7 +387,7 @@ body{margin:0}
   --measure:520px;
 }
 @media (min-width:735px){
-  :root{--h-shelf-card:500px; --w-shelf-card:400px; --t-shelf:28px; --w-poster:150px}
+  :root{--h-shelf-card:500px; --w-shelf-card:400px; --t-shelf:28px; --w-poster:80px}
 }
 
 @media (prefers-color-scheme: dark){
@@ -609,9 +609,10 @@ h3{font-size:var(--t-card); line-height:1.05; margin:0}
 @media (min-width:735px){
   .posters{margin:0; padding:4px 0}
 }
+/* 11px and nowrap: FRI 2 OCT has to sit on one line under a 72px tile. */
 .poster-day{
-  display:block; margin-top:6px; text-align:center;
-  font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:.07em; text-transform:uppercase;
+  display:block; margin-top:6px; text-align:center; white-space:nowrap;
+  font-family:var(--font-mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase;
 }
 .posters-hint{margin:var(--gap-2) 0 0}
 

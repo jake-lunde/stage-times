@@ -308,11 +308,12 @@ and served from `/assets/schedule/`, so a reader can check the times against wha
 printed before adding a calendar. **Never hotlinked; never drawn by the build**; a file named
 by its date gets the day as its caption and lands in day order.
 
-- **Tiles**: 128pt wide on a phone, 150pt from 735pt, 4:5, `object-fit: cover` from the top,
-  the one 18pt radius, in **one horizontal row** — the carousel pattern (scroll-snap x, no
+- **Tiles**: small on purpose — the calendars below outrank them (owner, 2026-09-23): 72pt
+  wide on a phone, 80pt from 735pt, 4:5, `object-fit: cover` from the top, the one 18pt
+  radius, in **one horizontal row** — the carousel pattern (scroll-snap x, no
   scrollbar, bleeding to the margin on a phone so the next day peeks; in the column on a wide
-  screen, scrolling only when more days than fit). Under each, the day in mono caps
-  (`FRI 7 AUG`), `--ink-soft`. The tile is a link to the image, so it works with no script.
+  screen, scrolling only when more days than fit). Under each, the day in 11pt mono caps on
+  one line (`FRI 7 AUG`), `--ink-soft`. The tile is a link to the image, so it works with no script.
   Shrinks on press. The word "poster" is the owner's call for this one eyebrow (2026-09-23);
   everywhere else the source is still "the official schedule".
 - **Lightbox** (`<dialog>`): one image on a fixed ink ground in either scheme, fitted to the
