@@ -65,14 +65,19 @@
           "url": "https://cdn.prod.website-files.com/67924c6b545b3b413b623a88/6aac4ee958032a761bd95e20_OC26_Schedules_Sunday-1080x1080.png",
           "schedule": true,
           "seenAt": "20260923T185854Z"
+        },
+        "340cce83deba8c73795adc2f211874d3839d3b6c1a0cd6be3250b58c0e7ff933": {
+          "url": "https://cdn.prod.website-files.com/67924c6b545b3b413b623a88/6ab43a99af6791350304ae9c_OC26_Schedules_Friday-1080x1080.png",
+          "schedule": true,
+          "seenAt": "20260923T221315Z"
         }
       },
       "schedule": [
-        "bd946ec54af58cb825367176250c95a397aacaa526610a495bb19b08d64a39a0",
+        "340cce83deba8c73795adc2f211874d3839d3b6c1a0cd6be3250b58c0e7ff933",
         "4002ceee6a13d901a02fac4e76965288d01c5951aad9b3e2d638cd20f65f549b",
         "0d6373d3981c814c208e584b489a796356d167a962a006abefed3b53d0b778bd"
       ],
-      "at": "20260923T185854Z"
+      "at": "20260923T221315Z"
     },
     "ohana-2026": {
       "images": {
