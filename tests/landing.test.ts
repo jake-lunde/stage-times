@@ -193,7 +193,7 @@ test('landing: every section header is two sentences on one line, bold lead and 
   for (const [, lead, tail] of heads as unknown as [string, string, string][]) {
     assert.match(lead, /^[A-Z][^.]*\.$/, 'the lead is one sentence ending in a period');
     assert.match(tail, /^[A-Z][^.]*\.$/, 'the tail is one sentence ending in a period');
-    assert.ok(lead.split(' ').length <= 3, 'lead is at most three words');
+    assert.ok(lead.split(' ').length <= 8, 'lead is at most eight words (owner, 2026-09-23: the coming shelf leads with the whole promise)');
     assert.ok(tail.split(' ').length <= 9, 'tail is at most nine words');
   }
 });

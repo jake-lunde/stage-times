@@ -1424,7 +1424,7 @@ export function renderLandingPage(site: SiteManifest, opts: LandingOptions = {})
     shelved.length === 0
       ? ''
       : `<section class="shelf-section" data-shelf="coming">
-    <h2 class="shelf-head"><span class="lead">Pick a festival.</span> <span class="tail">Then add the stages you want.</span></h2>
+    <h2 class="shelf-head"><span class="lead">Add festival stages directly to your calendar.</span> <span class="tail">That's it.</span></h2>
     <ul class="shelf">
     ${shelved.map((m) => directoryCard(m, images[m.festival.key]!)).join('\n    ')}
     </ul>

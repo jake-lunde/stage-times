@@ -10,8 +10,8 @@ is inline SVG or a committed image file. They get loaded on festival wifi at 2am
 Purpose: explain what this is in under five seconds and send people to a festival page. Since
 ticket 06 (2026-09-20) it is the directory: one card per listed edition on a shelf
 (`references/store-density.md`), earliest first festival day first, then name. Nothing unlisted
-or blocked appears. Two shelves (owner, 2026-09-23): **Pick a festival.** *Then add the stages
-you want.* holds what is coming, soonest first, so a festival that is on right now is the first
+or blocked appears. Two shelves (owner, 2026-09-23): **Add festival stages directly to your
+calendar.** *That's it.* holds what is coming, soonest first, so a festival that is on right now is the first
 card; **Already happened.** *The times are still here.* holds what is over, latest first. The
 build never reads a clock, so it puts every card on the first shelf and the page moves the ones
 whose last day has passed on the reader's device to the second when it opens; the second shelf
@@ -24,8 +24,8 @@ ships hidden and empty, and without the script every card stays on the first she
 │      Set times, by stage.    │  20pt / 500 / cream at 85%
 │                              │
 ├──────────────────────────────┤  cream below here
-│  Pick a festival. Then add   │  SECTION HEADER: two sentences on one line,
-│  the stages you want.        │  bold lead in ink, quiet tail in --ink-soft,
+│  Add festival stages directly│  SECTION HEADER: two sentences on one line,
+│  to your calendar. That's it.│  bold lead in ink, quiet tail in --ink-soft,
 │                              │  24 (phone) / 28, expanded 600
 │  ┌────────────────────────┐┌─│  SHELF: scroll-snap x, fixed-height cards
 │  │ AUG 7–9, 2026 · SEATTLE││ │  (450 phone / 500 desktop), 28pt inside,
