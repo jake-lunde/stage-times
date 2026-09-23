@@ -88,7 +88,8 @@ test('committedPosters: the images under assets/schedule/<key>/, in file order, 
 test('official posters: one tile per day in a row under the title, each a link to the image, and one lightbox', () => {
   const html = renderSubscribePage(harbor, { posters });
   const text = visibleText(html);
-  assert.match(text, /Official posters Fri 7 Aug Sat 8 Aug Tap a day to check the times\./);
+  assert.match(text, /Official posters Fri 7 Aug Sat 8 Aug Not checked yet/, 'the tiles end the top area; nothing under them');
+  assert.doesNotMatch(text, /Tap a day/, 'no hint line under the tiles (owner, 2026-09-23)');
   assert.match(html, /\.posters\{[^}]*overflow-x:auto; scroll-snap-type:x mandatory/, 'one horizontal row, the carousel pattern');
   assert.match(html, /<dialog class="lightbox" aria-label="Official posters">/);
   assert.match(html, /<a class="poster" href="\/assets\/schedule\/harbor-lights-2026\/2026-08-07\.webp" data-poster="0"><img src="\/assets\/schedule\/harbor-lights-2026\/2026-08-07\.webp" alt="" loading="lazy"><span class="poster-day">Fri 7 Aug<\/span><\/a>/);

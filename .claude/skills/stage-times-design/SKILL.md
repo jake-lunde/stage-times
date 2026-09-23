@@ -299,7 +299,7 @@ every width:
 - **Two lines**, 17pt/500 ink, sentence case: `79 sets across 4 stages.` then
   `One calendar per stage. Add the ones you want.` Nothing else before the stages.
 - **Official posters** — eyebrow `OFFICIAL POSTERS`, then one tile per posted day in a
-  horizontal row (below), then the mono line `Tap a day to check the times.`
+  horizontal row (below). No hint line under them (owner, 2026-09-23): the tiles say what they are.
 
 ### Official posters
 

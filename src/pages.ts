@@ -614,7 +614,6 @@ h3{font-size:var(--t-card); line-height:1.05; margin:0}
   display:block; margin-top:6px; text-align:center; white-space:nowrap;
   font-family:var(--font-mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase;
 }
-.posters-hint{margin:var(--gap-2) 0 0}
 
 /* The lightbox: one poster on ink, an X, and the day. Tap the poster to see it
    at full width and scroll; tap again to fit. Left and right when there is
@@ -942,7 +941,6 @@ function posterTiles(posters: Poster[]): string {
       <ul class="posters">
 ${posters.map((p, i) => `        <li><a class="poster" href="${esc(p.src)}" data-poster="${i}"><img src="${esc(p.src)}" alt="" loading="lazy"><span class="poster-day">${esc(p.label)}</span></a></li>`).join('\n')}
       </ul>
-      <p class="small posters-hint">Tap a day to check the times.</p>
     </div>`;
 }
 

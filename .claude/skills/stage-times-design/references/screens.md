@@ -87,7 +87,6 @@ product. Every design decision here is subordinate to that tap.
 │ │ ▒▒▒ │ │ ▒▒▒ │ │ ▒▒▒ │ │    │  next day peeking on a phone; 72 / 80pt, 4:5, 18pt
 │ └─────┘ └─────┘ └─────┘ └──  │  radius; the day under each in mono caps; tap for the
 │  FRI 7   SAT 8   SUN 9       │  lightbox
-│  Tap a day to check the times│  mono, --ink-soft
 │                              │
 │  PICK YOUR STAGES            │  eyebrow, mono
 │ ┌───────────────────┐┌────── │  CAROUSEL — scroll-snap x, card ~86vw,
