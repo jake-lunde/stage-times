@@ -288,8 +288,8 @@ a "‹ Back" text label** anywhere.
 
 ### The top area (subscribe page, owner 2026-09-23, from the Apple product page)
 
-Eyebrow, big title, plain lines, and the thing to check on the right. Top to bottom on a
-phone; two columns from 735pt, the text left and the tiles top-right:
+Eyebrow, big title, plain lines, then the posters in one row across the page. One column at
+every width:
 
 - **Eyebrow** — the days and the city in the lockup style (14pt expanded caps, `--red-deep`):
   `FRI 7 AUG – SUN 9 AUG · SEATTLE`, two weekends as `OCT 2–4 & OCT 9–11 · AUSTIN`. No year;
@@ -297,19 +297,23 @@ phone; two columns from 735pt, the text left and the tiles top-right:
 - **Title** — the festival name, 40pt expanded, the year in `--ink-soft` after it.
 - **Two lines**, 17pt/500 ink, sentence case: `79 sets across 4 stages.` then
   `One calendar per stage. Add the ones you want.` Nothing else before the stages.
-- **The official schedule** — eyebrow `THE OFFICIAL SCHEDULE`, then one tile per posted day
-  (below), then the mono line `Tap a day to check the times.`
+- **Official posters** — eyebrow `OFFICIAL POSTERS`, then one tile per posted day in a
+  horizontal row (below), then the mono line `Tap a day to check the times.`
 
-### The official schedule
+### Official posters
 
 The festival's own posted schedule images, committed at `assets/schedule/<key>/<YYYY-MM-DD>.<ext>`
 and served from `/assets/schedule/`, so a reader can check the times against what the festival
 printed before adding a calendar. **Never hotlinked; never drawn by the build**; a file named
 by its date gets the day as its caption and lands in day order.
 
-- **Tiles**: 104pt wide, 4:5, `object-fit: cover` from the top, the one 18pt radius, three to
-  a row and wrapping (six days is two rows). Under each, the day in mono caps (`FRI 7 AUG`),
-  `--ink-soft`. The tile is a link to the image, so it works with no script. Shrinks on press.
+- **Tiles**: 128pt wide on a phone, 150pt from 735pt, 4:5, `object-fit: cover` from the top,
+  the one 18pt radius, in **one horizontal row** — the carousel pattern (scroll-snap x, no
+  scrollbar, bleeding to the margin on a phone so the next day peeks; in the column on a wide
+  screen, scrolling only when more days than fit). Under each, the day in mono caps
+  (`FRI 7 AUG`), `--ink-soft`. The tile is a link to the image, so it works with no script.
+  Shrinks on press. The word "poster" is the owner's call for this one eyebrow (2026-09-23);
+  everywhere else the source is still "the official schedule".
 - **Lightbox** (`<dialog>`): one image on a fixed ink ground in either scheme, fitted to the
   viewport with the card radius; **tap the image to see it at full width and scroll, tap again
   to fit** — the times have to be readable on a phone. The day in mono caps top-left, a 44pt X

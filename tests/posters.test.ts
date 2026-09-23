@@ -1,7 +1,7 @@
 /**
  * The subscribe page's top area (owner, 2026-09-23): the sticky bar with the
  * wordmark home and the festival name, no back button; the eyebrow, the big
- * title and two plain lines; and the official schedule — the festival's own
+ * title and two plain lines; and the official posters — the festival's own
  * posted images, committed at assets/schedule/<key>/, one tile per day and a
  * lightbox on tap — so a reader can check the times before adding a calendar.
  */
@@ -53,7 +53,7 @@ test('top area: the blocked page keeps the bar, statically, and the title', () =
 });
 
 // ===========================================================================
-// The official schedule
+// The official posters
 // ===========================================================================
 
 test('dayLabel: an ISO date becomes the weekday, day and month', () => {
@@ -85,10 +85,12 @@ test('committedPosters: the images under assets/schedule/<key>/, in file order, 
   }
 });
 
-test('official schedule: one tile per day beside the title, each a link to the image, and one lightbox', () => {
+test('official posters: one tile per day in a row under the title, each a link to the image, and one lightbox', () => {
   const html = renderSubscribePage(harbor, { posters });
   const text = visibleText(html);
-  assert.match(text, /The official schedule Fri 7 Aug Sat 8 Aug Tap a day to check the times\./);
+  assert.match(text, /Official posters Fri 7 Aug Sat 8 Aug Tap a day to check the times\./);
+  assert.match(html, /\.posters\{[^}]*overflow-x:auto; scroll-snap-type:x mandatory/, 'one horizontal row, the carousel pattern');
+  assert.match(html, /<dialog class="lightbox" aria-label="Official posters">/);
   assert.match(html, /<a class="poster" href="\/assets\/schedule\/harbor-lights-2026\/2026-08-07\.webp" data-poster="0"><img src="\/assets\/schedule\/harbor-lights-2026\/2026-08-07\.webp" alt="" loading="lazy"><span class="poster-day">Fri 7 Aug<\/span><\/a>/);
   assert.equal((html.match(/class="poster"/g) ?? []).length, 2);
   assert.equal((html.match(/<dialog class="lightbox"/g) ?? []).length, 1);
@@ -100,7 +102,7 @@ test('official schedule: one tile per day beside the title, each a link to the i
   assert.doesNotMatch(html, /box-shadow|linear-gradient/);
 });
 
-test('official schedule: one day has no previous and next; no posters, no tiles and no lightbox', () => {
+test('official posters: one day has no previous and next; no posters, no tiles and no lightbox', () => {
   const one = renderSubscribePage(harbor, { posters: posters.slice(0, 1) });
   assert.match(one, /<dialog class="lightbox"/);
   assert.doesNotMatch(one, /class="lb-nav"/);
@@ -108,10 +110,10 @@ test('official schedule: one day has no previous and next; no posters, no tiles 
   const none = renderSubscribePage(harbor);
   assert.doesNotMatch(none, /class="poster"/);
   assert.doesNotMatch(none, /<dialog/);
-  assert.doesNotMatch(visibleText(none), /The official schedule Fri/);
+  assert.doesNotMatch(visibleText(none), /Official posters/);
 });
 
-test('official schedule: the site build finds the committed images and puts them on the edition page', () => {
+test('official posters: the site build finds the committed images and puts them on the edition page', () => {
   const assets = mkdtempSync(join(tmpdir(), 'st-assets-'));
   const out = mkdtempSync(join(tmpdir(), 'st-out-'));
   try {
