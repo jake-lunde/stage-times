@@ -10,7 +10,12 @@ is inline SVG or a committed image file. They get loaded on festival wifi at 2am
 Purpose: explain what this is in under five seconds and send people to a festival page. Since
 ticket 06 (2026-09-20) it is the directory: one card per listed edition on a shelf
 (`references/store-density.md`), earliest first festival day first, then name. Nothing unlisted
-or blocked appears; the build never reads a clock, so there is no "past" and no "this weekend".
+or blocked appears. Two shelves (owner, 2026-09-23): **Pick a festival.** *Then add the stages
+you want.* holds what is coming, soonest first, so a festival that is on right now is the first
+card; **Already happened.** *The times are still here.* holds what is over, latest first. The
+build never reads a clock, so it puts every card on the first shelf and the page moves the ones
+whose last day has passed on the reader's device to the second when it opens; the second shelf
+ships hidden and empty, and without the script every card stays on the first shelf.
 
 ```
 ┌──────────────────────────────┐
@@ -54,8 +59,9 @@ stage's billed headliners, as the data has them. Then art to the bottom edge.
 
 The hero flood is the only place the brand shouts. Everything below it is quiet. The section
 header, the first card, and the prose all share the measure's left edge; the shelf runs from
-there to the right edge of the viewport. With nothing listed the shelf and its header are
-omitted and the page is the hero, the prose, and the footer.
+there to the right edge of the viewport. The second shelf repeats the frame under the first,
+one `--gap-section` below. With nothing listed both shelves and their headers are omitted and
+the page is the hero, the prose, and the footer.
 
 ## 2. Subscribe — `/<festival-slug>-<year>/`
 

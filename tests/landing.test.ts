@@ -1,9 +1,11 @@
 /**
  * The homepage lists listed editions (vault ticket 06; spec — self-serve editions).
  *
- * The landing page is a shelf: one directory card per listed edition, earliest
- * first festival day first, then name. Unlisted and blocked editions never
- * appear. The whole card is the link to the edition's subscribe page in its
+ * The landing page is two shelves: one directory card per listed edition,
+ * earliest first festival day first, then name, all built onto the first
+ * shelf; the page itself moves the ones whose last day has passed to the
+ * second shelf, latest first, because the build never reads a clock.
+ * Unlisted and blocked editions never appear. The whole card is the link to the edition's subscribe page in its
  * namespace; no card says whose it is (ADR-0005). A card's art is the
  * festival's own committed image; a listed edition without one stays off the
  * shelf (owner, 2026-09-22). Every card and tile on both page types shares the
@@ -19,6 +21,7 @@ import assert from 'node:assert/strict';
 
 import type { Manifest, SiteManifest } from '../src/build.js';
 import {
+  LANDING_SCRIPT,
   listedEditions,
   renderLandingPage,
   renderSubscribePage,
@@ -183,15 +186,51 @@ test('landing: the card is text first — eyebrow, name, one bold lead with the 
   );
 });
 
-test('landing: the section header is two sentences on one line, bold lead and quiet tail, both ending in a period', () => {
+test('landing: every section header is two sentences on one line, bold lead and quiet tail, both ending in a period', () => {
   const html = landing(twoListed());
-  const m = /<h2 class="shelf-head"><span class="lead">([^<]+)<\/span> <span class="tail">([^<]+)<\/span><\/h2>/.exec(html);
-  assert.ok(m, 'one h2 with a lead span and a tail span');
-  const [, lead, tail] = m as unknown as [string, string, string];
-  assert.match(lead, /^[A-Z][^.]*\.$/, 'the lead is one sentence ending in a period');
-  assert.match(tail, /^[A-Z][^.]*\.$/, 'the tail is one sentence ending in a period');
-  assert.ok(lead.split(' ').length <= 3, 'lead is at most three words');
-  assert.ok(tail.split(' ').length <= 9, 'tail is at most nine words');
+  const heads = [...html.matchAll(/<h2 class="shelf-head"><span class="lead">([^<]+)<\/span> <span class="tail">([^<]+)<\/span><\/h2>/g)];
+  assert.equal(heads.length, 2, 'two shelves, two headers: what is coming and what has happened');
+  for (const [, lead, tail] of heads as unknown as [string, string, string][]) {
+    assert.match(lead, /^[A-Z][^.]*\.$/, 'the lead is one sentence ending in a period');
+    assert.match(tail, /^[A-Z][^.]*\.$/, 'the tail is one sentence ending in a period');
+    assert.ok(lead.split(' ').length <= 3, 'lead is at most three words');
+    assert.ok(tail.split(' ').length <= 9, 'tail is at most nine words');
+  }
+});
+
+// ===========================================================================
+// Two shelves: coming, soonest first; happened, sorted by the page, not the build
+// ===========================================================================
+
+test('landing: every card is built onto the coming shelf with its first and last day; the happened shelf ships empty and hidden', () => {
+  const site = twoListed();
+  const html = landing(site);
+  const coming = /<section class="shelf-section" data-shelf="coming">[\s\S]*?<\/section>/.exec(html)?.[0];
+  const past = /<section class="shelf-section" data-shelf="past" hidden>[\s\S]*?<\/section>/.exec(html)?.[0];
+  assert.ok(coming, 'the coming shelf');
+  assert.ok(past, 'the happened shelf, hidden until the page finds something for it');
+  assert.ok(html.indexOf(coming!) < html.indexOf(past!), 'coming first, happened below');
+  assert.equal(cards(coming!).length, 2, 'every card starts on the coming shelf');
+  assert.equal(cards(past!).length, 0, 'nothing on the happened shelf: the build never reads a clock');
+  assert.match(past!, /<ul class="shelf"><\/ul>/, 'an empty shelf for the page to fill');
+  const days = [...coming!.matchAll(/<li data-first="(\d{4}-\d{2}-\d{2})" data-last="(\d{4}-\d{2}-\d{2})">/g)].map((m) => [m[1], m[2]]);
+  assert.deepEqual(
+    days,
+    listedEditions(site).map((m) => [m.all.dayspan.first, m.all.dayspan.last]),
+    'each card carries its edition’s first and last day, soonest first',
+  );
+});
+
+test('landing: the page moves what has happened, by the device date, and the build ships the script only with a shelf', () => {
+  const html = landing(twoListed());
+  assert.ok(html.includes(LANDING_SCRIPT), 'the shelving script is on the page');
+  for (const needle of ['new Date()', 'li[data-last]', "data-shelf=\"coming\"", "data-shelf=\"past\"", 'past.hidden = false']) {
+    assert.ok(LANDING_SCRIPT.includes(needle), `the script ${needle}`);
+  }
+  assert.equal(html.split('Date(').length, LANDING_SCRIPT.split('Date(').length, 'the only clock on the page is the shelving one');
+  const empty = renderLandingPage(buildFixtureSite([harborDoc(), pierDoc()]).site);
+  assert.equal(empty.includes('data-shelf'), false, 'nothing listed: no shelf either way');
+  assert.equal(empty.includes(LANDING_SCRIPT), false, 'and nothing to sort');
 });
 
 // ===========================================================================

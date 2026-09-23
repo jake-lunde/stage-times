@@ -1087,8 +1087,10 @@ export interface LandingOptions {
 
 /**
  * The editions the homepage shows: listed and not blocked, by first festival
- * day ascending, then name, then path. The build never reads a clock, so there
- * is no "past" and no "this weekend" — every listed edition is on the shelf.
+ * day ascending, then name, then path. The build never reads a clock, so it
+ * cannot tell "past" from "soon": every listed edition is on the first shelf,
+ * soonest first, and the page sorts the ones that have happened onto the
+ * second shelf when it opens (`LANDING_SCRIPT`).
  * Plain comparisons, not localeCompare: the order must not depend on the host.
  */
 export function listedEditions(site: SiteManifest): Manifest[] {
@@ -1135,7 +1137,9 @@ function directoryCard(m: Manifest, image: string): string {
     .join('\n        ');
   // Behind the image while it loads: the light ground of the edition's first stage color.
   const color = m.stages[0]?.color ?? HOUSE_COLORS[0]!;
-  return `<li><a class="shelf-card" href="${esc(f.basePath)}/">
+  // The first and last festival day, for the page to shelve the card by (`LANDING_SCRIPT`).
+  const { first, last } = m.all.dayspan;
+  return `<li data-first="${esc(first)}" data-last="${esc(last)}"><a class="shelf-card" href="${esc(f.basePath)}/">
       <span class="shelf-text">
         ${eyebrow}
         <span class="shelf-title">${esc(f.name)}</span>
@@ -1146,17 +1150,53 @@ function directoryCard(m: Manifest, image: string): string {
     </a></li>`;
 }
 
+/**
+ * Two shelves: what is coming, soonest first, and what has happened, latest
+ * first. The build never reads a clock (README), so it puts every card on the
+ * first shelf in first-day order and the page moves the ones whose last day
+ * has passed on this device to the second when it opens. A festival that is on
+ * right now is the soonest one that is not over, so it is always first. Without
+ * the script nothing moves: every festival on one shelf, soonest first.
+ */
+export const LANDING_SCRIPT = `<script>
+(function () {
+  var d = new Date();
+  var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+  var today = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  var coming = document.querySelector('[data-shelf="coming"]');
+  var past = document.querySelector('[data-shelf="past"]');
+  if (!coming || !past) return;
+  var over = [].filter.call(coming.querySelectorAll('li[data-last]'), function (li) {
+    return li.getAttribute('data-last') < today;
+  });
+  if (!over.length) return;
+  over.sort(function (a, b) {
+    var x = a.getAttribute('data-last'), y = b.getAttribute('data-last');
+    return x < y ? 1 : x > y ? -1 : 0;
+  });
+  var shelf = past.querySelector('.shelf');
+  over.forEach(function (li) { shelf.appendChild(li); });
+  past.hidden = false;
+  if (!coming.querySelector('li')) coming.hidden = true;
+})();
+</script>`;
+
 export function renderLandingPage(site: SiteManifest, opts: LandingOptions = {}): string {
   const images = opts.images ?? {};
   const shelved = shelvedEditions(site, images);
   const shelf =
     shelved.length === 0
       ? ''
-      : `<section class="shelf-section">
+      : `<section class="shelf-section" data-shelf="coming">
     <h2 class="shelf-head"><span class="lead">Pick a festival.</span> <span class="tail">Then add the stages you want.</span></h2>
     <ul class="shelf">
     ${shelved.map((m) => directoryCard(m, images[m.festival.key]!)).join('\n    ')}
     </ul>
+  </section>
+
+  <section class="shelf-section" data-shelf="past" hidden>
+    <h2 class="shelf-head"><span class="lead">Already happened.</span> <span class="tail">The times are still here.</span></h2>
+    <ul class="shelf"></ul>
   </section>
 
   `;
@@ -1180,7 +1220,8 @@ export function renderLandingPage(site: SiteManifest, opts: LandingOptions = {})
     <p>Unofficial. Not affiliated with any festival.</p>
     <p>Wrong time? <a href="https://github.com/jake-lunde/stage-times/issues">Tell me ↗</a></p>
   </footer>
-</main>`;
+</main>
+${shelved.length === 0 ? '' : LANDING_SCRIPT}`;
 
   return page('Stage Times — set times, by stage', 'Set times for each festival stage, as a calendar you can add to your phone.', body);
 }
