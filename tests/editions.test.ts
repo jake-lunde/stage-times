@@ -350,7 +350,7 @@ test('removed page: keeps the footer promises and the design shell', () => {
   // visibleText() pads stripped tags with a space, so the link's trailing period detaches.
   assert.ok(text.includes('Source: the official schedule'), 'attribution');
   assert.ok(text.includes('Updated 1 January 2026.'), 'updated stamp from committed state');
-  assert.ok(html.includes('aria-label="Stage Times home"'), 'back button');
+  assert.ok(html.includes('aria-label="Stage Times home"'), 'the wordmark in the sticky bar is the way home');
   assert.ok(html.includes('/_vercel/insights/script.js'), 'analytics snippet, like every HTML page');
   assert.ok(html.includes('/assets/fonts/archivo-var-latin.woff2'), 'self-hosted fonts');
 });

@@ -74,11 +74,20 @@ product. Every design decision here is subordinate to that tap.
 
 ```
 ┌──────────────────────────────┐
-│  (◀)                         │  44pt circle icon button, --paper-sunk, top-left
+│  STAGE TIMES    Capitol Hi…  │  STICKY BAR (SKILL.md, Navigation bar): wordmark home
+│                              │  left; the festival name fades in once the title scrolls out
+│  FRI 7 AUG – SUN 9 AUG · SEA…│  eyebrow: the days and city, 14pt expanded caps, --red-deep
+│  Capitol Hill Block Party    │  40pt / 630 expanded — screen title, ink on cream, year soft
+│  79 sets across 4 stages.    │  17pt / 500 ink
+│  One calendar per stage.     │
+│  Add the ones you want.      │
 │                              │
-│  STAGE TIMES                 │  wordmark lockup: 14pt expanded caps, --red
-│  Capitol Hill Block Party    │  40pt / 630 expanded — screen title, ink on cream
-│  FRI 7 – SUN 9 AUG · 79 SETS │  mono caption, --ink-soft
+│  THE OFFICIAL SCHEDULE       │  the posted images, one tile per day (SKILL.md, The
+│  ┌────┐ ┌────┐ ┌────┐        │  official schedule): 104pt, 4:5, 18pt radius; the day
+│  │ ▒▒ │ │ ▒▒ │ │ ▒▒ │        │  under each in mono caps; tap for the lightbox. On a
+│  └────┘ └────┘ └────┘        │  wide screen this column sits top-right of the title.
+│  FRI 7   SAT 8   SUN 9       │
+│  Tap a day to check the times│  mono, --ink-soft
 │                              │
 │  PICK YOUR STAGES            │  eyebrow, mono
 │ ┌───────────────────┐┌────── │  CAROUSEL — scroll-snap x, card ~86vw,

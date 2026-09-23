@@ -451,6 +451,10 @@ smoke a protected preview).
    stays off the homepage until it lands; the build log says so.
 5. `npm run palette -- <slug>-<year>` and paste its `colors:` line under `festival:`, in the
    order you want the stages to take them.
+6. Commit the festival's posted schedule images at `assets/schedule/<slug>-<year>/<YYYY-MM-DD>.webp`,
+   one per day, named by the day they show. The subscribe page shows them as tiles beside the
+   title — tap for the lightbox — so a reader can check the times before adding a calendar. An
+   edition with no folder shows no tiles.
 
 The homepage is the directory: one card per listed edition, earliest first festival day first,
 then name; nothing unlisted or blocked. A card's art is the edition's committed festival image

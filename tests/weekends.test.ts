@@ -305,7 +305,7 @@ test('subscribe page: with two weekends the reader picks the weekend first, then
   const panel1 = html.slice(html.indexOf('id="weekend-1"'), html.indexOf('id="weekend-2"'));
   assert.match(panel1, /data-stage="main-weekend-1"/);
   assert.doesNotMatch(panel1, /data-stage="main-weekend-2"/, 'each weekend shows its own stages');
-  assert.match(text, /Aug 7–8 &amp; Aug 14–15, 2026 · 6 sets · 2 stages/, 'the caption is the short form and counts a stage once');
+  assert.match(text, /Aug 7–8 &amp; Aug 14–15 Tidewater 2026 6 sets across 2 stages\./, 'the eyebrow is the short form without the year, and the lede counts a stage once');
   assert.match(text, /every stage, both weekends, in one calendar/);
   assert.match(text, /All two at once/);
 });
@@ -419,5 +419,5 @@ test('ACL 2026: the six stored replies — both weekends off one schedule page �
   assert.match(files.get('austin-city-limits-music-festival-25-years-2026/t-mobile-weekend-2.ics')!, /X-WR-CALNAME:T-mobile \(Weekend 2\)/);
   const text = visibleText(renderSubscribePage(manifest));
   assert.match(text, /Pick your weekend Weekend 1 Weekend 2 Weekend 1 · Fri 2 Oct – Sun 4 Oct/);
-  assert.match(text, /207 sets · 8 stages/);
+  assert.match(text, /207 sets across 8 stages\./);
 });
