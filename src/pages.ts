@@ -27,7 +27,7 @@
  * art is the festival's own committed image.
  */
 
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderUploadPage } from './upload-pages.js';
@@ -356,6 +356,8 @@ function popKeyframes(): string {
 export const ICON_BACK = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>`;
 export const ICON_LINK = `<svg class="ic-link" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 13.5a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4L12 5.6"/><path d="M13.5 10.5a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4L12 18.4"/></svg>`;
 export const ICON_CHECK = `<svg class="ic-check" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5 10-11"/></svg>`;
+export const ICON_NEXT = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>`;
+export const ICON_CLOSE = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
 
 // ---------------------------------------------------------------------------
 // CSS — tokens from the design skill, verbatim
@@ -454,8 +456,8 @@ h3{font-size:var(--t-card); line-height:1.05; margin:0}
 .hero p{margin:var(--gap-2) 0 0; font-size:20px; font-weight:500; opacity:.88}
 
 /* ── press feedback: everything tappable shrinks under the thumb ──────── */
-.btn,.icon-btn,.text-btn,.shelf-card{transition:transform var(--t-press) ease}
-.btn:active,.icon-btn:active,.text-btn:active,.shelf-card:active{transform:var(--press)}
+.btn,.icon-btn,.text-btn,.shelf-card,.poster{transition:transform var(--t-press) ease}
+.btn:active,.icon-btn:active,.text-btn:active,.shelf-card:active,.poster:active{transform:var(--press)}
 
 /* ── buttons ──────────────────────────────────────────────────────────── */
 .btn{
@@ -552,7 +554,7 @@ h3{font-size:var(--t-card); line-height:1.05; margin:0}
 .art-svg{position:absolute; inset:0; width:100%; height:100%}
 .shelf-section+section{margin-top:var(--gap-section)}
 
-/* ── subscribe: top bar + lockup ──────────────────────────────────────── */
+/* ── upload: top bar + lockup (the subscribe page has the sticky bar below) ── */
 .topbar{padding:var(--gap-3) 0}
 .lockup{
   font-stretch:125%; font-weight:var(--w-heading); font-size:14px;
@@ -561,6 +563,92 @@ h3{font-size:var(--t-card); line-height:1.05; margin:0}
 }
 .title-meta{margin:var(--gap-2) 0 0; color:var(--ink-soft)}
 .title-meta span{white-space:nowrap}
+
+/* ── subscribe: the sticky bar (owner, 2026-09-23) ─────────────────────── */
+/* Sticks to the top as the page scrolls. The fill is the page color, so the
+   bar reads as transparent while still covering what scrolls under it; no
+   hairline. The wordmark on the left is the way home — there is no back
+   button. The festival name on the right is hidden while the big title is in
+   view and comes up once it scrolls out (the script watches the title); with
+   no script it is simply there. */
+.bar{position:sticky; top:0; z-index:10; background:var(--paper)}
+.bar-in{
+  display:flex; align-items:center; gap:var(--gap-3); height:56px;
+  max-width:calc(980px + 2 * var(--margin)); margin:0 auto; padding:0 var(--margin);
+}
+.bar-home{
+  display:inline-flex; align-items:center; flex:none; min-height:var(--h-icon);
+  font-stretch:125%; font-weight:var(--w-heading); font-size:14px;
+  letter-spacing:.06em; text-transform:uppercase; color:var(--red-deep);
+  text-decoration:none; -webkit-tap-highlight-color:transparent;
+}
+.bar-title{
+  margin-left:auto; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
+  font-size:16px; font-weight:600; color:var(--ink); text-align:right;
+  transition:opacity 200ms ease;
+}
+.bar-title .year{color:var(--ink-soft); font-weight:500}
+.bar[data-watch] .bar-title{opacity:0}
+.bar[data-watch].is-scrolled .bar-title{opacity:1}
+
+/* ── subscribe: the top area ─────────────────────────────────────────── */
+/* Eyebrow, big title, two plain lines; the festival's posted schedule beside
+   it on a wide screen and under it on a phone. */
+.top{display:grid; gap:var(--gap-4); margin-top:var(--gap-3)}
+.top .lockup{margin-top:0}
+.top h2{margin:0}
+.top h2 .year{color:var(--ink-soft)}
+.lede{margin:0; font-size:var(--t-body); font-weight:500; line-height:1.4; max-width:44ch}
+.top h2+.lede{margin-top:var(--gap-3)}
+.lede+.lede{margin-top:4px}
+@media (min-width:735px){
+  .top{grid-template-columns:minmax(0, 1fr) auto; gap:var(--gap-5); align-items:start}
+  .top-side{justify-self:end}
+}
+
+/* ── the official schedule: a tile per day, tap for the lightbox ─────── */
+.top-side .eyebrow{margin-bottom:var(--gap-2)}
+.posters{display:flex; flex-wrap:wrap; gap:var(--gap-1); list-style:none; margin:0; padding:0; max-width:calc(3 * 104px + 2 * var(--gap-1))}
+.poster{
+  display:block; width:104px; text-decoration:none; color:var(--ink-soft);
+  -webkit-tap-highlight-color:transparent;
+}
+.poster img{
+  display:block; width:104px; aspect-ratio:4/5; object-fit:cover; object-position:top;
+  border-radius:var(--r-card); background:var(--paper-sunk);
+}
+.poster-day{
+  display:block; margin-top:6px; text-align:center;
+  font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:.07em; text-transform:uppercase;
+}
+.posters-hint{margin:var(--gap-2) 0 0}
+
+/* The lightbox: one poster on ink, an X, and the day. Tap the poster to see it
+   at full width and scroll; tap again to fit. Left and right when there is
+   more than one day. The ink ground is fixed — a poster is read the same in
+   either scheme. */
+.lightbox{
+  position:fixed; inset:0; width:100vw; height:100vh; height:100dvh; max-width:none; max-height:none;
+  margin:0; padding:0; border:0; background:#12181F; color:#FCF9F4;
+}
+.lightbox::backdrop{background:#12181F}
+.lb-body{position:absolute; inset:0; overflow:auto; padding:64px var(--margin) 80px; -webkit-overflow-scrolling:touch}
+.lb-img{
+  display:block; margin:0 auto; max-width:100%; max-height:calc(100vh - 144px); max-height:calc(100dvh - 144px);
+  border-radius:var(--r-card); cursor:zoom-in;
+}
+.lightbox.zoom .lb-body{padding:64px 0 80px}
+.lightbox.zoom .lb-img{width:100%; max-height:none; border-radius:0; cursor:zoom-out}
+.lb-top{
+  position:absolute; top:0; left:0; right:0; height:56px; padding:0 var(--margin);
+  display:flex; align-items:center; justify-content:space-between; gap:var(--gap-3);
+}
+.lb-cap{margin:0; color:rgba(252,249,244,.85)}
+.lb-nav{
+  position:absolute; left:0; right:0; bottom:max(16px, env(safe-area-inset-bottom));
+  display:flex; justify-content:center; gap:var(--gap-1);
+}
+.lightbox .icon-btn{background:rgba(252,249,244,.16); color:#FCF9F4}
 
 /* ── stage carousel ───────────────────────────────────────────────────── */
 /* Pure CSS scroll-snap — the "scroll-jack" feel without hijacking anything.
@@ -827,8 +915,95 @@ export function editionDates(m: Pick<Manifest, 'weekends' | 'all'>): string {
 }
 
 // ---------------------------------------------------------------------------
+// The official schedule — the festival's posted images, one per day
+// ---------------------------------------------------------------------------
+
+/** One posted schedule image on the subscribe page: a tile, and the lightbox on tap. */
+export interface Poster {
+  /** Site-absolute path, e.g. `/assets/schedule/<key>/2026-08-07.webp`. */
+  src: string;
+  /** The tile's caption: `Fri 7 Aug` when the file is named by its date, else the file name. */
+  label: string;
+}
+
+/** `2026-08-07` → `Fri 7 Aug`. Deterministic, no locale dependence. */
+export function dayLabel(iso: string): string {
+  const [y, m, d] = ymd(iso);
+  const wd = WEEKDAYS_FULL[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]!;
+  return `${wd.charAt(0)}${wd.slice(1, 3).toLowerCase()} ${d} ${MONTHS[m - 1]!.slice(0, 3)}`;
+}
+
+/**
+ * The posted schedule images committed for each edition: `assets/schedule/<key>/<name>.<ext>`,
+ * served from `/assets/schedule/<key>/`, in file-name order — so a file named by its date
+ * (`2026-08-07.webp`) lands in day order and gets the day as its caption. Committed bytes in,
+ * so the build stays deterministic. An edition with no folder shows no tiles.
+ */
+export function committedPosters(site: SiteManifest, assetsDir: string = ASSETS_SRC): Record<string, Poster[]> {
+  const out: Record<string, Poster[]> = {};
+  for (const m of site.editions) {
+    const key = m.festival.key;
+    const dir = join(assetsDir, 'schedule', key);
+    if (!existsSync(dir)) continue;
+    const posters = readdirSync(dir)
+      .filter((f) => IMAGE_EXTS.includes(f.slice(f.lastIndexOf('.') + 1).toLowerCase()))
+      .sort()
+      .map((f) => {
+        const name = f.slice(0, f.lastIndexOf('.'));
+        const label = /^\d{4}-\d{2}-\d{2}$/.test(name) ? dayLabel(name) : name.replace(/[-_]+/g, ' ');
+        return { src: `/assets/schedule/${key}/${f}`, label };
+      });
+    if (posters.length) out[key] = posters;
+  }
+  return out;
+}
+
+function posterTiles(posters: Poster[]): string {
+  return `<div class="top-side">
+      <p class="eyebrow">The official schedule</p>
+      <ul class="posters">
+${posters.map((p, i) => `        <li><a class="poster" href="${esc(p.src)}" data-poster="${i}"><img src="${esc(p.src)}" alt="" loading="lazy"><span class="poster-day">${esc(p.label)}</span></a></li>`).join('\n')}
+      </ul>
+      <p class="small posters-hint">Tap a day to check the times.</p>
+    </div>`;
+}
+
+function lightbox(posters: Poster[]): string {
+  const nav =
+    posters.length > 1
+      ? `  <div class="lb-nav">
+    <button class="icon-btn" data-lb-step="-1" aria-label="Previous day">${ICON_BACK}</button>
+    <button class="icon-btn" data-lb-step="1" aria-label="Next day">${ICON_NEXT}</button>
+  </div>
+`
+      : '';
+  return `<dialog class="lightbox" aria-label="The official schedule">
+  <div class="lb-body"><img class="lb-img" alt=""></div>
+  <div class="lb-top">
+    <p class="lb-cap mono-cap"></p>
+    <button class="icon-btn" data-lb-close aria-label="Close">${ICON_CLOSE}</button>
+  </div>
+${nav}</dialog>`;
+}
+
+/** The sticky bar: the wordmark home on the left, the festival name on the right. */
+function stickyBar(name: string, year: number, watch: boolean): string {
+  return `<nav class="bar"${watch ? ' data-watch' : ''}>
+  <div class="bar-in">
+    <a class="bar-home" href="/" aria-label="Stage Times home">Stage&nbsp;Times</a>
+    <span class="bar-title">${esc(name)} <span class="year">${year}</span></span>
+  </div>
+</nav>`;
+}
+
+// ---------------------------------------------------------------------------
 // Subscribe page
 // ---------------------------------------------------------------------------
+
+export interface SubscribeOptions {
+  /** The edition's posted schedule images, in day order (`committedPosters`). */
+  posters?: Poster[];
+}
 
 function stageCard(stage: StageEntry, color: string, feedUrl: string, festivalKey: string, dayDates: string[]): string {
   const webcal = feedUrl.replace(/^https:/, 'webcal:');
@@ -853,8 +1028,9 @@ function stageCard(stage: StageEntry, color: string, feedUrl: string, festivalKe
 </li>`;
 }
 
-export function renderSubscribePage(m: Manifest): string {
+export function renderSubscribePage(m: Manifest, opts: SubscribeOptions = {}): string {
   const f = m.festival;
+  const posters = opts.posters ?? [];
   const title = `${f.name} ${f.year} — set times by stage`;
   const desc = `${f.name} ${f.year} set times, one calendar per stage. Add the stages you care about to your phone.`;
 
@@ -886,9 +1062,10 @@ ${weekends
   .join('\n')}`
     : `<p class="eyebrow">Pick your stages</p>
     ${carousel(m.stages, m.all.dayspan.first ? dateRange(m.all.dayspan.first, m.all.dayspan.last) : [])}`;
-  // Two weekends take the card's short form — the weekdays are on each
-  // weekend's own line below, and the caption is one line, not three.
-  const when = weekends ? `<span>${esc(editionDates(m))}</span>` : `<span>${esc(m.all.dayspan.label)}</span>`;
+  // The eyebrow: the days and the city. Two weekends take the card's short form —
+  // the weekdays are on each weekend's own line below. The year is on the title.
+  const when = (weekends ? editionDates(m) : m.all.dayspan.label).replace(/,? ?\d{4}$/, '');
+  const eyebrow = f.city ? `${when} · ${f.city}` : when;
 
   const allUrl = `${PROD_ORIGIN}${m.all.icsPath}`;
   const allWebcal = allUrl.replace(/^https:/, 'webcal:');
@@ -901,18 +1078,20 @@ ${weekends
   the source. Don't plan your day around them yet.
 </div>`;
 
-  const body = `<main class="wrap wrap--wide">
-  <nav class="topbar">
-    <a class="icon-btn" href="/" aria-label="Stage Times home">${ICON_BACK}</a>
-  </nav>
+  const body = `${stickyBar(f.name, f.year, true)}
+
+<main class="wrap wrap--wide">
+  <header class="top">
+    <div class="top-text">
+      <p class="lockup">${esc(eyebrow)}</p>
+      <h2>${esc(f.name)} <span class="year">${f.year}</span></h2>
+      <p class="lede">${count(m.allSetCount, 'set')} across ${count(stageCount(m), 'stage')}.</p>
+      <p class="lede">One calendar per stage. Add the ones you want.</p>
+    </div>
+    ${posters.length ? posterTiles(posters) : ''}
+  </header>
 
   ${unverified}
-
-  <header>
-    <p class="lockup">Stage&nbsp;Times</p>
-    <h2>${esc(f.name)} <span style="color:var(--ink-soft)">${f.year}</span></h2>
-    <p class="title-meta mono-cap">${when} · <span>${m.allSetCount} sets</span> · <span>${stageCount(m)} stages</span></p>
-  </header>
 
   <section>
     ${stages}
@@ -978,8 +1157,46 @@ ${weekends
     <p>Wrong time? <a href="https://github.com/jake-lunde/stage-times/issues">Tell me ↗</a></p>
   </footer>
 </main>
-
+${posters.length ? lightbox(posters) : ''}
 <script>
+// The sticky bar shows the festival name once the big title has scrolled out.
+var bar = document.querySelector('.bar');
+var title = document.querySelector('.top h2');
+if (bar && title && 'IntersectionObserver' in window) {
+  new IntersectionObserver(function (entries) {
+    bar.classList.toggle('is-scrolled', !entries[0].isIntersecting && entries[0].boundingClientRect.top < 0);
+  }, { rootMargin: '-56px 0px 0px 0px' }).observe(title);
+} else if (bar) {
+  bar.removeAttribute('data-watch');
+}
+
+// The lightbox: one posted schedule at a time. The tiles are links to the
+// image, so with no script they open it.
+var lb = document.querySelector('.lightbox');
+var posters = Array.prototype.slice.call(document.querySelectorAll('[data-poster]'));
+var lbAt = 0;
+function showPoster(i) {
+  lbAt = (i + posters.length) % posters.length;
+  var tile = posters[lbAt];
+  lb.querySelector('.lb-img').src = tile.getAttribute('href');
+  lb.querySelector('.lb-cap').textContent = tile.querySelector('.poster-day').textContent;
+  lb.classList.remove('zoom');
+  lb.querySelector('.lb-body').scrollTop = 0;
+}
+if (lb && lb.showModal) {
+  lb.addEventListener('click', function (e) {
+    if (e.target === lb || e.target.classList.contains('lb-body') || e.target.closest('[data-lb-close]')) { lb.close(); return; }
+    var step = e.target.closest('[data-lb-step]');
+    if (step) { showPoster(lbAt + Number(step.getAttribute('data-lb-step'))); return; }
+    if (e.target.classList.contains('lb-img')) lb.classList.toggle('zoom');
+  });
+  lb.addEventListener('keydown', function (e) {
+    if (posters.length < 2) return;
+    if (e.key === 'ArrowLeft') showPoster(lbAt - 1);
+    if (e.key === 'ArrowRight') showPoster(lbAt + 1);
+  });
+}
+
 // More than one weekend: show one at a time. The pills are anchors, so with
 // no script they scroll to the weekend instead.
 var panels = document.querySelectorAll('[data-weekend-panel]');
@@ -994,6 +1211,14 @@ document.addEventListener('click', function (e) {
   if (pick) {
     e.preventDefault();
     showWeekend(pick.getAttribute('data-weekend'));
+    return;
+  }
+
+  var tile = e.target.closest('[data-poster]');
+  if (tile && lb && lb.showModal) {
+    e.preventDefault();
+    showPoster(Number(tile.getAttribute('data-poster')));
+    lb.showModal();
     return;
   }
 
@@ -1084,14 +1309,13 @@ export function renderBlockedPage(m: Manifest): string {
     <a class="btn btn--primary" href="${esc(f.officialUrl)}">Official schedule</a>
   </section>`;
 
-  const body = `<main class="wrap">
-  <nav class="topbar">
-    <a class="icon-btn" href="/" aria-label="Stage Times home">${ICON_BACK}</a>
-  </nav>
+  const body = `${stickyBar(f.name, f.year, false)}
 
-  <header>
-    <p class="lockup">Stage&nbsp;Times</p>
-    <h2>${esc(f.name)} <span style="color:var(--ink-soft)">${f.year}</span></h2>
+<main class="wrap">
+  <header class="top">
+    <div class="top-text">
+      <h2>${esc(f.name)} <span class="year">${f.year}</span></h2>
+    </div>
   </header>
 
 ${section}
@@ -1274,11 +1498,13 @@ export function renderSitePages(site: SiteManifest, outDir: string, opts: SitePa
   writeFileSync(join(outDir, 'index.html'), renderLandingPage(site, { images }), 'utf8');
   written.push('index.html');
 
+  const posters = committedPosters(site, assetsDir);
   for (const m of site.editions) {
     const rel = m.festival.basePath.replace(/^\//, '');
     const dir = join(outDir, rel);
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'index.html'), m.blocked ? renderBlockedPage(m) : renderSubscribePage(m), 'utf8');
+    const html = m.blocked ? renderBlockedPage(m) : renderSubscribePage(m, { posters: posters[m.festival.key] });
+    writeFileSync(join(dir, 'index.html'), html, 'utf8');
     written.push(`${rel}/index.html`);
   }
 

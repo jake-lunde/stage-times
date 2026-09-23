@@ -274,10 +274,47 @@ at all: it is the festival's own art.
 
 ### Navigation bar
 
-Leading icon-only control at the 16pt margin — a back arrow, or an X for anything modal. **Never
-a "‹ Back" text label.** Title either centered at 16pt bold, or omitted entirely with a 32pt
-left-aligned title in the content below. **No fill, no hairline under it** — the bar is
-transparent over the page color.
+**The subscribe page has no back button** (owner ruling, 2026-09-23). Its bar is sticky: a
+56pt strip that stays at the top as the page scrolls, filled with the page color so it reads as
+transparent while covering what scrolls under it, **no hairline**. Left: the "Stage Times"
+wordmark (14pt expanded caps, `--red-deep`, a 44pt-tall link home) — that is the way home.
+Right: the festival name and year at 16pt/600, hidden while the big title is in view and
+faded in once the title scrolls out (a script watches the title; with no script the name is
+simply there). The removed page keeps the same bar, static. The upload page still has the old
+transparent top bar with a 44pt icon-only back control at the margin.
+
+An X, never a label, for anything modal — the lightbox's close is a 44pt icon button. **Never
+a "‹ Back" text label** anywhere.
+
+### The top area (subscribe page, owner 2026-09-23, from the Apple product page)
+
+Eyebrow, big title, plain lines, and the thing to check on the right. Top to bottom on a
+phone; two columns from 735pt, the text left and the tiles top-right:
+
+- **Eyebrow** — the days and the city in the lockup style (14pt expanded caps, `--red-deep`):
+  `FRI 7 AUG – SUN 9 AUG · SEATTLE`, two weekends as `OCT 2–4 & OCT 9–11 · AUSTIN`. No year;
+  the title has it.
+- **Title** — the festival name, 40pt expanded, the year in `--ink-soft` after it.
+- **Two lines**, 17pt/500 ink, sentence case: `79 sets across 4 stages.` then
+  `One calendar per stage. Add the ones you want.` Nothing else before the stages.
+- **The official schedule** — eyebrow `THE OFFICIAL SCHEDULE`, then one tile per posted day
+  (below), then the mono line `Tap a day to check the times.`
+
+### The official schedule
+
+The festival's own posted schedule images, committed at `assets/schedule/<key>/<YYYY-MM-DD>.<ext>`
+and served from `/assets/schedule/`, so a reader can check the times against what the festival
+printed before adding a calendar. **Never hotlinked; never drawn by the build**; a file named
+by its date gets the day as its caption and lands in day order.
+
+- **Tiles**: 104pt wide, 4:5, `object-fit: cover` from the top, the one 18pt radius, three to
+  a row and wrapping (six days is two rows). Under each, the day in mono caps (`FRI 7 AUG`),
+  `--ink-soft`. The tile is a link to the image, so it works with no script. Shrinks on press.
+- **Lightbox** (`<dialog>`): one image on a fixed ink ground in either scheme, fitted to the
+  viewport with the card radius; **tap the image to see it at full width and scroll, tap again
+  to fit** — the times have to be readable on a phone. The day in mono caps top-left, a 44pt X
+  top-right, and with more than one day a left/right icon pair bottom-center (arrow keys too).
+  Tap the ground or press Escape to close. No thumbnails strip, no counter, no zoom slider.
 
 ### Dividers
 
