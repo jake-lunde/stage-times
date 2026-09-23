@@ -34,6 +34,7 @@ import {
   HARBOR_PATH,
   PIER_FIXTURE_PATH,
   PIER_PATH,
+  REPO_ROOT,
   buildFixtureSite,
   docFromText,
   emptySequences,
@@ -419,6 +420,11 @@ function scratchRepo(published: PublishedFile): string {
   cpSync(HARBOR_FIXTURE_PATH, join(root, 'data', 'harbor-lights-2026.yaml'));
   cpSync(PIER_FIXTURE_PATH, join(root, 'data', 'fan', 'pier-nine-2026.yaml'));
   writeFileSync(join(root, 'state', 'published.json'), stableJson(published), 'utf8');
+  // The build copies the repo's own assets: the fonts, and harbor's festival art so a
+  // listed harbor can take its place on the shelf. Pier has none.
+  cpSync(join(REPO_ROOT, 'assets', 'fonts'), join(root, 'assets', 'fonts'), { recursive: true });
+  mkdirSync(join(root, 'assets', 'festivals'), { recursive: true });
+  writeFileSync(join(root, 'assets', 'festivals', 'harbor-lights-2026.webp'), 'harbor art');
   return root;
 }
 
@@ -511,6 +517,29 @@ test('run(): a blocked edition serves the removed page at its path and the landi
     const published = readPublished(join(root, 'state', 'published.json'));
     assert.equal(published.editions[PIER_PATH]!.blocked, true);
     assert.equal(published.editions[PIER_PATH]!.listed, true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('run(): a listed edition with no festival art stays off the homepage, and the build log names the file', async () => {
+  const root = scratchRepo(
+    publishedFor([harbor, pier], { [HARBOR_PATH]: { listed: true }, [PIER_PATH]: { listed: true } }, '20260808T000000Z'),
+  );
+  try {
+    const lines: string[] = [];
+    await run({ repoRoot: root, log: (line) => lines.push(line) });
+    const landing = readFileSync(join(root, 'dist', 'index.html'), 'utf8');
+    assert.equal((landing.match(/class="shelf-card"/g) ?? []).length, 1, 'harbor has its art; pier waits');
+    assert.ok(landing.includes('<img src="/assets/festivals/harbor-lights-2026.webp"'), 'the card shows the committed art');
+    assert.equal(landing.includes('pier-nine-2026'), false, 'pier is off the homepage');
+    assert.ok(existsSync(join(root, 'dist', 'fan', 'pier-nine-2026', 'index.html')), 'its page still publishes');
+    assert.ok(existsSync(join(root, 'dist', 'assets', 'festivals', 'harbor-lights-2026.webp')), 'the art is served');
+    assert.ok(
+      lines.some((l) => l.includes('fan/pier-nine-2026 is listed but off the homepage') && l.includes('assets/festivals/pier-nine-2026.webp')),
+      `the log names the missing file:\n${lines.join('\n')}`,
+    );
+    assert.equal(lines.some((l) => l.includes('harbor-lights-2026 is listed but off')), false, 'nothing said about the edition with art');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

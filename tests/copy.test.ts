@@ -20,6 +20,7 @@ const harborBuild = buildFeeds(harborDoc(), emptyState('20260808T000000Z'));
 // The landing page lists listed editions: one owner card, one fan card.
 const landing = renderLandingPage(
   buildFixtureSite([harborDoc(), pierDoc()], { [HARBOR_PATH]: { listed: true }, [PIER_PATH]: { listed: true } }).site,
+  { images: { 'harbor-lights-2026': '/assets/festivals/harbor-lights-2026.webp', 'pier-nine-2026': '/assets/festivals/pier-nine-2026.webp' } },
 );
 const subscribe = renderSubscribePage(harborBuild.manifest);
 

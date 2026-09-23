@@ -23,8 +23,8 @@
  * rots.
  *
  * Deterministic: no clock read, no randomness. `lastUpdated` comes from
- * committed state; the card art is drawn from the sets, and the no-image
- * fallback is seeded from the festival key.
+ * committed state; the stage art is drawn from the sets, and a directory card's
+ * art is the festival's own committed image.
  */
 
 import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -139,34 +139,6 @@ function humanStamp(stamp: string): string {
   if (!m) return stamp;
   const [, y, mo, d] = m;
   return `${Number(d)} ${MONTHS[Number(mo) - 1]} ${y}`;
-}
-
-// ---------------------------------------------------------------------------
-// Seeding — FNV-1a and mulberry32, shared with the explorer
-// ---------------------------------------------------------------------------
-//
-// The one place a card is not drawn from the sets is the directory card's
-// no-image fallback, and it is seeded by festival key so the build stays
-// byte-reproducible — Math.random() would break the golden-file guarantee.
-
-function fnv1a(s: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return h >>> 0;
-}
-
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -363,53 +335,6 @@ export function beadsArt(stage: StageEntry, color: string, dayDates: string[]): 
     `<svg class="art-svg" viewBox="0 0 ${ART_W} ${ART_H}" preserveAspectRatio="xMidYMid slice" role="img" aria-label="${esc(label)}">` +
     rings.join('') +
     (names ? `<g class="lbl">${names}</g>` : '') +
-    `</svg>`
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Directory card art — the Facets core (owner ruling, 2026-09-20)
-// ---------------------------------------------------------------------------
-//
-// What a directory card draws when the festival has no committed image: the
-// disco ball, the festival's own globe motif, from the stage art explorer
-// (_ref/stage-art-explorer/, "Facets"). A cream disc on the light ground, with
-// the ground cutting the facets back through it: five chords and the meridian
-// ellipses, clipped to the disc and tilted by a seeded angle. The only seeded
-// value is the tilt; everything else is the geometry. Integer coordinates.
-
-const FACETS_R = 84;
-
-/**
- * The Facets core, seeded by festival key, on the light ground of `color`.
- * `domId` names the clip path in the page: an owner and a fan edition of the
- * same festival-year share a key but must not share an id, so the caller
- * passes something unique to the edition (its path).
- */
-export function facetsArt(key: string, color: string, domId: string = key): string {
-  const cream = '#FCF9F4';
-  const ground = artGround(color);
-  const rand = mulberry32(fnv1a(key));
-  const id = `f${fnv1a(domId).toString(36)}`;
-  const tilt = Math.round((rand() - 0.5) * 40);
-  const cx = ART_CX;
-  const cy = ART_CY;
-  const r = FACETS_R;
-  const lines: string[] = [];
-  for (let i = 1; i < 6; i++) {
-    const y = cy - r + i * ((r * 2) / 6);
-    const w = Math.sqrt(Math.max(0, r * r - (y - cy) * (y - cy)));
-    lines.push(`<line x1="${Math.round(cx - w)}" y1="${Math.round(y)}" x2="${Math.round(cx + w)}" y2="${Math.round(y)}"/>`);
-  }
-  for (let i = 1; i < 3; i++) {
-    const rx = Math.round(r * Math.abs(Math.cos((i * Math.PI) / 6)));
-    lines.push(`<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${r}"/>`);
-  }
-  return (
-    `<svg class="art-svg art-facets" viewBox="0 0 ${ART_W} ${ART_H}" preserveAspectRatio="xMidYMid slice" aria-hidden="true">` +
-    `<defs><clipPath id="${id}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath></defs>` +
-    `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${cream}"/>` +
-    `<g clip-path="url(#${id})" transform="rotate(${tilt} ${cx} ${cy})" fill="none" stroke="${ground}" stroke-width="3">${lines.join('')}</g>` +
     `</svg>`
   );
 }
@@ -665,13 +590,28 @@ h3{font-size:var(--t-card); line-height:1.05; margin:0}
 .lbl .eb{font-family:var(--font-mono); font-weight:400; font-size:11px; letter-spacing:.07em; text-transform:uppercase}
 .pop{opacity:0}
 ${popKeyframes()}
-.stage-body{padding:0 var(--pad-card) var(--pad-card)}
+/* 8px over the art: with the heading's own ascent the visible gap is 12px,
+   three times what zero padding left (owner, 2026-09-22). */
+.stage-body{padding:var(--gap-1) var(--pad-card) var(--pad-card)}
 .stage-body h3{color:#FCF9F4}
 .stage-body .meta{
   font-family:var(--font-mono); font-size:var(--t-mono); letter-spacing:.05em;
   text-transform:uppercase; color:rgba(252,249,244,.85); margin:6px 0 0;
 }
 .stage-body .desc{font-size:var(--t-small); color:rgba(252,249,244,.85); margin:var(--gap-2) 0 0}
+
+/* ── desktop: the carousel reflows into a two-up grid (owner, 2026-09-22) ── */
+/* A carousel is a phone gesture; on a wide screen it is a strip cut off at the
+   column edge. From tablet up the subscribe page widens to the Store's 980 and
+   the stages stack two to a row, top to bottom — no scrolling sideways. The
+   pills, the disclosures and the banner keep the phone measure so a label
+   never stretches across the page. */
+@media (min-width:735px){
+  .wrap--wide{max-width:calc(980px + 2 * var(--margin))}
+  .wrap--wide .weekends,.wrap--wide details,.wrap--wide .banner{max-width:calc(var(--measure) - 2 * var(--margin))}
+  .carousel,.carousel-tail{display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--gap-shelf)}
+  .carousel{margin:0; padding:0; overflow:visible; scroll-snap-type:none}
+}
 
 /* ── weekend pair: two tonal pills, 8pt apart; the pressed one is ink ──── */
 .weekends{display:flex; gap:var(--gap-1); margin-bottom:var(--gap-4)}
@@ -961,7 +901,7 @@ ${weekends
   the source. Don't plan your day around them yet.
 </div>`;
 
-  const body = `<main class="wrap">
+  const body = `<main class="wrap wrap--wide">
   <nav class="topbar">
     <a class="icon-btn" href="/" aria-label="Stage Times home">${ICON_BACK}</a>
   </nav>
@@ -1174,7 +1114,7 @@ export interface LandingOptions {
   /**
    * Site-absolute paths to committed festival images, keyed by festival key,
    * e.g. `{ 'capitol-hill-block-party-2026': '/assets/festivals/capitol-hill-block-party-2026.webp' }`.
-   * A card with no entry draws the Facets core instead.
+   * A listed edition with no entry stays off the shelf (`shelvedEditions`).
    */
   images?: Record<string, string>;
 }
@@ -1198,6 +1138,18 @@ export function listedEditions(site: SiteManifest): Manifest[] {
 }
 
 /**
+ * The editions on the homepage shelf: the listed ones whose festival art is
+ * committed, in `listedEditions` order. A card's cover is always the
+ * festival's own art, never drawn by the build (owner, 2026-09-22), so an
+ * edition listed before its art lands waits off the shelf — its page and its
+ * calendars are live all the while — and the build log names the file it
+ * needs.
+ */
+export function shelvedEditions(site: SiteManifest, images: Record<string, string>): Manifest[] {
+  return listedEditions(site).filter((m) => images[m.festival.key] !== undefined);
+}
+
+/**
  * One directory card, text first: eyebrow, the festival name, one bold lead
  * with the counts, the quiet lines, then art edge to edge to the bottom of the
  * fixed-height card. The whole card is the link; nothing inside it is a button.
@@ -1207,7 +1159,7 @@ export function listedEditions(site: SiteManifest): Manifest[] {
  * stage's billed headliners — the main stage by convention — as the data has
  * them.
  */
-function directoryCard(m: Manifest, image: string | undefined): string {
+function directoryCard(m: Manifest, image: string): string {
   const f = m.festival;
   const when = editionDates(m) + (f.city ? ` · ${f.city}` : '');
   const eyebrow = `<span class="eyebrow">${esc(when)}</span>`;
@@ -1215,9 +1167,8 @@ function directoryCard(m: Manifest, image: string | undefined): string {
     .filter((line) => line !== '')
     .map((line) => `<span class="shelf-meta">${esc(line)}</span>`)
     .join('\n        ');
-  // The art ground is the edition's first stage's color — the main stage by convention.
+  // Behind the image while it loads: the light ground of the edition's first stage color.
   const color = stageColor(0);
-  const art = image ? `<img src="${esc(image)}" alt="" loading="lazy">` : facetsArt(f.key, color, f.basePath);
   return `<li><a class="shelf-card" href="${esc(f.basePath)}/">
       <span class="shelf-text">
         ${eyebrow}
@@ -1225,19 +1176,20 @@ function directoryCard(m: Manifest, image: string | undefined): string {
         <span class="shelf-lead">${count(m.allSetCount, 'set')} across ${count(stageCount(m), 'stage')}.</span>
         ${quiet}
       </span>
-      <span class="shelf-art" style="background:${artGround(color)}">${art}</span>
+      <span class="shelf-art" style="background:${artGround(color)}"><img src="${esc(image)}" alt="" loading="lazy"></span>
     </a></li>`;
 }
 
 export function renderLandingPage(site: SiteManifest, opts: LandingOptions = {}): string {
-  const listed = listedEditions(site);
+  const images = opts.images ?? {};
+  const shelved = shelvedEditions(site, images);
   const shelf =
-    listed.length === 0
+    shelved.length === 0
       ? ''
       : `<section class="shelf-section">
     <h2 class="shelf-head"><span class="lead">Pick a festival.</span> <span class="tail">Then add the stages you want.</span></h2>
     <ul class="shelf">
-    ${listed.map((m) => directoryCard(m, opts.images?.[m.festival.key])).join('\n    ')}
+    ${shelved.map((m) => directoryCard(m, images[m.festival.key]!)).join('\n    ')}
     </ul>
   </section>
 
@@ -1278,34 +1230,48 @@ const IMAGE_EXTS = ['webp', 'jpg', 'jpeg', 'png', 'avif'];
  * A committed festival image per edition that has one: `assets/festivals/<key>.<ext>`,
  * served from `/assets/festivals/`. Committed bytes in, so the build stays deterministic.
  */
-function committedImages(site: SiteManifest): Record<string, string> {
+export function committedImages(site: SiteManifest, assetsDir: string = ASSETS_SRC): Record<string, string> {
   const images: Record<string, string> = {};
   for (const m of site.editions) {
     const key = m.festival.key;
-    const ext = IMAGE_EXTS.find((e) => existsSync(join(ASSETS_SRC, 'festivals', `${key}.${e}`)));
+    const ext = IMAGE_EXTS.find((e) => existsSync(join(assetsDir, 'festivals', `${key}.${e}`)));
     if (ext) images[key] = `/assets/festivals/${key}.${ext}`;
   }
   return images;
 }
 
+export interface SitePagesOptions {
+  /** The repository's `assets/`: fonts and festival art, copied to `dist/assets/`. Defaults to this repo's. */
+  assetsDir?: string;
+  /** Where a listed edition with no festival art is named. */
+  log?: (line: string) => void;
+}
+
 /**
  * Called by build.ts after the feeds are written. Emits:
- *   dist/index.html                          landing — one card per listed edition
+ *   dist/index.html                          landing — one card per listed edition with its art
  *   dist/<key>/index.html                    subscribe page
  *   dist/fan/<key>/index.html                the same, for the editions from before ADR-0005
  *   …or the removed page at the same path when the edition is blocked
  *   dist/upload/index.html                   the owner's upload flow
  *   dist/assets/**                           self-hosted fonts + festival art
  */
-export function renderSitePages(site: SiteManifest, outDir: string): string[] {
+export function renderSitePages(site: SiteManifest, outDir: string, opts: SitePagesOptions = {}): string[] {
+  const { assetsDir = ASSETS_SRC, log = () => {} } = opts;
   const written: string[] = [];
 
-  if (existsSync(ASSETS_SRC)) {
-    cpSync(ASSETS_SRC, join(outDir, 'assets'), { recursive: true });
+  if (existsSync(assetsDir)) {
+    cpSync(assetsDir, join(outDir, 'assets'), { recursive: true });
     written.push('assets/');
   }
 
-  writeFileSync(join(outDir, 'index.html'), renderLandingPage(site, { images: committedImages(site) }), 'utf8');
+  const images = committedImages(site, assetsDir);
+  for (const m of listedEditions(site)) {
+    if (images[m.festival.key] === undefined) {
+      log(`  ⚠ ${m.festival.basePath.replace(/^\//, '')} is listed but off the homepage — no festival art at assets/festivals/${m.festival.key}.webp`);
+    }
+  }
+  writeFileSync(join(outDir, 'index.html'), renderLandingPage(site, { images }), 'utf8');
   written.push('index.html');
 
   for (const m of site.editions) {

@@ -29,9 +29,9 @@ or blocked appears; the build never reads a clock, so there is no "past" and no 
 │  │ 79 sets across 4 stages.│e│  two and a bit. Whole card is the link;
 │  │ MUNA · DISCO LINES · … ││x│  no button inside.
 │  │                        ││t│
-│  │ ░░ festival image, or ░││ │  ART fills the rest, edge to edge: the
-│  │ ░░ the Facets core    ░││ │  committed image, else the disco ball on
-│  │ ░░ (the disco ball)   ░││ │  the light ground (SKILL.md, Card art)
+│  │ ░░ the festival's own ░││ │  ART fills the rest, edge to edge: the
+│  │ ░░ art, committed     ░││ │  festival's committed art; no art, no
+│  │ ░░                    ░││ │  card yet (SKILL.md, Card art)
 │  └────────────────────────┘└─│
 │                              │
 │  What this is                │  eyebrow, mono

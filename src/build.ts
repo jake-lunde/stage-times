@@ -825,9 +825,11 @@ export async function run(options: RunOptions = {}): Promise<SiteBuildResult> {
     // Indirect specifier on purpose: src/pages.ts is owned by the page builder and
     // may not exist yet, and a static specifier would fail typecheck until it does.
     const spec = './pages.js';
-    const mod = (await import(spec)) as { renderSitePages?: (s: SiteManifest, out: string) => unknown };
+    const mod = (await import(spec)) as {
+      renderSitePages?: (s: SiteManifest, out: string, opts: { assetsDir: string; log: (line: string) => void }) => unknown;
+    };
     if (typeof mod.renderSitePages === 'function') {
-      await mod.renderSitePages(result.site, outDir);
+      await mod.renderSitePages(result.site, outDir, { assetsDir: join(root, 'assets'), log });
       log('  rendered pages via src/pages.ts');
     } else {
       log('  src/pages.ts exists but exports no renderSitePages(site, outDir) — skipping HTML');

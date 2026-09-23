@@ -447,10 +447,14 @@ smoke a protected preview).
 3. `npm run build` records the edition in `state/published.json` (unlisted). Set `listed: true`
    by hand when it should appear on the homepage. Last year's edition keeps building alongside
    it — nothing is ever a "default" edition.
+4. Commit the festival's own art at `assets/festivals/<slug>-<year>.webp`. A listed edition
+   stays off the homepage until it lands; the build log says so.
 
 The homepage is the directory: one card per listed edition, earliest first festival day first,
-then name; nothing unlisted or blocked. A card shows the edition's committed image from
-`assets/festivals/<key>.<ext>` when one exists, else generated art seeded by the festival key.
+then name; nothing unlisted or blocked. A card's art is the edition's committed festival image
+at `assets/festivals/<key>.<ext>` (webp, jpg, png or avif) and nothing else: a listed edition
+without one is left off the homepage — its page and feeds still publish — and the build log
+names the missing file.
 An optional `city:` under `festival:` joins the dates in the card's eyebrow. It is display only
 — never in a feed, a UID, or a slug — so it may change freely and needs no `publishedAt` bump.
 

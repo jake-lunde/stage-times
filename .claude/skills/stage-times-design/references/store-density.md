@@ -237,8 +237,8 @@ chosen; the Store's single radius is the discipline.
 │  Fri–Sun. Pacific time.      │  1–2 plain lines, 14 / 400, --ink-soft
 │                              │
 │  ░░░░░░░░░░░░░░░░░░░░░░░░░░  │  art fills to the bottom edge, no padding:
-│  ░░  festival image, or  ░░  │  assets/festivals/<key>, else the Facets
-│  ░░  the Facets core     ░░  │  core on the light ground (ruled; see below)
+│  ░░  the festival's own  ░░  │  assets/festivals/<key> — the festival's
+│  ░░  art                 ░░  │  art, never generated (ruled; see below)
 └──────────────────────────────┘
 ```
 
@@ -247,14 +247,13 @@ Section header above it: **Listed festivals.** *Add a calendar per stage.* — l
 still has to pass `copy.md`; the two-sentence pattern is a shape, not a license for
 marketing tail sentences.
 
-**The art slot, ruled 2026-09-20.** A directory card with no committed image draws the
-**Facets core** from the stage art explorer (`_ref/stage-art-explorer/`): the disco ball, the
-festival's own globe motif, seeded by festival key with a seeded tilt, on the light ground the
-beads use. The seeded capsules (`capsuleArt()`) retire with ticket 06. A committed festival
-image still wins when one exists.
+**The art slot, ruled 2026-09-22.** The art is the festival's own committed image, and
+nothing else: a listed edition without one waits off the shelf until it lands, and the build
+log names the file. The Facets core that filled the slot from 2026-09-20 retired with that
+ruling; the seeded capsules (`capsuleArt()`) retired with ticket 06.
 
-Card count and order come from the ticket: every listed edition, upcoming first, nothing
-unlisted or blocked. If there are fewer than two cards, the shelf still renders as a shelf
+Card count and order come from the ticket: every listed edition with its art, upcoming
+first, nothing unlisted or blocked. If there are fewer than two cards, the shelf still renders as a shelf
 with one card at shelf width — do not fall back to the old single media card.
 
 ## Where this file does not reach

@@ -69,9 +69,14 @@ _Avoid_: approved, reviewed, confirmed (confirmed is the owner's act; verified i
 
 **Listing**:
 The owner's act of putting an edition on the homepage. His confirm of an edition is its listing,
-in the same commit; so is merging the watcher's review. There is no draft tier: a feed URL that
-exists is always one a human checked. Unconfirmed transcriptions are pending review, not
-published.
+in the same commit; so is merging the watcher's review. A listed edition shows once its
+**festival art** is committed. There is no draft tier: a feed URL that exists is always one a
+human checked. Unconfirmed transcriptions are pending review, not published.
+
+**Festival art**:
+The festival's own artwork for an edition, committed to the repo: the image on its homepage
+card. Never drawn by the build.
+_Avoid_: cover image, hero, thumbnail, poster (a poster is a source)
 _Avoid_: featuring, promoting, indexing, approved
 
 **Namespace**:

@@ -213,8 +213,11 @@ Use one per screen; don't blend them.
    viewport wide, `scroll-snap-type: x mandatory`, snap to center, the next card peeking ~24pt.
    Scrollbar hidden; the peek IS the affordance. This is CSS scroll-snap doing the "scroll-jack"
    feel natively — never hijack the wheel with JS. **This is the stage list on the subscribe
-   page.** Degrades on desktop: cards still snap with trackpad/drag, and a full-width fallback
-   under 3 items is fine.
+   page.** From 735pt up it is not a carousel at all (owner ruling, 2026-09-22): the page widens
+   to the Store's 980pt column and the stage cards reflow into a two-up grid that stacks top to
+   bottom, 20pt gutters, the all-stages card one column wide. The weekend pills, disclosures and
+   banner keep the phone measure. A sideways strip cut off at the column edge is a phone gesture
+   left on a desktop.
 5. **Row list** — 48pt leading element at 16pt, text at 80pt, 80pt row pitch, **no dividers**.
 6. **Shelf** — the Apple Store landing page: a two-sentence section header (bold lead, quiet
    tail, same size, one line) over a horizontal row of fixed-height, text-first cards with
@@ -226,22 +229,28 @@ Use one per screen; don't blend them.
 **Single content in the viewport.** At any scroll position on a phone, one card / one idea should
 own the screen. If two cards are fully visible at once, the cards are too small or the spacing is
 too tight. The carousel enforces this horizontally; section spacing (`--gap-6`+) enforces it
-vertically. A shelf on a desktop-width screen is the one exception: two or three cards in
-a row is the point of a directory, and the fixed card width (not a percentage) is what keeps
-the phone reading as one card while the desktop reads as a row.
+vertically. Desktop-width screens are the exception: two or three cards in a row is the point
+of a directory, and two stage cards to a row is how the subscribe page reads on a wide screen.
+On the shelf the fixed card width (not a percentage) is what keeps the phone reading as one
+card while the desktop reads as a row.
 
 ## Card art
 
 Two sources of art, one per card, image area always edge-to-edge:
 
-1. **A real festival image** when one exists — `assets/festivals/<festival-key>.<ext>`, copied to
-   `dist/assets/festivals/` by the build. The art of that edition's directory card on the
-   homepage. Store the file in the repo; never hotlink the festival's CDN (their cache headers,
-   their outages, their tracking). A directory card with no image draws **the Facets core**
-   (owner ruling 2026-09-20; `facetsArt()` in `src/pages.ts`, "Facets" in the explorer): the
-   disco ball, the festival's own globe motif — a cream disc on the light ground of the
-   edition's first stage color, the ground cutting five chords and two meridians back through
-   it, tilted by an angle seeded from the festival key. The tilt is the only seeded value.
+1. **The festival's own art** on every directory card — `assets/festivals/<festival-key>.<ext>`,
+   copied to `dist/assets/festivals/` by the build. **A directory card's cover is always the
+   festival's artwork, never art the build draws** (owner ruling, 2026-09-22): a listed edition
+   with no committed image waits off the homepage — its page and calendars stay live — and the
+   build log names the file it needs. The Facets fallback retired the same day. Store the file in
+   the repo; never hotlink the festival's CDN (their cache headers, their outages, their
+   tracking). Use the edition's own key art: the logo lockup and illustration off the official
+   site or poster, never a crowd photo. Poster art is usually a tall sheet with the lineup in the
+   middle; cut the art, not the lineup — keep the festival's own composition, drop the lineup
+   text between the top and bottom bands, close the gap on the poster's own ground, and cut the
+   frame to the card's art slot (~1.2:1) so nothing the festival drew is sliced at the edge.
+   `austin-city-limits-2026.webp` is the worked example: the 25-years admat's logotype over its
+   skyline band.
 2. **The beads** on every stage card (owner pick, 2026-09-21; `beadsArt()` in `src/pages.ts`,
    explorer and rationale in `_ref/stage-art-explorer/`). The art area is the stage color mixed
    45% toward cream. On it: a ring per festival day, evenly spaced from the center to the card
@@ -259,9 +268,9 @@ Two sources of art, one per card, image area always edge-to-edge:
 Never a stock photo, never AI-generated imagery. Inside the art slot the flat rule is lifted
 (non-negotiable 3): the generative art may use gradients and bloom, and it is the one place on
 the site that may. Its parameters come from the sets — count, start time, length, guessed ends,
-how late the stage runs — so the art is the schedule drawn, not a texture. Seeded exactly as
-above; still byte-reproducible. The one mark not drawn from the sets is the directory card's
-Facets fallback, which has no sets to draw and is seeded by festival key instead.
+how late the stage runs — so the art is the schedule drawn, not a texture. Nothing is seeded
+and nothing is random; the build stays byte-reproducible. The directory card is not generated
+at all: it is the festival's own art.
 
 ### Navigation bar
 
@@ -317,8 +326,10 @@ The six that decide most lines:
 - [ ] Everything tappable shrinks on press (`scale(.96)`, 120ms) — zeroed under reduced motion
 - [ ] Card headings are big and light (600–650 expanded), never small and heavy
 - [ ] Carousels are CSS scroll-snap — no JS scroll hijacking, no visible scrollbar
-- [ ] Card art is drawn from the sets (the directory fallback, from the festival key), never
-      from a clock or `Math.random()` — build output stays byte-identical
+- [ ] Stage art is drawn from the sets, never from a clock or `Math.random()` — build output
+      stays byte-identical; directory card art is the festival's own committed image
+- [ ] On a wide screen nothing scrolls sideways that is cut off at the column edge — the
+      stage carousel is a two-up grid from 735pt
 - [ ] No `box-shadow`, no `linear-gradient`
 - [ ] Nothing is pure `#FFF` or pure `#000`
 - [ ] No cream text under 17pt on any colored surface (see contrast table)

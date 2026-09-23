@@ -325,11 +325,28 @@ test('subscribe page: one run of days has no weekend to pick', () => {
   assert.match(visibleText(html), /Pick your stages/);
 });
 
+test('subscribe page: a phone swipes the stages, a wide screen stacks them two to a row', () => {
+  for (const html of [renderSubscribePage(tidewaterBuild().manifest), renderSubscribePage(buildFeeds(harborDoc(), { publishedAt: GOLDEN_PUBLISHED_AT, sequences: {} }).manifest)]) {
+    assert.match(html, /\.carousel\{[^}]*scroll-snap-type:x mandatory/, 'the phone keeps the carousel');
+    assert.match(html, /<main class="wrap wrap--wide">/, 'the subscribe page opts into the wide column');
+    const wide = /@media \(min-width:735px\)\{\s*\.wrap--wide\{[^@]*?\n\}/.exec(html)?.[0] ?? '';
+    assert.match(wide, /\.wrap--wide\{max-width:calc\(980px \+ 2 \* var\(--margin\)\)\}/, 'from tablet up the column is the Store’s 980');
+    assert.match(wide, /\.carousel,\.carousel-tail\{display:grid; grid-template-columns:repeat\(2, minmax\(0, 1fr\)\)/, 'two stages to a row, the all-stages card one column wide');
+    assert.match(wide, /\.carousel\{[^}]*overflow:visible; scroll-snap-type:none\}/, 'no sideways scrolling on a wide screen');
+    assert.match(wide, /\.wrap--wide \.weekends[^{]*\{max-width:calc\(var\(--measure\) - 2 \* var\(--margin\)\)\}/, 'the pills keep the phone measure');
+  }
+});
+
+test('subscribe page: the stage name sits clear of the art', () => {
+  const html = renderSubscribePage(tidewaterBuild().manifest);
+  assert.match(html, /\.stage-body\{padding:var\(--gap-1\) var\(--pad-card\) var\(--pad-card\)\}/, '8px over the heading, 12px visible with its ascent');
+});
+
 test('directory card: the dates say both weekends and the stages are counted once', () => {
   const doc = docFromText(TIDEWATER_YAML, 'tidewater');
   const site = buildFixtureSite([doc], { 'tidewater-2026': { listed: true } }).site;
   assert.equal(editionDates(site.editions[0]!), 'Aug 7–8 & Aug 14–15, 2026');
-  const text = visibleText(renderLandingPage(site));
+  const text = visibleText(renderLandingPage(site, { images: { 'tidewater-2026': '/assets/festivals/tidewater-2026.webp' } }));
   assert.match(text, /Aug 7–8 &amp; Aug 14–15, 2026/);
   assert.match(text, /6 sets across 2 stages\./);
 });

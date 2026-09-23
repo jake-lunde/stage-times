@@ -4,9 +4,10 @@
  * The landing page is a shelf: one directory card per listed edition, earliest
  * first festival day first, then name. Unlisted and blocked editions never
  * appear. The whole card is the link to the edition's subscribe page in its
- * namespace; no card says whose it is (ADR-0005). A card with
- * no committed image draws the Facets core, seeded by festival key. Every card
- * and tile on both page types shares the single 18px radius.
+ * namespace; no card says whose it is (ADR-0005). A card's art is the
+ * festival's own committed image; a listed edition without one stays off the
+ * shelf (owner, 2026-09-22). Every card and tile on both page types shares the
+ * single 18px radius.
  *
  * Three fixture editions: harbor-lights-2026 (owner, August), pier-nine-2026
  * (fan, September), dst-check-2026 (owner, November). Nothing here reads the
@@ -18,10 +19,10 @@ import assert from 'node:assert/strict';
 
 import type { Manifest, SiteManifest } from '../src/build.js';
 import {
-  facetsArt,
   listedEditions,
   renderLandingPage,
   renderSubscribePage,
+  shelvedEditions,
   shortDates,
 } from '../src/pages.js';
 import {
@@ -39,6 +40,18 @@ import {
 /** Every directory card on the page, in document order, as its outer HTML. */
 function cards(html: string): string[] {
   return html.match(/<a class="shelf-card"[\s\S]*?<\/a>/g) ?? [];
+}
+
+/** Committed festival art for every fixture edition, as the build would find it. */
+const COVERS: Record<string, string> = {
+  'harbor-lights-2026': '/assets/festivals/harbor-lights-2026.webp',
+  'pier-nine-2026': '/assets/festivals/pier-nine-2026.jpg',
+  'dst-check-2026': '/assets/festivals/dst-check-2026.png',
+};
+
+/** The homepage with every fixture's art committed. */
+function landing(site: SiteManifest): string {
+  return renderLandingPage(site, { images: COVERS });
 }
 
 function twoListed(): SiteManifest {
@@ -97,7 +110,7 @@ test('listedEditions: editions sharing a first day sort by name', () => {
 // ===========================================================================
 
 test('landing: exactly one card per listed edition, in order, each the link to its subscribe page', () => {
-  const html = renderLandingPage(twoListed());
+  const html = landing(twoListed());
   const found = cards(html);
   assert.equal(found.length, 2, 'two listed editions, two cards');
   assert.match(found[0]!, /^<a class="shelf-card" href="\/harbor-lights-2026\/"/, 'harbor first, owner namespace');
@@ -112,14 +125,14 @@ test('landing: a blocked-but-listed edition renders no card', () => {
     [HARBOR_PATH]: { listed: true },
     [PIER_PATH]: { listed: true, blocked: true },
   }).site;
-  const html = renderLandingPage(site);
+  const html = landing(site);
   assert.equal(cards(html).length, 1, 'one card, for the one edition that is listed and not blocked');
   assert.equal(html.includes('pier-nine'), false, 'the blocked edition is nowhere on the page');
 });
 
 test('landing: nothing listed renders no shelf at all, and the page still stands', () => {
   const site = buildFixtureSite([harborDoc(), pierDoc()]).site;
-  const html = renderLandingPage(site);
+  const html = landing(site);
   assert.equal(cards(html).length, 0, 'no card for an unlisted edition');
   assert.equal(html.includes('class="shelf'), false, 'no empty shelf, no orphan header');
   const text = visibleText(html);
@@ -128,7 +141,7 @@ test('landing: nothing listed renders no shelf at all, and the page still stands
 });
 
 test('landing: every card carries its dates in the eyebrow, and none says whose it is (ADR-0005)', () => {
-  const [harbor, pier] = cards(renderLandingPage(twoListed())) as [string, string];
+  const [harbor, pier] = cards(landing(twoListed())) as [string, string];
   assert.match(harbor, /<span class="eyebrow">Aug 14–16, 2026<\/span>/, 'dates only — the harbor fixture has no city');
   assert.match(pier, /<span class="eyebrow">Sep 19, 2026<\/span>/, 'an edition from before the change reads the same');
   for (const card of [harbor, pier]) assert.doesNotMatch(card, /Fan-made|eyebrow--fan/);
@@ -142,7 +155,7 @@ test('landing: a city joins the eyebrow when the festival has one', () => {
   assert.equal(withCity.festival.city, 'Brooklyn', 'the schema reads the optional city');
   const site = buildFixtureSite([withCity], { [PIER_PATH]: { listed: true } }).site;
   assert.equal(site.editions[0]!.festival.city, 'Brooklyn', 'the manifest carries the city');
-  const html = renderLandingPage(site);
+  const html = landing(site);
   assert.ok(visibleText(html).includes('Sep 19, 2026 · Brooklyn'), 'dates then city');
   // A city is display only: the feeds are the same bytes with or without it.
   const bare = buildFixtureSite([pierDoc()], { [PIER_PATH]: { listed: true } });
@@ -153,7 +166,7 @@ test('landing: a city joins the eyebrow when the festival has one', () => {
 });
 
 test('landing: the card is text first — eyebrow, name, one bold lead with the counts, then art', () => {
-  const [harbor] = cards(renderLandingPage(twoListed())) as [string];
+  const [harbor] = cards(landing(twoListed())) as [string];
   const m = listedEditions(twoListed())[0]!;
   const order = ['class="eyebrow"', 'class="shelf-title"', 'class="shelf-lead"', 'class="shelf-meta"', 'class="shelf-art"'];
   const positions = order.map((needle) => harbor.indexOf(needle));
@@ -171,7 +184,7 @@ test('landing: the card is text first — eyebrow, name, one bold lead with the 
 });
 
 test('landing: the section header is two sentences on one line, bold lead and quiet tail, both ending in a period', () => {
-  const html = renderLandingPage(twoListed());
+  const html = landing(twoListed());
   const m = /<h2 class="shelf-head"><span class="lead">([^<]+)<\/span> <span class="tail">([^<]+)<\/span><\/h2>/.exec(html);
   assert.ok(m, 'one h2 with a lead span and a tail span');
   const [, lead, tail] = m as unknown as [string, string, string];
@@ -182,53 +195,42 @@ test('landing: the section header is two sentences on one line, bold lead and qu
 });
 
 // ===========================================================================
-// Art: a committed image wins; otherwise the Facets core, seeded by key
+// Art: the festival's own, or the edition waits off the shelf
 // ===========================================================================
 
-test('landing: a card with no committed image draws the Facets core, and the same edition draws the same bytes', () => {
-  const html1 = renderLandingPage(twoListed());
-  const html2 = renderLandingPage(twoListed());
-  assert.equal(html1, html2, 'byte-identical twice');
-  const [harbor, pier] = cards(html1) as [string, string];
-  assert.match(harbor, /<svg class="art-svg art-facets"/, 'harbor has no committed image, so the Facets core');
-  assert.match(pier, /<svg class="art-svg art-facets"/, 'pier too');
-  assert.equal(harbor.includes('<img'), false, 'no image element without a committed image');
-  const idOf = (card: string) => /clipPath id="([^"]+)"/.exec(card)?.[1];
-  assert.ok(idOf(harbor) && idOf(pier) && idOf(harbor) !== idOf(pier), 'clip ids are per edition, so two cards do not collide');
+test('landing: the card art is the festival’s committed image, and the build draws none of its own', () => {
+  const [harbor, pier] = cards(landing(twoListed())) as [string, string];
+  assert.match(harbor, /<span class="shelf-art" style="background:#[0-9a-f]{6}"><img src="\/assets\/festivals\/harbor-lights-2026\.webp" alt="" loading="lazy"><\/span>/i, 'the committed image, on a light ground while it loads');
+  assert.match(pier, /<img src="\/assets\/festivals\/pier-nine-2026\.jpg"/, 'whatever the extension');
+  for (const card of [harbor, pier]) assert.equal(card.includes('<svg'), false, 'no generated art on a directory card');
 });
 
-test('landing: an owner and a fan edition of the same festival-year share art but not a clip id', () => {
-  const pier = pierDoc();
-  const ownerPier = docFromText(pierYamlText().replace('namespace: fan', 'namespace: owner'), 'pier-as-owner');
-  const site = buildFixtureSite([pier, ownerPier], {
-    [PIER_PATH]: { listed: true },
-    'pier-nine-2026': { listed: true },
-  }).site;
-  const found = cards(renderLandingPage(site));
-  assert.equal(found.length, 2, 'both editions are listed');
-  const ids = found.map((c) => /clipPath id="([^"]+)"/.exec(c)?.[1]);
-  assert.ok(ids[0] && ids[1] && ids[0] !== ids[1], `one id per element in the document: ${ids.join(', ')}`);
-  const tilts = found.map((c) => /rotate\((-?\d+) /.exec(c)?.[1]);
-  assert.equal(tilts[0], tilts[1], 'the same festival key seeds the same tilt in both namespaces');
+test('landing: a listed edition without its festival art stays off the shelf', () => {
+  const html = renderLandingPage(twoListed(), { images: { 'harbor-lights-2026': COVERS['harbor-lights-2026']! } });
+  const found = cards(html);
+  assert.equal(found.length, 1, 'only the edition with its art');
+  assert.match(found[0]!, /href="\/harbor-lights-2026\/"/);
+  assert.equal(html.includes('pier-nine'), false, 'the edition without art is nowhere on the page');
 });
 
-test('facetsArt: seeded by festival key — a different key is different art, the same key is the same art', () => {
-  const a = facetsArt('harbor-lights-2026', '#C42408');
-  const b = facetsArt('harbor-lights-2026', '#C42408');
-  const c = facetsArt('pier-nine-2026', '#C42408');
-  assert.equal(a, b, 'the same key draws the same bytes');
-  assert.notEqual(a, c, 'a different key draws different art');
-  assert.match(a, /rotate\(-?\d+ /, 'the tilt is seeded');
-  assert.equal(a.includes('Math.random'), false, 'nothing random reaches the page');
-  assert.match(a, /aria-hidden="true"/, 'decorative inside the card link');
+test('landing: listed editions with no art at all render no shelf, and the page still stands', () => {
+  const html = renderLandingPage(twoListed());
+  assert.equal(html.includes('class="shelf'), false, 'no empty shelf, no orphan header');
+  assert.ok(visibleText(html).includes('Set times, by stage.'), 'the hero survives');
 });
 
-test('landing: a committed festival image wins over the Facets core', () => {
-  const html = renderLandingPage(twoListed(), { images: { 'harbor-lights-2026': '/assets/festivals/harbor-lights-2026.webp' } });
-  const [harbor, pier] = cards(html) as [string, string];
-  assert.match(harbor, /<img src="\/assets\/festivals\/harbor-lights-2026\.webp" alt="" loading="lazy">/, 'the committed image');
-  assert.equal(harbor.includes('art-facets'), false, 'no fallback art beside an image');
-  assert.match(pier, /art-facets/, 'the other card still falls back');
+test('shelvedEditions: the listed editions with art, in listed order', () => {
+  const site = twoListed();
+  assert.deepEqual(
+    shelvedEditions(site, COVERS).map((m) => m.festival.basePath),
+    listedEditions(site).map((m) => m.festival.basePath),
+    'every listed edition has art: the shelf is the listed order',
+  );
+  assert.deepEqual(
+    shelvedEditions(site, { 'pier-nine-2026': COVERS['pier-nine-2026']!, 'dst-check-2026': COVERS['dst-check-2026']! }).map((m) => m.festival.basePath),
+    ['/fan/pier-nine-2026'],
+    'art on an unlisted edition does not list it',
+  );
 });
 
 // ===========================================================================
@@ -237,10 +239,10 @@ test('landing: a committed festival image wins over the Facets core', () => {
 
 test('radius: both page types use the single 18px card radius and the media-card token is gone', () => {
   const site = twoListed();
-  const landing = renderLandingPage(site);
+  const landingHtml = landing(site);
   const subscribe = renderSubscribePage(site.editions[1]!);
   for (const [name, html] of [
-    ['landing', landing],
+    ['landing', landingHtml],
     ['subscribe', subscribe],
   ] as const) {
     assert.ok(html.includes('--r-card:18px'), `${name}: the one radius`);
@@ -254,7 +256,7 @@ test('radius: both page types use the single 18px card radius and the media-card
 // ===========================================================================
 
 test('landing: the shelf density tokens are the Store’s, and the shelf is CSS scroll-snap', () => {
-  const html = renderLandingPage(twoListed());
+  const html = landing(twoListed());
   for (const token of ['--pad-shelf:28px', '--gap-shelf:20px', '--h-shelf-card:450px', '--gap-section:clamp(48px, 6vw, 64px)']) {
     assert.ok(html.includes(token), token);
   }
@@ -266,7 +268,7 @@ test('landing: the shelf density tokens are the Store’s, and the shelf is CSS 
 });
 
 test('landing: no shadow, no gradient, no third-party request, fonts self-hosted', () => {
-  const html = renderLandingPage(twoListed());
+  const html = landing(twoListed());
   assert.equal(html.includes('box-shadow'), false, 'no shadow anywhere');
   assert.equal(html.includes('gradient'), false, 'no gradient anywhere');
   const urls = html.match(/(?:src|href)="(https?:)?\/\/[^"]+"/g) ?? [];
@@ -278,7 +280,7 @@ test('landing: no shadow, no gradient, no third-party request, fonts self-hosted
 });
 
 test('landing: every string passes the copy rules', () => {
-  const text = visibleText(renderLandingPage(twoListed()));
+  const text = visibleText(landing(twoListed()));
   assert.doesNotMatch(text, /\b(we|we're|we've|our|ours|us)\b/i, 'no corporate first person');
   assert.doesNotMatch(text, /\b(listed|edition|feed|feeds|subscribe|namespace|upload)\b/i, 'no glossary or machinery word');
   assert.equal(text.includes('!'), false, 'no exclamation marks');

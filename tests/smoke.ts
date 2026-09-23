@@ -24,9 +24,9 @@
  * And for the HTML pages (landing + one per edition) it asserts the inverse: the
  * Vercel Web Analytics script IS present, so a refactor can't silently drop
  * measurement. A blocked edition's page must be the removed page — no calendar
- * links on it. The landing page must carry exactly one card per listed edition,
- * each linking to that edition's page in its namespace, and none for anything
- * unlisted or blocked.
+ * links on it. The landing page must carry exactly one card per listed edition
+ * with its festival art committed, each linking to that edition's page in its
+ * namespace, and none for anything unlisted, blocked, or waiting on its art.
  * The upload page (/upload/) must carry all of its screens.
  *
  * A preview behind Vercel Deployment Protection can be smoke-tested by setting
@@ -41,7 +41,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Manifest, SiteManifest } from '../src/build.js';
-import { listedEditions, type Manifest as PageManifest } from '../src/pages.js';
+import { committedImages, shelvedEditions, type Manifest as PageManifest } from '../src/pages.js';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const EXPECTED_CONTENT_TYPE = 'text/calendar; charset=utf-8';
@@ -211,8 +211,9 @@ async function main(): Promise<void> {
 
   const site = loadManifest();
   const feeds = site.editions.flatMap((m) => feedPaths(m).map((p) => ({ path: p, blocked: m.blocked })));
-  // The same rule the homepage renders from, so the check cannot drift from the page.
-  const listed = listedEditions(site);
+  // The same rule the homepage renders from, so the check cannot drift from the page:
+  // the listed editions whose festival art is committed.
+  const listed = shelvedEditions(site, committedImages(site));
   const pages: { path: string; check: PageCheck }[] = [
     { path: '/', check: { listed } },
     ...site.editions.map((m) => ({ path: `${m.festival.basePath}/`, check: { blocked: m.blocked, ...(m.movedTo ? { movedTo: m.movedTo.basePath } : {}) } })),
