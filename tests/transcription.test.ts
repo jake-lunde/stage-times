@@ -23,6 +23,7 @@ import {
   assertRawTranscription,
   normalizeOfficialUrl,
   parseTimeRange,
+  printedLatestFirst,
   resolveRange,
   slugify,
   stageIdFromName,
@@ -247,6 +248,71 @@ test('transcribe: post-midnight inferred end shifts to the next calendar date', 
   assert.equal(afters.end, '2026-08-08T01:00:00', 'the closer of its stage: an hour and a half');
   assert.equal(afters.end_inferred, true);
   assert.equal(afters.crossesMidnight, true);
+});
+
+test('transcribe: one live stage read two ways is one stage, its sets from both days under the picked id', () => {
+  // Portola 2026: "SHIP TENT" on Saturday's poster, "SHIPTENT" on Sunday's.
+  const raw = fixture();
+  raw.days[1]!.stages[1]!.name = 'THE CELLAR STAGE';
+  const live = { festival: {}, stages: [{ id: 'cellar', name: 'Cellar Stage', read_as: 'the-cellar' }] };
+  const t = transcribe(outputs(raw), { ...OPTS, live });
+  assert.deepEqual(t.edition.stages.map((s) => s.id), ['main', 'cellar'], 'no second cellar');
+  assert.equal(t.sets.some((s) => s.stage === 'cellar' && s.posterDate === '2026-08-08'), true, "Saturday's sets follow");
+  assert.equal(t.sets.some((s) => s.stage === 'the-cellar'), false);
+  assert.deepEqual(t.edition.stages.map((s) => s.read_as), [undefined, 'the-cellar'], 'the merged stage carries the reading it maps');
+  assert.match(t.yaml, /read_as: "the-cellar"/);
+});
+
+test('transcribe: a poster printed latest-first is read from the foot of each column up, on its own day', () => {
+  // Portola 2026: 11 PM at the head of every column, doors at the foot. Read as
+  // printed, each earlier time would be a midnight crossed, and the afternoon
+  // would drift a day further with every set.
+  const raw = fixture();
+  raw.days = [
+    {
+      date: '2026-09-26',
+      header: 'SATURDAY SEP 26',
+      stages: [
+        {
+          name: 'PIER STAGE',
+          sets: [
+            { artist: 'DOG BLOOD', time: '9:00-10:15' },
+            { artist: 'ROBYN', time: '7:10-8:10' },
+            { artist: 'TOVE LO', time: '5:40-6:30' },
+            { artist: 'AIRWOLF PARADISE', time: '1:30-CLOSE' },
+          ],
+        },
+        { name: 'DESPACIO', sets: [{ artist: 'DESPACIO', time: '2:45-9:45' }] },
+      ],
+    },
+  ];
+  assert.equal(printedLatestFirst(raw.days[0]!), true);
+  const t = transcribe(outputs(raw), OPTS);
+  assert.deepEqual(
+    t.sets.filter((s) => s.stage === 'pier').map((s) => [s.artist, s.start, s.end]),
+    [
+      ['AIRWOLF PARADISE', '2026-09-26T13:30:00', '2026-09-26T14:30:00'],
+      ['TOVE LO', '2026-09-26T17:40:00', '2026-09-26T18:30:00'],
+      ['ROBYN', '2026-09-26T19:10:00', '2026-09-26T20:10:00'],
+      ['DOG BLOOD', '2026-09-26T21:00:00', '2026-09-26T22:15:00'],
+    ],
+    'running order, every set on the poster day',
+  );
+  const airwolf = t.sets.find((s) => s.artist === 'AIRWOLF PARADISE')!;
+  assert.match(airwolf.notes, /assumed 60 minutes/, 'the first of the day is not the closer');
+  assert.equal(t.sets.find((s) => s.artist === 'DESPACIO')!.start, '2026-09-26T14:45:00', 'a one-set column follows the day');
+  assert.equal(t.sets.some((s) => s.crossesMidnight), false);
+  assert.match(t.log, /### \d+\. Columns printed latest-first/);
+  assert.match(t.log, /- SATURDAY SEP 26 \(2026-09-26\)/);
+  assert.doesNotMatch(t.log, /Post-midnight times shifted/);
+});
+
+test('transcribe: a column that crosses midnight once is read as printed', () => {
+  const t = transcribe(outputs(), OPTS);
+  assert.equal(printedLatestFirst(fixture().days[0]!), false);
+  assert.doesNotMatch(t.log, /Columns printed latest-first/);
+  const afters = t.sets.find((s) => s.artist.startsWith('FROST CHILDREN'))!;
+  assert.equal(afters.crossesMidnight, true, 'the ordinary poster still crosses midnight where it does');
 });
 
 test('transcribe: AFTERS raw string carries the label, annotations and printed time', () => {

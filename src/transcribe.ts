@@ -612,6 +612,31 @@ function buildNotes(set: RawSet, noEnd: 'close' | 'bare' | undefined, guessMinut
 }
 
 /**
+ * Whether a poster day prints each stage's column from the last set of the
+ * night down to the first (Portola 2026: 11 PM at the head of the column,
+ * doors at the foot). Read top to bottom, such a column starts earlier at
+ * every step, and the midnight rule would carry it a day further each time;
+ * one poster day cannot cross midnight twice, so a column that would is the
+ * tell, and the whole day reads bottom to top. A poster whose every column
+ * is one or two sets cannot be told, and reads as printed.
+ */
+export function printedLatestFirst(day: RawDay): boolean {
+  return day.stages.some((stage) => midnightsCrossed(stage.sets) > 1);
+}
+
+/** How many times a column, read as printed, starts earlier than the set above it. */
+function midnightsCrossed(sets: RawSet[]): number {
+  let crossed = 0;
+  let prevStart: number | null = null;
+  for (const rawSet of sets) {
+    const { startMin } = resolveRange(parseTimeRange(rawSet.time), prevStart);
+    if (prevStart !== null && startMin < prevStart) crossed += 1;
+    prevStart = startMin;
+  }
+  return crossed;
+}
+
+/**
  * One poster day's sets, stage by stage, in printed order, with every time
  * rule applied: meridiems resolved, midnight crossed, a missing end guessed —
  * an hour and a half for the stage's closer, an hour for the rest. One set per
@@ -621,12 +646,16 @@ function buildNotes(set: RawSet, noEnd: 'close' | 'bare' | undefined, guessMinut
  */
 export function readDay(day: RawDay, source: string, stageSuffix = ''): BuiltSet[] {
   const sets: BuiltSet[] = [];
+  const latestFirst = printedLatestFirst(day);
   for (const stage of day.stages) {
     const stageId = stageIdFromName(stage.name) + stageSuffix;
+    // A column printed latest-first is read from the foot up, so the sets
+    // come out in running order and the closer is still the last one read.
+    const printed = latestFirst ? stage.sets.slice().reverse() : stage.sets;
     let dayOffset = 0;
     let prevAbsStart: number | null = null;
-    for (const [i, rawSet] of stage.sets.entries()) {
-      const closer = i === stage.sets.length - 1;
+    for (const [i, rawSet] of printed.entries()) {
+      const closer = i === printed.length - 1;
       const guessMinutes = closer ? CLOSER_GUESS_MINUTES : OTHER_GUESS_MINUTES;
       const range = parseTimeRange(rawSet.time);
       const { startMin, endMin } = resolveRange(range, prevAbsStart);
@@ -718,7 +747,7 @@ export function buildTranscription(
 
   // Stages: unique by derived id, in order of first appearance — so the first
   // weekend's stages come first, in printed order, then the second's.
-  const stages: BuiltStage[] = [];
+  let stages: BuiltStage[] = [];
   const stageIds = new Set<string>();
   for (const day of days) {
     const n = weekendOfDate.get(day.date);
@@ -737,7 +766,11 @@ export function buildTranscription(
   // A new reading of a live edition keeps the stage ids and names the owner
   // picked: each live stage is found under the id a reading derives for it.
   if (options.live) {
-    const liveByDerived = new Map(options.live.stages.map((s) => [s.read_as ?? s.id, s]));
+    const liveByDerived = new Map<string, { id: string; name: string; read_as?: string }>();
+    for (const s of options.live.stages) {
+      liveByDerived.set(s.id, s);
+      if (s.read_as) liveByDerived.set(s.read_as, s);
+    }
     const liveIdOf = new Map<string, string>();
     for (const stage of stages) {
       const live = liveByDerived.get(stage.id);
@@ -748,6 +781,10 @@ export function buildTranscription(
       if (live.read_as) stage.read_as = live.read_as;
     }
     for (const set of sets) set.stage = liveIdOf.get(set.stage) ?? set.stage;
+    // One live stage read two ways — "SHIP TENT" one day, "SHIPTENT" the
+    // next — lands on one id from both, and is one stage.
+    const kept = new Set<string>();
+    stages = stages.filter((stage) => !kept.has(stage.id) && kept.add(stage.id));
   }
 
   // The same artist twice on one stage collides on UID — the known limitation
@@ -971,6 +1008,20 @@ function renderLog(
     for (const s of shifted) {
       L.push(`- ${s.artist} (${s.stage}): printed ${s.printedTime} under ${s.posterDate}, resolved ${s.start} → ${s.end}.`);
     }
+  }
+
+  // 2b. Columns printed latest-first: read from the foot up.
+  const latestFirst = days.filter(printedLatestFirst);
+  if (latestFirst.length > 0) {
+    n += 1;
+    L.push('');
+    L.push(`### ${n}. Columns printed latest-first`);
+    L.push('');
+    L.push('Each stage column on these posters runs from the last set of the night down to the');
+    L.push('first, so every column was read bottom to top: a time earlier than the one printed');
+    L.push("above it is the set before, not one past midnight. Check the poster's clock axis agrees:");
+    L.push('');
+    for (const day of latestFirst) L.push(`- ${day.header} (${day.date})`);
   }
 
   // 3. Casing disclaimer — always applies to poster transcription.
