@@ -1,0 +1,319 @@
+# Oceans Calling 2026 — machine transcription of the schedule poster(s).
+#
+# Source images:
+#   bd946ec54af58cb825367176250c95a397aacaa526610a495bb19b08d64a39a0.png
+#   4002ceee6a13d901a02fac4e76965288d01c5951aad9b3e2d638cd20f65f549b.png
+#   0d6373d3981c814c208e584b489a796356d167a962a006abefed3b53d0b778bd.png
+#
+# verified: true — a human checked every set against the source image above and
+# confirmed it. Corrections made on review are listed in the TRANSCRIPTION log
+# next to this file.
+
+verified: true
+
+# PERMANENT — decides the URL family: owner editions live at /<slug>-<year>/, fan editions at
+# /fan/<slug>-<year>/ (docs/adr/0001-fan-namespace-prefix.md). Never changes after first publish.
+namespace: owner
+
+festival:
+  name: "Oceans Calling"
+  slug: "oceans-calling"     # PERMANENT — appears in every subscription URL
+  year: 2026
+  timezone: "America/New_York"
+  official_url: "https://oceanscallingfestival.com/schedule"   # from the poster — unverified
+  city: "Ocean City"                      # display only (the homepage card); never in a feed
+  # The festival's own colors, off its art: one per stage, in the order a weekend lists them.
+  # Each stage card and each stage calendar's color. Absent or short means the house colors.
+  # The three inks of the badge on every poster: its navy ring, the red of OCEANS, the yellow border.
+  colors: ["#16293D", "#E64546", "#F1BF41"]
+
+stages:
+  - id: "sea-bright"     # PERMANENT url slug — never change after publish
+    name: "Sea Bright"
+    read_as: "sea-bright-presented-by-verizon"     # the id a new reading of the source derives; maps it back here
+  - id: "rockville"     # PERMANENT url slug — never change after publish
+    name: "Rockville"
+    read_as: "rockville-presented-by-allianz"     # the id a new reading of the source derives; maps it back here
+  - id: "carousel"     # PERMANENT url slug — never change after publish
+    name: "Carousel"
+
+sets:
+  # ═══ 2026-09-25 ═══
+  - stage: "sea-bright"
+    artist: "LINKA MOJA"
+    raw: "LINKA MOJA"
+    start: "2026-09-25T12:15:00"
+    end: "2026-09-25T13:00:00"
+    end_inferred: false
+  - stage: "sea-bright"
+    artist: "KT TUNSTALL"
+    raw: "KT TUNSTALL"
+    start: "2026-09-25T13:45:00"
+    end: "2026-09-25T14:30:00"
+    end_inferred: false
+  - stage: "sea-bright"
+    artist: "BETTER THAN EZRA"
+    raw: "BETTER THAN EZRA"
+    start: "2026-09-25T15:15:00"
+    end: "2026-09-25T16:00:00"
+    end_inferred: false
+  - stage: "sea-bright"
+    artist: "SHAGGY"
+    raw: "SHAGGY"
+    start: "2026-09-25T17:00:00"
+    end: "2026-09-25T18:00:00"
+    end_inferred: false
+  - stage: "sea-bright"
+    artist: "HOOTIE & THE BLOWFISH"
+    raw: "HOOTIE & THE BLOWFISH"
+    start: "2026-09-25T19:00:00"
+    end: "2026-09-25T20:00:00"
+    end_inferred: false
+  - stage: "sea-bright"
+    artist: "DAVE MATTHEWS BAND"
+    raw: "DAVE MATTHEWS BAND"
+    start: "2026-09-25T21:00:00"
+    end: "2026-09-25T23:00:00"
+    end_inferred: false
+  - stage: "rockville"
+    artist: "KING STINGRAY"
+    raw: "KING STINGRAY"
+    start: "2026-09-25T13:00:00"
+    end: "2026-09-25T13:45:00"
+    end_inferred: false
+  - stage: "rockville"
+    artist: "SONS OF LEGION"
+    raw: "SONS OF LEGION"
+    start: "2026-09-25T14:30:00"
+    end: "2026-09-25T15:15:00"
+    end_inferred: false
+  - stage: "rockville"
+    artist: "EVERLAST"
+    raw: "EVERLAST"
+    start: "2026-09-25T16:00:00"
+    end: "2026-09-25T17:00:00"
+    end_inferred: false
+  - stage: "rockville"
+    artist: "O.A.R."
+    raw: "O.A.R."
+    start: "2026-09-25T18:00:00"
+    end: "2026-09-25T19:00:00"
+    end_inferred: false
+  - stage: "rockville"
+    artist: "LUDACRIS"
+    raw: "LUDACRIS"
+    start: "2026-09-25T20:00:00"
+    end: "2026-09-25T21:00:00"
+    end_inferred: false
+  - stage: "carousel"
+    artist: "CHEF ROBERT IRVINE"
+    raw: "CHEF ROBERT IRVINE"
+    start: "2026-09-25T12:15:00"
+    end: "2026-09-25T13:00:00"
+    end_inferred: false
+  - stage: "carousel"
+    artist: "SHWAYZE"
+    raw: "SHWAYZE"
+    start: "2026-09-25T13:45:00"
+    end: "2026-09-25T14:30:00"
+    end_inferred: false
+  - stage: "carousel"
+    artist: "GAVIN DEGRAW"
+    raw: "GAVIN DEGRAW"
+    start: "2026-09-25T15:15:00"
+    end: "2026-09-25T16:00:00"
+    end_inferred: false
+  - stage: "carousel"
+    artist: "LIZ PHAIR"
+    raw: "LIZ PHAIR"
+    start: "2026-09-25T17:00:00"
+    end: "2026-09-25T18:00:00"
+    end_inferred: false
+  - stage: "carousel"
+    artist: "YELLOWCARD"
+    raw: "YELLOWCARD"
+    start: "2026-09-25T19:00:00"
+    end: "2026-09-25T20:00:00"
+    end_inferred: false
+  # ═══ 2026-09-26 ═══
+  - stage: "sea-bright"
+    artist: "THE CRITICALS"
+    raw: "THE CRITICALS"
+    start: "2026-09-26T12:30:00"
+    end: "2026-09-26T13:15:00"
+    end_inferred: false
+  - stage: "sea-bright"
+    artist: "DISHWALLA"
+    raw: "DISHWALLA"
+    start: "2026-09-26T14:00:00"
+    end: "2026-09-26T14:45:00"
+    end_inferred: false
+  - stage: "sea-bright"
+    artist: "EVERCLEAR"
+    raw: "EVERCLEAR"
+    start: "2026-09-26T15:30:00"
+    end: "2026-09-26T16:15:00"
+    end_inferred: false
+  - stage: "sea-bright"
+    artist: "THIRD EYE BLIND"
+    raw: "THIRD EYE BLIND"
+    start: "2026-09-26T17:15:00"
+    end: "2026-09-26T18:15:00"
+    end_inferred: false
+  - stage: "sea-bright"
+    artist: "GWEN STEFANI"
+    raw: "GWEN STEFANI"
+    start: "2026-09-26T19:15:00"
+    end: "2026-09-26T20:15:00"
+    end_inferred: false
+  - stage: "sea-bright"
+    artist: "TWENTY ONE PILOTS"
+    raw: "TWENTY ONE PILOTS"
+    start: "2026-09-26T21:30:00"
+    end: "2026-09-26T23:00:00"
+    end_inferred: false
+  - stage: "rockville"
+    artist: "CASSANDRA COLEMAN"
+    raw: "CASSANDRA COLEMAN"
+    start: "2026-09-26T13:15:00"
+    end: "2026-09-26T14:00:00"
+    end_inferred: false
+  - stage: "rockville"
+    artist: "GOLDFORD"
+    raw: "GOLDFORD"
+    start: "2026-09-26T14:45:00"
+    end: "2026-09-26T15:30:00"
+    end_inferred: false
+  - stage: "rockville"
+    artist: "VIOLENT FEMMES"
+    raw: "VIOLENT FEMMES"
+    start: "2026-09-26T16:15:00"
+    end: "2026-09-26T17:15:00"
+    end_inferred: false
+  - stage: "rockville"
+    artist: "311"
+    raw: "311"
+    start: "2026-09-26T18:15:00"
+    end: "2026-09-26T19:15:00"
+    end_inferred: false
+  - stage: "rockville"
+    artist: "GOO GOO DOLLS"
+    raw: "GOO GOO DOLLS"
+    start: "2026-09-26T20:15:00"
+    end: "2026-09-26T21:30:00"
+    end_inferred: false
+  - stage: "carousel"
+    artist: "CHEF ALEX GUARNASCHELLI"
+    raw: "CHEF ALEX GUARNASCHELLI"
+    start: "2026-09-26T12:30:00"
+    end: "2026-09-26T13:15:00"
+    end_inferred: false
+  - stage: "carousel"
+    artist: "AMERICAN AUTHORS"
+    raw: "AMERICAN AUTHORS"
+    start: "2026-09-26T14:00:00"
+    end: "2026-09-26T14:45:00"
+    end_inferred: false
+  - stage: "carousel"
+    artist: "CORINNE BAILEY RAE"
+    raw: "CORINNE BAILEY RAE"
+    start: "2026-09-26T15:30:00"
+    end: "2026-09-26T16:15:00"
+    end_inferred: false
+  - stage: "carousel"
+    artist: "DASHBOARD CONFESSIONAL"
+    raw: "DASHBOARD CONFESSIONAL"
+    start: "2026-09-26T17:15:00"
+    end: "2026-09-26T18:15:00"
+    end_inferred: false
+  - stage: "carousel"
+    artist: "ALL TIME LOW"
+    raw: "ALL TIME LOW"
+    start: "2026-09-26T19:15:00"
+    end: "2026-09-26T20:15:00"
+    end_inferred: false
+  # ═══ 2026-09-27 ═══
+  - stage: "sea-bright"
+    artist: "FASTBALL"
+    raw: "FASTBALL"
+    start: "2026-09-27T13:15:00"
+    end: "2026-09-27T14:00:00"
+    end_inferred: false
+  - stage: "sea-bright"
+    artist: "JET"
+    raw: "JET"
+    start: "2026-09-27T15:00:00"
+    end: "2026-09-27T16:00:00"
+    end_inferred: false
+  - stage: "sea-bright"
+    artist: "HANSON"
+    raw: "HANSON"
+    start: "2026-09-27T17:00:00"
+    end: "2026-09-27T18:00:00"
+    end_inferred: false
+  - stage: "sea-bright"
+    artist: "CAAMP"
+    raw: "CAAMP"
+    start: "2026-09-27T19:15:00"
+    end: "2026-09-27T20:15:00"
+    end_inferred: false
+  - stage: "sea-bright"
+    artist: "MUMFORD & SONS"
+    raw: "MUMFORD & SONS"
+    start: "2026-09-27T21:30:00"
+    end: "2026-09-27T23:00:00"
+    end_inferred: false
+  - stage: "rockville"
+    artist: "THESAURUS REX"
+    raw: "THESAURUS REX"
+    start: "2026-09-27T12:30:00"
+    end: "2026-09-27T13:15:00"
+    end_inferred: false
+  - stage: "rockville"
+    artist: "CORY WONG"
+    raw: "CORY WONG"
+    start: "2026-09-27T14:00:00"
+    end: "2026-09-27T15:00:00"
+    end_inferred: false
+  - stage: "rockville"
+    artist: "THE HEAD AND THE HEART"
+    raw: "THE HEAD AND THE HEART"
+    start: "2026-09-27T16:00:00"
+    end: "2026-09-27T17:00:00"
+    end_inferred: false
+  - stage: "rockville"
+    artist: "O.A.R. AND FRIENDS"
+    raw: "O.A.R. AND FRIENDS"
+    start: "2026-09-27T18:00:00"
+    end: "2026-09-27T19:15:00"
+    end_inferred: false
+  - stage: "rockville"
+    artist: "MATCHBOX TWENTY"
+    raw: "MATCHBOX TWENTY"
+    start: "2026-09-27T20:15:00"
+    end: "2026-09-27T21:30:00"
+    end_inferred: false
+  - stage: "carousel"
+    artist: "CHEF ANTONIA LOFASO"
+    raw: "CHEF ANTONIA LOFASO"
+    start: "2026-09-27T13:15:00"
+    end: "2026-09-27T14:00:00"
+    end_inferred: false
+  - stage: "carousel"
+    artist: "SUSANNA HOFFS"
+    raw: "SUSANNA HOFFS"
+    start: "2026-09-27T15:00:00"
+    end: "2026-09-27T16:00:00"
+    end_inferred: false
+  - stage: "carousel"
+    artist: "OK GO"
+    raw: "OK GO"
+    start: "2026-09-27T17:00:00"
+    end: "2026-09-27T18:00:00"
+    end_inferred: false
+  - stage: "carousel"
+    artist: "MY MORNING JACKET"
+    raw: "MY MORNING JACKET"
+    start: "2026-09-27T19:15:00"
+    end: "2026-09-27T20:15:00"
+    end_inferred: false

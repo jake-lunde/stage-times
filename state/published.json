@@ -16,7 +16,7 @@
     "it becomes DTSTAMP / LAST-MODIFIED on every event the build touches and `lastUpdated` in feeds.json.",
     "It exists so the build never reads the wall clock — output must be byte-identical across runs."
   ],
-  "publishedAt": "20260923T154915Z",
+  "publishedAt": "20260923T161834Z",
   "editions": {
     "austin-city-limits-2026": {
       "slug": "austin-city-limits",
@@ -80,6 +80,18 @@
         "t-mobile-weekend-2",
         "tito-s-handmade-vodka-weekend-1",
         "tito-s-handmade-vodka-weekend-2"
+      ]
+    },
+    "oceans-calling-2026": {
+      "slug": "oceans-calling",
+      "year": 2026,
+      "namespace": "owner",
+      "listed": true,
+      "blocked": false,
+      "stages": [
+        "carousel",
+        "rockville",
+        "sea-bright"
       ]
     },
     "portola-2026": {

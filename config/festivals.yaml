@@ -90,3 +90,15 @@
       # The Sunday set-times image was uploaded 2026-08-27 (its Last-Modified);
       # the Saturday one was revised 2026-09-21.
       dropped: 2026-08-27
+
+- festival: Oceans Calling
+  source: https://oceanscallingfestival.com/schedule
+  timezone: America/New_York
+  form: poster
+  match: OC26_Schedules
+  editions:
+    - year: 2026
+      dates: { first: 2026-09-25, last: 2026-09-27 }
+      # The Friday schedule image was uploaded 2026-09-11 (its Last-Modified);
+      # Saturday's and Sunday's followed on 2026-09-17.
+      dropped: 2026-09-11
