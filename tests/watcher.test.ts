@@ -503,10 +503,10 @@ test('watcher: two entries in one run share one state commit, and each review br
 // The committed watch list and the schedule it runs from
 // ---------------------------------------------------------------------------
 
-test('watcher: the committed watch list names ACL, III Points, Camp Flog Gnaw, EDC Orlando and Corona Capital for 2026, each with a schedule page and a drop window', () => {
+test('watcher: the committed watch list names ACL, III Points, Camp Flog Gnaw, EDC Orlando, Corona Capital and Portola for 2026, each with a schedule page and a drop window', () => {
   const list = loadWatchList(readFileSync(join(REPO_ROOT, 'config', 'watch.yaml'), 'utf8'));
   const keys = list.map((e) => `${e.slug}-${e.year}`);
-  assert.deepEqual(keys, ['austin-city-limits-2026', 'iii-points-2026', 'camp-flog-gnaw-2026', 'edc-orlando-2026', 'corona-capital-2026']);
+  assert.deepEqual(keys, ['austin-city-limits-2026', 'iii-points-2026', 'camp-flog-gnaw-2026', 'edc-orlando-2026', 'corona-capital-2026', 'portola-2026']);
   for (const e of list) {
     assert.match(e.source, /^https:\/\//, `${e.festival}: the schedule page is an https link`);
     assert.ok(e.window.from < e.dates.first, `${e.festival}: the drop window opens before the festival`);
@@ -523,7 +523,9 @@ test('watcher: the committed watch list names ACL, III Points, Camp Flog Gnaw, E
     'camp-flog-gnaw': 'CampFlogGnaw',
     'edc-orlando': 'EDCOrlando',
     'corona-capital': 'coronacapital',
-  }, 'the signal watches the four subreddits the owner found on 2026-09-21; ACL has none on record');
+    portola: undefined,
+  }, 'the signal watches the four subreddits the owner found on 2026-09-21; ACL and Portola have none on record');
+  assert.equal(list[5]!.match, 'SetTimes', 'Portola: the two set-times images, not the per-stage lineup posters beside them');
 });
 
 test('watcher: the job runs hourly from a schedule with the permissions a review needs, and no server', () => {

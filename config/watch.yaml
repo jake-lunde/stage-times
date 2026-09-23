@@ -64,3 +64,15 @@
   dates: { first: 2026-11-20, last: 2026-11-22 }
   window: { from: 2026-10-01 }
   subreddit: coronacapital
+
+# This weekend's three, added 2026-09-23 with their set times already up; the
+# window opens the day they were added so the watcher catches a change.
+- festival: Portola
+  year: 2026
+  source: https://portolamusicfestival.com/set-times
+  timezone: America/Los_Angeles
+  dates: { first: 2026-09-26, last: 2026-09-27 }
+  window: { from: 2026-09-23 }
+  # The page also carries a lineup poster per stage (no times); only the
+  # per-day set-times images are read.
+  match: SetTimes

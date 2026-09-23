@@ -1,0 +1,425 @@
+# Portola 2026 — machine transcription of the schedule poster(s).
+#
+# Source images:
+#   eef068dde7393728a7705d4f58b3b2bd588218ee0d280ddf7062fefce17f7903.jpg
+#   d49d18fa36bbbbc2a3b06f99e79fc0176e899006b060a34b3e389bcdb86731b0.jpg
+#
+# verified: true — a human checked every set against the source image above and
+# confirmed it. Corrections made on review are listed in the TRANSCRIPTION log
+# next to this file.
+
+verified: true
+
+# PERMANENT — decides the URL family: owner editions live at /<slug>-<year>/, fan editions at
+# /fan/<slug>-<year>/ (docs/adr/0001-fan-namespace-prefix.md). Never changes after first publish.
+namespace: owner
+
+festival:
+  name: "Portola"
+  slug: "portola"     # PERMANENT — appears in every subscription URL
+  year: 2026
+  timezone: "America/Los_Angeles"
+  official_url: "https://portolamusicfestival.com/set-times"   # from the poster — unverified
+  city: "San Francisco"                      # display only (the homepage card); never in a feed
+  # The festival's own colors, off its art: one per stage, in the order a weekend lists them.
+  # Each stage card and each stage calendar's color. Absent or short means the house colors.
+  # Pier, Crane, Warehouse and Ship Tent are the grounds of their own stage posters on the
+  # set-times page; Despacio, which has none, takes the Sunday poster's paper.
+  colors: ["#2D4291", "#DD6B35", "#DEB935", "#2F5428", "#DFDADE"]
+
+stages:
+  - id: "pier"     # PERMANENT url slug — never change after publish
+    name: "Pier Stage"
+  - id: "crane"     # PERMANENT url slug — never change after publish
+    name: "Crane Stage"
+  - id: "warehouse"     # PERMANENT url slug — never change after publish
+    name: "Warehouse"
+  - id: "ship-tent"     # PERMANENT url slug — never change after publish
+    name: "Ship Tent"
+    read_as: "shiptent"     # the id a new reading of the source derives; maps it back here
+  - id: "despacio"     # PERMANENT url slug — never change after publish
+    name: "Despacio"
+
+sets:
+  # ═══ 2026-09-26 ═══
+  - stage: "pier"
+    artist: "AIRWOLF PARADISE"
+    raw: "AIRWOLF PARADISE"
+    start: "2026-09-26T13:30:00"
+    end: "2026-09-26T14:30:00"
+    end_inferred: false
+  - stage: "pier"
+    artist: "GELLI HAHA"
+    raw: "GELLI HAHA"
+    start: "2026-09-26T14:40:00"
+    end: "2026-09-26T15:30:00"
+    end_inferred: false
+  - stage: "pier"
+    artist: "OSKAR MED K"
+    raw: "OSKAR MED K"
+    start: "2026-09-26T15:40:00"
+    end: "2026-09-26T16:30:00"
+    end_inferred: false
+  - stage: "pier"
+    artist: "FCUKERS"
+    raw: "FCUKERS"
+    start: "2026-09-26T16:40:00"
+    end: "2026-09-26T17:30:00"
+    end_inferred: false
+  - stage: "pier"
+    artist: "TOVE LO"
+    raw: "TOVE LO"
+    start: "2026-09-26T17:40:00"
+    end: "2026-09-26T18:30:00"
+    end_inferred: false
+  - stage: "pier"
+    artist: "ROBYN"
+    raw: "ROBYN"
+    start: "2026-09-26T19:10:00"
+    end: "2026-09-26T20:10:00"
+    end_inferred: false
+  - stage: "pier"
+    artist: "DOG BLOOD (SKRILLEX + BOYS NOIZE)"
+    raw: "DOG BLOOD (SKRILLEX + BOYS NOIZE)"
+    start: "2026-09-26T21:00:00"
+    end: "2026-09-26T22:15:00"
+    end_inferred: false
+  - stage: "crane"
+    artist: "ERIKA B2B SFCOWBOY"
+    raw: "ERIKA B2B SFCOWBOY"
+    start: "2026-09-26T13:30:00"
+    end: "2026-09-26T15:10:00"
+    end_inferred: false
+  - stage: "crane"
+    artist: "TRICKY"
+    raw: "TRICKY"
+    start: "2026-09-26T15:30:00"
+    end: "2026-09-26T16:30:00"
+    end_inferred: false
+  - stage: "crane"
+    artist: "NIMINO"
+    raw: "NIMINO"
+    start: "2026-09-26T16:50:00"
+    end: "2026-09-26T17:50:00"
+    end_inferred: false
+  - stage: "crane"
+    artist: "DJ SHADOW"
+    raw: "DJ SHADOW"
+    start: "2026-09-26T18:10:00"
+    end: "2026-09-26T19:10:00"
+    end_inferred: false
+  - stage: "crane"
+    artist: "FATBOY SLIM"
+    raw: "FATBOY SLIM"
+    start: "2026-09-26T19:55:00"
+    end: "2026-09-26T21:25:00"
+    end_inferred: false
+  - stage: "crane"
+    artist: "SOULWAX"
+    raw: "SOULWAX"
+    start: "2026-09-26T21:55:00"
+    end: "2026-09-26T22:55:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "SAM ALFRED"
+    raw: "SAM ALFRED"
+    start: "2026-09-26T13:30:00"
+    end: "2026-09-26T14:45:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "RANGER TRUCCO B2B ALISHA"
+    raw: "RANGER TRUCCO B2B ALISHA"
+    start: "2026-09-26T14:45:00"
+    end: "2026-09-26T15:45:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "CHLOÉ CAILLET"
+    raw: "CHLOÉ CAILLET"
+    start: "2026-09-26T15:45:00"
+    end: "2026-09-26T16:45:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "GROOVE ARMADA"
+    raw: "GROOVE ARMADA"
+    start: "2026-09-26T16:45:00"
+    end: "2026-09-26T18:00:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "MAX STYLER"
+    raw: "MAX STYLER"
+    start: "2026-09-26T18:00:00"
+    end: "2026-09-26T19:15:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "KETTAMA"
+    raw: "KETTAMA"
+    start: "2026-09-26T19:15:00"
+    end: "2026-09-26T20:30:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "BELTRAN B2B BEN STERLING"
+    raw: "BELTRAN B2B BEN STERLING"
+    start: "2026-09-26T20:30:00"
+    end: "2026-09-26T21:45:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "PROSPA"
+    raw: "PROSPA"
+    start: "2026-09-26T21:45:00"
+    end: "2026-09-26T23:00:00"
+    end_inferred: false
+  - stage: "ship-tent"
+    artist: "FELLY FELL"
+    raw: "FELLY FELL"
+    start: "2026-09-26T13:40:00"
+    end: "2026-09-26T14:40:00"
+    end_inferred: false
+  - stage: "ship-tent"
+    artist: "MGNA CRRRTA"
+    raw: "MGNA CRRRTA"
+    start: "2026-09-26T14:50:00"
+    end: "2026-09-26T15:30:00"
+    end_inferred: false
+  - stage: "ship-tent"
+    artist: "SIX SEX"
+    raw: "SIX SEX"
+    start: "2026-09-26T15:40:00"
+    end: "2026-09-26T16:20:00"
+    end_inferred: false
+  - stage: "ship-tent"
+    artist: "MIKE D 5D"
+    raw: "MIKE D 5D"
+    start: "2026-09-26T16:40:00"
+    end: "2026-09-26T17:30:00"
+    end_inferred: false
+  - stage: "ship-tent"
+    artist: "JYOTY"
+    raw: "JYOTY"
+    start: "2026-09-26T17:40:00"
+    end: "2026-09-26T18:40:00"
+    end_inferred: false
+  - stage: "ship-tent"
+    artist: "BASSVICTIM"
+    raw: "BASSVICTIM"
+    start: "2026-09-26T18:50:00"
+    end: "2026-09-26T19:40:00"
+    end_inferred: false
+  - stage: "ship-tent"
+    artist: "JIGITZ"
+    raw: "JIGITZ"
+    start: "2026-09-26T19:50:00"
+    end: "2026-09-26T20:40:00"
+    end_inferred: false
+  - stage: "ship-tent"
+    artist: "NATE SIB"
+    raw: "NATE SIB"
+    start: "2026-09-26T20:55:00"
+    end: "2026-09-26T21:35:00"
+    end_inferred: false
+  - stage: "ship-tent"
+    artist: "MELANIE C (DJ SET)"
+    raw: "MELANIE C (DJ SET)"
+    start: "2026-09-26T21:50:00"
+    end: "2026-09-26T22:30:00"
+    end_inferred: false
+  - stage: "despacio"
+    artist: "DESPACIO (Saturday)"
+    raw: "DESPACIO"
+    start: "2026-09-26T14:45:00"
+    end: "2026-09-26T21:45:00"
+    end_inferred: false
+    notes: "Billed more than once on this stage; \"(Saturday)\" tells the events apart."
+  # ═══ 2026-09-27 ═══
+  - stage: "pier"
+    artist: "CLEARCAST"
+    raw: "CLEARCAST"
+    start: "2026-09-27T13:30:00"
+    end: "2026-09-27T14:20:00"
+    end_inferred: false
+  - stage: "pier"
+    artist: "MIND ENTERPRISES"
+    raw: "MIND ENTERPRISES"
+    start: "2026-09-27T14:30:00"
+    end: "2026-09-27T15:20:00"
+    end_inferred: false
+  - stage: "pier"
+    artist: "CHANNEL TRES"
+    raw: "CHANNEL TRES"
+    start: "2026-09-27T15:30:00"
+    end: "2026-09-27T16:20:00"
+    end_inferred: false
+  - stage: "pier"
+    artist: "SG LEWIS (LIVE)"
+    raw: "SG LEWIS (LIVE)"
+    start: "2026-09-27T16:30:00"
+    end: "2026-09-27T17:25:00"
+    end_inferred: false
+  - stage: "pier"
+    artist: "MOCHAKK"
+    raw: "MOCHAKK"
+    start: "2026-09-27T17:35:00"
+    end: "2026-09-27T18:35:00"
+    end_inferred: false
+  - stage: "pier"
+    artist: "ZARA LARSSON"
+    raw: "ZARA LARSSON"
+    start: "2026-09-27T19:05:00"
+    end: "2026-09-27T20:05:00"
+    end_inferred: false
+  - stage: "pier"
+    artist: "SWEDISH HOUSE MAFIA"
+    raw: "SWEDISH HOUSE MAFIA"
+    start: "2026-09-27T20:45:00"
+    end: "2026-09-27T22:00:00"
+    end_inferred: false
+  - stage: "crane"
+    artist: "TORREN FOOT"
+    raw: "TORREN FOOT"
+    start: "2026-09-27T13:30:00"
+    end: "2026-09-27T14:30:00"
+    end_inferred: false
+  - stage: "crane"
+    artist: "AZZECCA"
+    raw: "AZZECCA"
+    start: "2026-09-27T14:30:00"
+    end: "2026-09-27T15:30:00"
+    end_inferred: false
+  - stage: "crane"
+    artist: "ADÉLA"
+    raw: "ADÉLA"
+    start: "2026-09-27T15:50:00"
+    end: "2026-09-27T16:30:00"
+    end_inferred: false
+  - stage: "crane"
+    artist: "ZULAN"
+    raw: "ZULAN"
+    start: "2026-09-27T16:45:00"
+    end: "2026-09-27T17:35:00"
+    end_inferred: false
+  - stage: "crane"
+    artist: "UNDERSCORES"
+    raw: "UNDERSCORES"
+    start: "2026-09-27T17:50:00"
+    end: "2026-09-27T18:40:00"
+    end_inferred: false
+  - stage: "crane"
+    artist: "NINAJIRACHI"
+    raw: "NINAJIRACHI"
+    start: "2026-09-27T19:00:00"
+    end: "2026-09-27T19:50:00"
+    end_inferred: false
+  - stage: "crane"
+    artist: "HORSEGIIRL"
+    raw: "HORSEGIIRL"
+    start: "2026-09-27T20:10:00"
+    end: "2026-09-27T21:00:00"
+    end_inferred: false
+  - stage: "crane"
+    artist: "PARCELS"
+    raw: "PARCELS"
+    start: "2026-09-27T21:30:00"
+    end: "2026-09-27T22:45:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "DEAN TURNLEY"
+    raw: "DEAN TURNLEY"
+    start: "2026-09-27T13:30:00"
+    end: "2026-09-27T14:30:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "SILVA BUMPA"
+    raw: "SILVA BUMPA"
+    start: "2026-09-27T14:30:00"
+    end: "2026-09-27T15:30:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "BRUNELLO"
+    raw: "BRUNELLO"
+    start: "2026-09-27T15:30:00"
+    end: "2026-09-27T16:30:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "VTSS"
+    raw: "VTSS"
+    start: "2026-09-27T16:30:00"
+    end: "2026-09-27T17:30:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "MARLON HOFFSTADT"
+    raw: "MARLON HOFFSTADT"
+    start: "2026-09-27T17:30:00"
+    end: "2026-09-27T18:45:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "TIËSTO"
+    raw: "TIËSTO"
+    start: "2026-09-27T18:45:00"
+    end: "2026-09-27T20:15:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "OVERMONO"
+    raw: "OVERMONO"
+    start: "2026-09-27T20:20:00"
+    end: "2026-09-27T21:20:00"
+    end_inferred: false
+  - stage: "warehouse"
+    artist: "FOUR TET"
+    raw: "FOUR TET"
+    start: "2026-09-27T21:30:00"
+    end: "2026-09-27T23:00:00"
+    end_inferred: false
+  - stage: "ship-tent"
+    artist: "KAYTREE"
+    raw: "KAYTREE"
+    start: "2026-09-27T13:40:00"
+    end: "2026-09-27T14:55:00"
+    end_inferred: false
+  - stage: "ship-tent"
+    artist: "RIRIA"
+    raw: "RIRIA"
+    start: "2026-09-27T14:55:00"
+    end: "2026-09-27T16:10:00"
+    end_inferred: false
+  - stage: "ship-tent"
+    artist: "EAR"
+    raw: "EAR"
+    start: "2026-09-27T16:20:00"
+    end: "2026-09-27T17:00:00"
+    end_inferred: false
+  - stage: "ship-tent"
+    artist: "BEN UFO"
+    raw: "BEN UFO"
+    start: "2026-09-27T17:10:00"
+    end: "2026-09-27T18:30:00"
+    end_inferred: false
+  - stage: "ship-tent"
+    artist: "DAPHNI"
+    raw: "DAPHNI"
+    start: "2026-09-27T18:30:00"
+    end: "2026-09-27T19:50:00"
+    end_inferred: false
+  - stage: "ship-tent"
+    artist: "KELELA"
+    raw: "KELELA"
+    start: "2026-09-27T20:05:00"
+    end: "2026-09-27T20:50:00"
+    end_inferred: false
+  - stage: "ship-tent"
+    artist: "JT"
+    raw: "JT"
+    start: "2026-09-27T21:00:00"
+    end: "2026-09-27T21:30:00"
+    end_inferred: false
+  - stage: "ship-tent"
+    artist: "BABY J"
+    raw: "BABY J"
+    start: "2026-09-27T21:40:00"
+    end: "2026-09-27T22:30:00"
+    end_inferred: false
+  - stage: "despacio"
+    artist: "DESPACIO (Sunday)"
+    raw: "DESPACIO"
+    start: "2026-09-27T15:30:00"
+    end: "2026-09-27T22:30:00"
+    end_inferred: false
+    notes: "Billed more than once on this stage; \"(Sunday)\" tells the events apart."

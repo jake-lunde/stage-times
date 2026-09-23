@@ -78,3 +78,15 @@
   editions:
     - year: 2026
       dates: { first: 2026-11-20, last: 2026-11-22 }
+
+- festival: Portola
+  source: https://portolamusicfestival.com/set-times
+  timezone: America/Los_Angeles
+  form: poster
+  match: SetTimes
+  editions:
+    - year: 2026
+      dates: { first: 2026-09-26, last: 2026-09-27 }
+      # The Sunday set-times image was uploaded 2026-08-27 (its Last-Modified);
+      # the Saturday one was revised 2026-09-21.
+      dropped: 2026-08-27
