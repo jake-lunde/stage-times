@@ -101,6 +101,12 @@ export interface PublishedEdition {
   /** The owner has approved this edition for the homepage. Always a human act. */
   listed: boolean;
   /**
+   * The owner wants this edition first on the homepage's coming shelf, ahead
+   * of the date order. A hand edit; the build carries it forward and never
+   * sets it. Display only — it touches no feed and no `feeds.json`.
+   */
+  pinned?: boolean;
+  /**
    * Taken down — at a rights holder's request, or because its set times moved
    * to another edition (`movedTo`). Feeds keep serving, empty; the page says
    * so. Never deleted, never listed. Unblocking is a revert of the commit that
@@ -683,6 +689,9 @@ export function readPublished(path: string): PublishedFile {
       throw new Error(`${path}: editions["${key}"] needs boolean \`listed\` and \`blocked\` flags`);
     }
     if (!Array.isArray(record.stages)) throw new Error(`${path}: editions["${key}"].stages must be a list`);
+    if (record.pinned !== undefined && typeof record.pinned !== 'boolean') {
+      throw new Error(`${path}: editions["${key}"].pinned must be true or false`);
+    }
     if (record.movedTo !== undefined && typeof record.movedTo !== 'string') {
       throw new Error(`${path}: editions["${key}"].movedTo must be an edition path`);
     }
@@ -839,10 +848,13 @@ export async function run(options: RunOptions = {}): Promise<SiteBuildResult> {
     // may not exist yet, and a static specifier would fail typecheck until it does.
     const spec = './pages.js';
     const mod = (await import(spec)) as {
-      renderSitePages?: (s: SiteManifest, out: string, opts: { assetsDir: string; log: (line: string) => void }) => unknown;
+      renderSitePages?: (s: SiteManifest, out: string, opts: { assetsDir: string; log: (line: string) => void; pinned: string[] }) => unknown;
     };
     if (typeof mod.renderSitePages === 'function') {
-      await mod.renderSitePages(result.site, outDir, { assetsDir: join(root, 'assets'), log });
+      const pinned = Object.entries(result.nextPublished.editions)
+        .filter(([, record]) => record.pinned === true)
+        .map(([path]) => path);
+      await mod.renderSitePages(result.site, outDir, { assetsDir: join(root, 'assets'), log, pinned });
       log('  rendered pages via src/pages.ts');
     } else {
       log('  src/pages.ts exists but exports no renderSitePages(site, outDir) — skipping HTML');

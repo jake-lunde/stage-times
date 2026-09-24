@@ -233,6 +233,19 @@ test('landing: the page moves what has happened, by the device date, and the bui
   assert.equal(empty.includes(LANDING_SCRIPT), false, 'and nothing to sort');
 });
 
+test('landing: a pinned edition leads the coming shelf; the rest keep the date order', () => {
+  const site = buildFixtureSite([harborDoc(), pierDoc(), dstDoc()], {
+    [HARBOR_PATH]: { listed: true },
+    [PIER_PATH]: { listed: true },
+    'dst-check-2026': { listed: true },
+  }).site;
+  const hrefs = (html: string) => cards(html).map((c) => /href="([^"]+)"/.exec(c)![1]);
+  const byDate = hrefs(landing(site));
+  assert.deepEqual(byDate, ['/harbor-lights-2026/', '/fan/pier-nine-2026/', '/dst-check-2026/'], 'unpinned: first festival day');
+  const pinned = hrefs(renderLandingPage(site, { images: COVERS, pinned: ['dst-check-2026'] }));
+  assert.deepEqual(pinned, ['/dst-check-2026/', '/harbor-lights-2026/', '/fan/pier-nine-2026/'], 'the pin goes first, the rest in date order');
+});
+
 test('landing: a phone swipes the shelf, a wide screen shows every card two to a row', () => {
   const html = landing(twoListed());
   assert.match(html, /\.shelf\{[^}]*scroll-snap-type:x mandatory/, 'the phone keeps the swipe shelf');

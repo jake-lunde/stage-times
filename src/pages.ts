@@ -1329,6 +1329,11 @@ export interface LandingOptions {
    * A listed edition with no entry stays off the shelf (`shelvedEditions`).
    */
   images?: Record<string, string>;
+  /**
+   * Edition paths the owner pinned (`pinned: true` in state/published.json):
+   * they lead the coming shelf, in date order among themselves, ahead of the rest.
+   */
+  pinned?: string[];
 }
 
 /**
@@ -1429,7 +1434,12 @@ export const LANDING_SCRIPT = `<script>
 
 export function renderLandingPage(site: SiteManifest, opts: LandingOptions = {}): string {
   const images = opts.images ?? {};
-  const shelved = shelvedEditions(site, images);
+  const pinned = new Set(opts.pinned ?? []);
+  const isPinned = (m: Manifest) => pinned.has(m.festival.basePath.slice(1));
+  // Pinned first, the rest after; each group keeps the date order. Once a
+  // pinned edition is over, the page moves it to the happened shelf like any other.
+  const byDate = shelvedEditions(site, images);
+  const shelved = [...byDate.filter(isPinned), ...byDate.filter((m) => !isPinned(m))];
   const shelf =
     shelved.length === 0
       ? ''
@@ -1498,6 +1508,8 @@ export interface SitePagesOptions {
   assetsDir?: string;
   /** Where a listed edition with no festival art is named. */
   log?: (line: string) => void;
+  /** Edition paths pinned first on the homepage (`LandingOptions.pinned`). */
+  pinned?: string[];
 }
 
 /**
@@ -1510,7 +1522,7 @@ export interface SitePagesOptions {
  *   dist/assets/**                           self-hosted fonts + festival art
  */
 export function renderSitePages(site: SiteManifest, outDir: string, opts: SitePagesOptions = {}): string[] {
-  const { assetsDir = ASSETS_SRC, log = () => {} } = opts;
+  const { assetsDir = ASSETS_SRC, log = () => {}, pinned = [] } = opts;
   const written: string[] = [];
 
   if (existsSync(assetsDir)) {
@@ -1524,7 +1536,7 @@ export function renderSitePages(site: SiteManifest, outDir: string, opts: SitePa
       log(`  ⚠ ${m.festival.basePath.replace(/^\//, '')} is listed but off the homepage — no festival art at assets/festivals/${m.festival.key}.webp`);
     }
   }
-  writeFileSync(join(outDir, 'index.html'), renderLandingPage(site, { images }), 'utf8');
+  writeFileSync(join(outDir, 'index.html'), renderLandingPage(site, { images, pinned }), 'utf8');
   written.push('index.html');
 
   const posters = committedPosters(site, assetsDir);

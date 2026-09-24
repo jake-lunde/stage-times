@@ -10,6 +10,7 @@
     "to this list and never removes. If a slug listed here is missing from the YAML the build refuses",
     "to run, because that URL is still being polled by every subscriber who ever tapped it.",
     "`listed` is the owner's approval for the homepage — always a human edit, never set by the build.",
+    "`pinned` (optional) puts a listed edition first on the homepage's coming shelf, ahead of the date order. A hand edit.",
     "`blocked` takes an edition down: its feeds keep serving, empty, and its page says it was removed.",
     "Setting it is the one-line takedown edit (docs/takedown-runbook.md); unblocking is a revert.",
     "`publishedAt` is the revision stamp for this publish. Bump it whenever you change a data file;",
@@ -110,6 +111,7 @@
       "year": 2026,
       "namespace": "owner",
       "listed": true,
+      "pinned": true,
       "blocked": false,
       "stages": [
         "crane",

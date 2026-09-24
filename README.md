@@ -113,7 +113,7 @@ into both state files.
 
 ### Committed state: listed and blocked
 
-`state/published.json` records, per edition path, the stage-slug ledger and two owner-controlled
+`state/published.json` records, per edition path, the stage-slug ledger and the owner-controlled
 flags:
 
 ```json
@@ -128,6 +128,10 @@ flags:
 - **`listed`** — the owner's approval for the homepage. Always a human act — his confirm, the
   merge of a watcher review, or a hand edit; the build writes `false` on an edition's first build
   and never changes it.
+- **`pinned`** — optional. The owner wants this listed edition first on the homepage's coming
+  shelf, ahead of the date order; several pinned editions keep date order among themselves. A
+  hand edit the build carries forward and never sets. Display only: no feed and no `feeds.json`
+  changes. Once the festival is over the page moves it to the happened shelf like any other.
 - **`blocked`** — the edition was taken down (a rights holder asked, or it moved).
   It still builds: every feed URL it ever served returns a valid calendar with zero events and
   its original calendar name, its page becomes the removed page, and `feeds.json` reports it
