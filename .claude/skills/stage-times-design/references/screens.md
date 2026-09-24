@@ -27,12 +27,12 @@ ships hidden and empty, and without the script every card stays on the first she
 │  Add festival stages directly│  SECTION HEADER: two sentences on one line,
 │  to your calendar. That's it.│  bold lead in ink, quiet tail in --ink-soft,
 │                              │  24 (phone) / 28, expanded 600
-│  ┌────────────────────────┐┌─│  SHELF: scroll-snap x, fixed-height cards
-│  │ AUG 7–9, 2026 · SEATTLE││ │  (450 phone / 500 desktop), 28pt inside,
-│  │ Capitol Hill           ││ │  20pt between, one 18pt radius; a phone
-│  │ Block Party            ││n│  shows one card with a 24pt peek, desktop
-│  │ 79 sets across 4 stages.│e│  two and a bit. Whole card is the link;
-│  │ MUNA · DISCO LINES · … ││x│  no button inside.
+│  ┌────────────────────────┐┌─│  SHELF: scroll-snap x, 450pt cards, 28pt
+│  │ AUG 7–9, 2026 · SEATTLE││ │  inside, 20pt between, one 18pt radius;
+│  │ Capitol Hill           ││ │  a phone shows one card with a 24pt peek.
+│  │ Block Party            ││n│  From 735pt a two-up grid in the 980
+│  │ 79 sets across 4 stages.│e│  column, every card showing. Whole card
+│  │ MUNA · DISCO LINES · … ││x│  is the link; no button inside.
 │  │                        ││t│
 │  │ ░░ the festival's own ░││ │  ART fills the rest, edge to edge: the
 │  │ ░░ art, committed     ░││ │  festival's committed art; no art, no
@@ -57,9 +57,12 @@ whose it is: every edition is the owner's (ADR-0005). **Title** — the festival
 two lines. **Lead** — one bold line, `79 sets across 4 stages.` **Quiet line** — the first
 stage's billed headliners, as the data has them. Then art to the bottom edge.
 
-The hero flood is the only place the brand shouts. Everything below it is quiet. The section
-header, the first card, and the prose all share the measure's left edge; the shelf runs from
-there to the right edge of the viewport. The second shelf repeats the frame under the first,
+The hero flood is the only place the brand shouts. Everything below it is quiet. The wordmark,
+the section header, the first card, and the prose all share one left edge. On a phone the shelf
+runs from there to the right edge of the viewport; from 735pt the page takes the 980pt column
+and the shelf is a two-up grid, so a desktop sees every card and nothing scrolls sideways
+(owner, 2026-09-23 — a strip cut off at the column edge clipped the cards as they scrolled). The
+grid cards keep the art at its 6:5 and grow to hold it; the prose keeps its 44ch. The second shelf repeats the frame under the first,
 one `--gap-section` below. With nothing listed both shelves and their headers are omitted and
 the page is the hero, the prose, and the footer.
 

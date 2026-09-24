@@ -377,7 +377,7 @@ body{margin:0}
   --r-card:18px;
   /* The shelf — references/store-density.md. Phone values; from 735px up, below. */
   --pad-shelf:28px; --gap-shelf:20px; --gap-section:clamp(48px, 6vw, 64px);
-  --h-shelf-card:450px; --w-shelf-card:calc(100vw - 2 * var(--margin) - 24px);
+  --h-shelf-card:450px; --w-shelf-card:calc(100vw - 2 * var(--margin) - 24px);  /* the phone shelf; the grid sizes itself */
   --t-shelf:24px;  /* the shelf header and the card title: one size (Store: 28 / 28) */
   --w-poster:72px;  /* a poster tile, half the height it launched at (owner, 2026-09-23); wider from 735px */
   --t-display:60px; --t-title:40px; --t-card:30px; --t-large:24px;
@@ -387,7 +387,7 @@ body{margin:0}
   --measure:520px;
 }
 @media (min-width:735px){
-  :root{--h-shelf-card:500px; --w-shelf-card:400px; --t-shelf:28px; --w-poster:80px}
+  :root{--t-shelf:28px; --w-poster:80px}
 }
 
 @media (prefers-color-scheme: dark){
@@ -494,9 +494,9 @@ h3{font-size:var(--t-card); line-height:1.05; margin:0}
 
 /* ── landing shelf: the directory (ticket 06; references/store-density.md) ── */
 /* One frame: the section header, the first card, and the prose below all share
-   the measure's left edge. The shelf starts there and runs to the viewport's
-   right edge, so on a phone one card owns the screen with a 24px peek and a
-   desktop shows two and a bit. Pure CSS scroll-snap, no scrollbar. */
+   the column's left edge. On a phone the shelf starts there and runs to the
+   viewport's right edge, so one card owns the screen with a 24px peek. Pure
+   CSS scroll-snap, no scrollbar. From 735px up it is a two-up grid, below. */
 .shelf-section{margin-top:var(--gap-6)}
 .shelf-head{
   margin:0 0 var(--gap-4); font-size:var(--t-shelf); line-height:1.15;
@@ -533,6 +533,16 @@ h3{font-size:var(--t-card); line-height:1.05; margin:0}
 .shelf-art img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover}
 .art-svg{position:absolute; inset:0; width:100%; height:100%}
 .shelf-section+section{margin-top:var(--gap-section)}
+/* A wide screen gets every card, not a strip cut off at the column edge: the
+   page takes the Store's 980 and the cards stack two to a row — the subscribe
+   page's ruling for its stages. The art keeps the 6:5 it is cut to and the card
+   grows to hold it; the two cards in a row stretch to one height. */
+@media (min-width:735px){
+  .shelf{display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); margin:0; width:auto; max-width:none; padding:0; overflow:visible; scroll-snap-type:none}
+  .shelf>li{display:flex}
+  .shelf-card{flex:1; width:auto; height:auto}
+  .shelf-art{flex:1 0 auto; aspect-ratio:6/5}
+}
 
 /* ── upload: top bar + lockup (the subscribe page has the sticky bar below) ── */
 .topbar{padding:var(--gap-3) 0}
@@ -1438,13 +1448,13 @@ export function renderLandingPage(site: SiteManifest, opts: LandingOptions = {})
   `;
 
   const body = `<header class="hero">
-  <div class="wrap">
+  <div class="wrap wrap--wide">
     <h1>Stage<br>Times</h1>
     <p>Set times, by stage.</p>
   </div>
 </header>
 
-<main class="wrap">
+<main class="wrap wrap--wide">
   ${shelf}<section class="prose">
     <p class="eyebrow">What this is</p>
     <p>Add one calendar per stage. The sets show up in the calendar app you already use, and you

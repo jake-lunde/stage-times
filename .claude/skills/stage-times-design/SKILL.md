@@ -222,7 +222,9 @@ Use one per screen; don't blend them.
 6. **Shelf** — the Apple Store landing page: a two-sentence section header (bold lead, quiet
    tail, same size, one line) over a horizontal row of fixed-height, text-first cards with
    28pt inside padding, 20pt between, one 18pt radius. On a phone one card owns the shelf with
-   a 24pt peek; on desktop two and a bit show. Measured values, the density rules, and the
+   a 24pt peek. From 735pt up it is not a shelf at all (owner, 2026-09-23): the page takes the
+   980pt column and every card shows, two to a row, the art held at the 6:5 it is cut to — the
+   stage cards' ruling, for the same reason. Measured values, the density rules, and the
    mapping onto our tokens are in `references/store-density.md` — load it before building any
    page that lists more than one thing. **This is the homepage directory (ticket 06).**
 
@@ -372,7 +374,7 @@ The six that decide most lines:
 - [ ] Stage art is drawn from the sets, never from a clock or `Math.random()` — build output
       stays byte-identical; directory card art is the festival's own committed image
 - [ ] On a wide screen nothing scrolls sideways that is cut off at the column edge — the
-      stage carousel is a two-up grid from 735pt
+      stage carousel and the homepage shelf are two-up grids from 735pt
 - [ ] No `box-shadow`, no `linear-gradient`
 - [ ] Nothing is pure `#FFF` or pure `#000`
 - [ ] No cream text under 17pt on any colored surface (see contrast table)

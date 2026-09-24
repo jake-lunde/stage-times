@@ -233,6 +233,17 @@ test('landing: the page moves what has happened, by the device date, and the bui
   assert.equal(empty.includes(LANDING_SCRIPT), false, 'and nothing to sort');
 });
 
+test('landing: a phone swipes the shelf, a wide screen shows every card two to a row', () => {
+  const html = landing(twoListed());
+  assert.match(html, /\.shelf\{[^}]*scroll-snap-type:x mandatory/, 'the phone keeps the swipe shelf');
+  assert.match(html, /<header class="hero">\s*<div class="wrap wrap--wide">/, 'the wordmark takes the wide column');
+  assert.match(html, /<main class="wrap wrap--wide">/, 'and so does the page under it: one left edge');
+  const grid = /@media \(min-width:735px\)\{\s*\.shelf\{[^@]*?\n\}/.exec(html)?.[0] ?? '';
+  assert.match(grid, /\.shelf\{display:grid; grid-template-columns:repeat\(2, minmax\(0, 1fr\)\)/, 'from tablet up, two cards to a row');
+  assert.match(grid, /\.shelf\{[^}]*overflow:visible; scroll-snap-type:none\}/, 'nothing scrolls sideways, so nothing is cut off at the column edge');
+  assert.match(grid, /\.shelf-art\{[^}]*aspect-ratio:6\/5\}/, 'the art keeps the 6:5 it is cut to');
+});
+
 // ===========================================================================
 // Art: the festival's own, or the edition waits off the shelf
 // ===========================================================================
@@ -303,7 +314,7 @@ test('landing: the shelf density tokens are the Store’s, and the shelf is CSS 
   assert.match(html, /\.shelf\{[^}]*scrollbar-width:none/, 'the peek is the affordance, not a scrollbar');
   assert.match(html, /\.shelf\{[^}]*max-width:980px/, 'a shelf spans at most the Store’s 980');
   assert.match(html, /--w-shelf-card:calc\(100vw - 2 \* var\(--margin\) - 24px\)/, 'one card owns a phone with a 24px peek');
-  assert.match(html, /--h-shelf-card:500px/, 'taller from tablet up');
+  assert.match(html, /\.shelf-card\{flex:1; width:auto; height:auto\}/, 'from tablet up the card grows to hold its art');
 });
 
 test('landing: no shadow, no gradient, no third-party request, fonts self-hosted', () => {

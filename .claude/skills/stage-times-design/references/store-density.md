@@ -174,7 +174,8 @@ column of every decision is "ours."
    Inside padding is nearly the width of the shelf gap plus half again: the card breathes
    more than the shelf does.
 5. **On a phone one card owns the shelf at ~82% width with a 24px peek; on desktop two and a
-   bit are visible.** Fixed card height per shelf so the row reads as a row.
+   bit are visible.** Fixed card height per shelf so the row reads as a row. (Ours, from
+   735px: every card shows, two to a row, one height per row — see the 980 row below.)
 6. **One radius for every card and tile.** Buttons and chips stay capsules; nothing else is.
 7. **Two weights, six sizes, whole page.** If a third weight appears, something is being
    faked.
@@ -198,14 +199,14 @@ column of every decision is "ours."
 | 20px shelf gap | `--gap-2` 12 in the carousel | **Adopt 20px** for every shelf (`--gap-shelf`). |
 | 22px gutter | `--margin` 16 | Keep 16 — measured off the phone reference; on our 320px floor 22 costs too much. |
 | 82% card + 24px peek | carousel: ~86vw + ~24pt peek | Already ours. Set the card to `calc(100vw - 2*var(--margin) - 24px)` so the peek is exactly 24 — the ~86% figure in SKILL.md was the phone-screenshot approximation of the same thing. |
-| Fixed 500 / 450 card height | aspect-ratio cards | **Adopt fixed height per shelf** (`--h-shelf-card`), text top, art fills the rest. |
+| Fixed 500 / 450 card height | aspect-ratio cards | **Adopt fixed height per shelf** (`--h-shelf-card`), text top, art fills the rest. From 735px the grid card is half the column and grows to hold its art at 6:5; the two in a row stretch to one height. |
 | Text-top, art-bottom card | media card: art top, text bottom | **Adopt text-top for directory cards.** The stage cards on the subscribe page keep art-top because the headliner preview lives in the art. Two card species, one radius, one padding. |
 | Bold lead + grey tail header | `.eyebrow` mono caps above a section | **Adopt the two-sentence header** for shelf sections. Eyebrows remain for card-internal labels. |
 | 24 header→shelf, 64 shelf→header | `section{margin-top:--gap-6}` (40) | **Adopt** `--gap-4` (24) above a shelf and a new `--gap-section` between shelves. |
 | JS scrolling, no snap | CSS `scroll-snap-type:x mandatory` | Keep ours. |
 | Desktop hover paddle arrows | none | Keep none by default. Trackpads and drag scroll a snap shelf; arrows would need JS. Jake's call if desktop testing says otherwise. |
 | Outlined 38px chips | filled 32px chips | Keep ours. |
-| 980px content column | `--measure` 520 | **Shelves break out of the measure.** Prose stays at 520; a shelf spans `min(980px, 100vw)` with its cards at a fixed width so 2–3 show on desktop. |
+| 980px content column | `--measure` 520 | **From 735px the landing takes the 980 column** (`.wrap--wide`, as the subscribe page does) and the shelf becomes a two-up grid: every card shows, nothing scrolls sideways (owner, 2026-09-23). The first cut ran a scrolling shelf from the measure's edge to the viewport's, which clipped cards mid-screen as they scrolled. Prose keeps its 44ch. |
 
 ### Token changes
 
@@ -216,8 +217,8 @@ Add to `:root` in `pages.ts` and the token block in `SKILL.md`:
 --pad-shelf:     28px;   /* inside a shelf card; --pad-card 16 stays for compact cards */
 --gap-shelf:     20px;   /* between cards on a shelf */
 --gap-section:   clamp(48px, 6vw, 64px);  /* between a shelf and the next header */
---h-shelf-card:  450px;  /* phone; 500px from 735px up */
---w-shelf-card:  calc(100vw - 2 * var(--margin) - 24px);  /* phone; 400px from 735px up */
+--h-shelf-card:  450px;  /* phone; from 735px the grid card grows to hold 6:5 art */
+--w-shelf-card:  calc(100vw - 2 * var(--margin) - 24px);  /* phone; from 735px half the 980 column */
 ```
 
 **Ruled 2026-09-20: unify.** One radius, 18px, on every card and tile — the shelf cards,
