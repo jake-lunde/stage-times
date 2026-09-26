@@ -344,14 +344,14 @@ export interface TranscriptionOptions {
   edits?: SetEdit[];
   /**
    * True when a human has checked every set against the source image — the
-   * owner's confirm, or the merge of a watcher's review. Writes `verified: true`, which is what
+   * owner's confirm. Writes `verified: true`, which is what
    * a production build requires. Defaults to false: a transcription nobody has
    * looked at is never pre-verified.
    */
   verified?: boolean;
   /**
    * The edition as it is live, when this reading is a new one of its source
-   * (the watcher's change). A stage read whose derived id is a live stage's
+   * (a re-reading of the same poster). A stage read whose derived id is a live stage's
    * `read_as`, or its id, keeps that stage's id and name, and the live `city`
    * and `colors` carry over, so what the owner set by hand survives the reading.
    */

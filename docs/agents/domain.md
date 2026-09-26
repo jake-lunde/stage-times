@@ -24,9 +24,9 @@ Deciding *where a decision goes* is the load-bearing part:
   — Jake's **taste, product, and process** calls: how he wants the work
   done, what a thing should feel like. Never duplicate these as ADRs; an
   ADR may *cite* a ruling by date.
-- **`CLAUDE.md`** — binding law only, and it stays short by pointing at
-  `README.md`, `HANDOFF.md`, and the design skill rather than repeating
-  them.
+- **`CLAUDE.md`** — binding law and standing facts only, and it stays
+  short by pointing at `README.md` and the design skill rather than
+  repeating them.
 - **The design skill** (`.claude/skills/stage-times-design/`) — every
   visual and copy rule. Load it before touching HTML, CSS, or copy.
 - **Claude memory files** — machine mechanics and tool gotchas, never

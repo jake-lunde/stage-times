@@ -12,8 +12,6 @@
     "palette": "python3 scripts/palette.py",
     "test": "tsx --test tests/*.test.ts",
     "smoke": "tsx tests/smoke.ts",
-    "watch": "tsx src/watch.ts",
-    "look-ahead": "tsx src/monthly.ts",
     "vercel-build": "npm test && npm run build"
   },
   "devDependencies": {

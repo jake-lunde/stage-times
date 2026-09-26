@@ -61,8 +61,8 @@ export interface Stage {
   /**
    * The id a transcription of the source derives for this stage, when the
    * owner picked a different `id` or `name` by hand (`tito-s-handmade-vodka-weekend-1`
-   * for `titos-weekend-1`). A later reading of the source — the watcher's —
-   * maps a stage it derives this id for back onto this one, so the hand-picked
+   * for `titos-weekend-1`). A later reading of the source maps a stage it
+   * derives this id for back onto this one, so the hand-picked
    * id and name survive it. Never touches a feed. Absent means the id is the
    * derived one.
    */

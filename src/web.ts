@@ -1,12 +1,12 @@
 /**
- * Stage Times — the web, as the watcher and the link intent read it.
+ * Stage Times — the web, as the link intent reads it.
  *
  * Pure functions over a page someone else published: every image a schedule
  * page shows, what an image's first bytes say about its size, and whether an
  * address is one a request may be sent to at all. Nothing in here opens a
  * socket or resolves a name; the ports do that (`src/ports.ts`), and the
- * watcher (`src/watcher.ts`) and the publisher's link intent (`src/publisher.ts`)
- * decide what to do with what comes back.
+ * publisher's link intent (`src/publisher.ts`) decides what to do with what
+ * comes back.
  *
  * The address rules exist because the link intent fetches whatever a stranger
  * types. A link never reaches a private, loopback, link-local or otherwise

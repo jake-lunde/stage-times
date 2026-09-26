@@ -9,8 +9,8 @@ The insight the architecture rests on: **iCalendar has no field for "which calen
 belong to."** Calendar assignment happens at subscribe time, one target calendar per feed URL.
 Per-stage calendars are therefore only expressible as N separate feeds. That's the product.
 
-Where the work stands lives in the jaique vault (`docs/agents/issue-tracker.md`); the standing
-facts and the working agreement are in **[HANDOFF.md](./HANDOFF.md)**.
+Where the work stands lives in the jaique vault (`docs/agents/issue-tracker.md`); the rules for
+working in this repo are in **[CLAUDE.md](./CLAUDE.md)**.
 
 ---
 
@@ -125,9 +125,8 @@ flags:
 }
 ```
 
-- **`listed`** — the owner's approval for the homepage. Always a human act — his confirm, the
-  merge of a watcher review, or a hand edit; the build writes `false` on an edition's first build
-  and never changes it.
+- **`listed`** — the owner's approval for the homepage. Always a human act — his confirm or a
+  hand edit; the build writes `false` on an edition's first build and never changes it.
 - **`pinned`** — optional. The owner wants this listed edition first on the homepage's coming
   shelf, ahead of the date order; several pinned editions keep date order among themselves. A
   hand edit the build carries forward and never sets. Display only: no feed and no `feeds.json`
@@ -160,11 +159,6 @@ npm run smoke -- <base-url>    # gate 8: curl every feed of every edition, asser
 npm run ingest -- <image>      # source image → edition YAML + ambiguity log (calls the model)
 npm run ingest:eval            # re-score the CHBP posters against the 79 hand-verified sets
 npm run ingest:eval -- --trials 2 --record 2026-09-13   # …and rewrite the committed eval record
-npm run watch                  # the watcher, then the signal: poll what is due on this run (calls the model on a drop)
-npm run watch -- --due         # …or just say which entries would be polled now
-npm run watch -- --force       # …or poll every entry whose festival is not over
-npm run look-ahead             # open this month's look-ahead issue (the 1st of each month, scheduled)
-npm run look-ahead -- --dry-run --on 2026-10-01   # …or print it, as that day's run would write it
 ```
 
 Transcription is a library: `transcribe()` in `src/transcription.ts` takes the raw model output
@@ -197,7 +191,7 @@ wall clock.
 
 Every edition is the owner's ([ADR-0005](./docs/adr/0005-every-edition-is-the-owners.md)).
 `src/publisher.ts` is the one seam that makes one: an **intent** plus injected ports for vision,
-repository writes, notifications, the clock and randomness go in, and the writes it would make
+repository writes, the clock and randomness go in, and the writes it would make
 come out. Nothing in it reads a file, calls a model, opens a socket or looks at a clock, so every
 rule below is tested with fakes and no API key (`tests/publisher.test.ts`).
 
@@ -205,10 +199,7 @@ Three intents exist — `upload`, `link` and `confirm` — and every one carries
 from his bookmarked link, `/upload/#owner=<secret>`. The **owner port** checks it against
 `OWNER_SECRET` in constant time, **before any other gate**: a missing, wrong, empty or
 unconfigured secret is refused (`owner`, HTTP 403) before a field is judged, a name resolved, a
-page fetched, a model asked or a byte written. The **watcher** (`src/watcher.ts`) is the same
-shape from the other side: the same ports plus one for pages, and its reviews carry the edition
-exactly as the owner's confirm would commit it. The **signal** (`src/signal.ts`) is a third, for
-festivals the watcher cannot read. Procedure and secret rotation:
+page fetched, a model asked or a byte written. Procedure and secret rotation:
 [docs/owner-runbook.md](./docs/owner-runbook.md).
 
 **`upload`** — the source images, one per day in day order, plus a festival name and dates. One
@@ -238,7 +229,7 @@ the festival's own when it is on record in the almanac, else the default, marked
 a public http(s) web address, and every address its host resolves to has to be public too — a
 private, loopback or link-local address is refused before anything is asked of it (`publicLink()`
 and `isPublicAddress()` in `src/web.ts`), and the live port refuses one again at connect time on
-every redirect. The page is read the way the watcher reads one (`imageUrlsIn()`); every image on
+every redirect. The page's images are found by `imageUrlsIn()`; every image on
 it is fetched and dropped by the size in its header when it cannot be a schedule; at most the
 upload image limit are kept, the largest first, and the review's notes say when more were left
 out. Each survivor then takes an uploaded image's own path: the transcription store (a hit is a
@@ -263,103 +254,20 @@ path is refused, never replaced or suffixed. **The publish stamp is the injected
 place a real time enters the system, and it enters as committed state, so the build still never
 reads a wall clock.
 
-Changing a published edition is the watcher's review of a change on its schedule page, or a hand
-edit to the YAML ("Pushing a schedule change", below). Nothing in the publisher replaces one.
+Changing a published edition is a hand edit to the YAML ("Pushing a schedule change", below).
+Nothing in the publisher replaces one.
 
-### The watcher
+### The almanac
 
-The automation that notices a drop, or a change after a drop, on a festival's official schedule
-page (CONTEXT: watcher). The owner names the festivals in `config/watch.yaml` — festival, year,
-the schedule page, the zone, the days and the drop window; adding one is adding an entry — and
-`.github/workflows/watch.yml` runs `npm run watch` every hour with no server to keep alive.
-Which entries a run polls is the cadence: **hourly inside the drop window, daily before it (the
-15:00 UTC run), never after the festival's last day** (`cadenceOf()`, `isDue()`).
+`config/festivals.yaml` is the **almanac**: the big festivals, each with its schedule page, the
+zone its times are printed in, and its editions' days. The publisher reads it for one thing: a
+link or upload for a festival on record is read in that festival's own zone rather than the
+default (`zoneOnRecord()` in `src/almanac.ts`). The rest is a record for adding next year's
+edition by hand. It guesses no date and calls no model.
 
-One poll of one entry (`watch()` in `src/watcher.ts`, over the publisher's ports plus a page
-port):
-
-1. fetch the page and list every image it shows (`imageUrlsIn()`: the share image, CSS
-   backgrounds, `img` and `source` with the largest `srcset` candidate, lazy `data-src`, links
-   straight to an image), narrowed by the entry's `match` when it has one;
-2. hash each image; an image seen before is already decided;
-3. a new image goes through the free gates (`imageDimensions()` reads the size off the header,
-   then the publisher's type, size and dimension checks) and then, and only then, the cheap
-   "is this a schedule" check — **once, ever, per distinct image**; the verdict is committed;
-4. the schedule images as a set against the set recorded last time: the same set is nothing;
-   a first set is a **drop**; a different set is a **change**;
-5. a drop or a change is transcribed (each image once, ever — the publisher's store, so an
-   upload of the same image is free afterwards and vice versa), read through the same library
-   and schema as an upload with `namespace: owner` and `verified: true`, and offered as a
-   **review pull request**: branch `watch/<key>/<12 hex of the image hashes>` off the run's
-   state commit, carrying `data/<key>.yaml`, the log, every source image, and
-   `state/published.json` with the edition recorded `listed: true`. **Merging it publishes and
-   lists the edition through the owner path; merging is the human check.** Nothing is
-   published by a poll.
-
-What the review says depends on what is live. An edition not yet published gets the whole
-schedule in the body — every set by stage and day with its inferred-end and look-here flags,
-the model's notes, each image inline from the branch, and a link to the log — titled
-`Set times dropped: <Festival> <Year>`. A **change to a live edition** is a per-set diff against
-the committed YAML (`diffSets()`, keyed as the UID is), titled with what moved
-(`<Festival> <Year>: <artist> moved, <artist> added`), whose commit replaces the YAML and log
-in place under the same slug and stage ids and moves `publishedAt`, so the build advances
-SEQUENCE for exactly the events that changed. A new reading keeps the live edition's stage ids
-and names and its `city`: a stage whose id or name the owner picked by hand carries
-`read_as:`, the id a reading derives for it (`titos-weekend-1` reads as
-`tito-s-handmade-vodka-weekend-1`), and `transcribe()` maps it back. A change before the first review is merged
-replaces that review: a new branch, the whole schedule again, and what moved since the earlier
-reading. A new image that reads the same as what is live (or as the earlier reading) is a
-change with nothing to review, recorded and not asked about again.
-
-What stops a review, and tells the owner why in a `watch-failed` issue with the image links:
-images that read as another year than the entry watches; a reply the library or the schema
-refuses; a change that would drop a stage the live edition has (gate 4 would refuse the build);
-a review pull request that will not open (the issue carries what it would have said). A blocked
-edition gets no review. An unreachable page is reported and writes nothing; so does a page that
-has not changed — **an hourly poll of a quiet page is free and leaves no trace.**
-
-Procedure — adding a festival, verifying from the phone, running it by hand, the secrets:
-[docs/watcher-runbook.md](./docs/watcher-runbook.md). The first three entries are ACL, III
-Points and Camp Flog Gnaw for 2026; ACL's page carries both weekends and one edition is one
-weekend (the same artist on the same stage twice collides on UID — the known limitation above),
-so its entry matches `Wk2`.
-
-### The signal
-
-For a festival whose set times only appear in an app or a social post (CONTEXT: signal). A watch
-entry may name the festival's subreddit (`subreddit: <name>`); the same hourly job, after the
-watcher, reads each named subreddit's newest posts **inside the entry's drop window only**, through
-Reddit's public JSON listing with no credentials (`signal()` over the publisher's ports plus a
-Reddit port). A post fires when its title is about set times (`SET_TIMES_RE`: set times, stage
-times, timetable, schedule), it was posted inside the window, it names no other year, and it has
-at least `SIGNAL_MIN_VOTES` (10). Each post fires **once, ever**: the owner gets a `signal` issue
-titled `Set times on Reddit: <Festival> <Year>` whose body is the post's reddit.com link and
-nothing else, and the post id is recorded in `state/signal.json`. A notice that will not send is
-not recorded, so the next run sends it. No image is fetched, no model is called, nothing is
-created; the owner goes and gets the screenshot and uploads it through the bookmark.
-
-Staying inside the public endpoint's limits: one request per subreddit per run (entries that
-share a subreddit share it), six seconds between requests, and nothing more this run after a 429
-or once `x-ratelimit-remaining` reaches zero. It says who it is: `web:app.stagetimes.signal:v1.0
-(+https://stagetimes.app)`. An unreachable subreddit is reported in the run log and writes
-nothing.
-
-### The look-ahead
-
-Once a month, what is coming (ticket 13). `config/festivals.yaml` is the **almanac**: the big
-festivals, each with its source page, zone, the form its set times take (`poster`, `web`, `app`,
-`social`, `unknown`), and one record per edition: its days and, once it has happened, the day its
-set times dropped. `.github/workflows/look-ahead.yml` runs `npm run look-ahead` at 15:00 UTC on
-the 1st, and `lookAhead()` in `src/look-ahead.ts` (notify and clock ports, nothing else) sends one
-`look-ahead` issue titled `Look-ahead for <Month> <Year>: <first day> to <last day>`: every
-almanac edition whose first day falls in the next ninety days, counting the run's day, with its
-dates, the drop expected at the previous edition's lead (`Around 14 Aug (8 weeks ahead, as in
-2025)`, or *No earlier drop on record*), the source form, and whether `config/watch.yaml` has it.
-An unwatched edition gets a checkbox and the exact watch entry to append, its window opening a
-week before the expected drop — or eleven weeks before the first day when there is nothing to go
-by — and never before the run's day. A festival whose next days are not in the almanac shows up
-as *Not on record* when last year's days come round, so the almanac gets fixed rather than the
-edition missed. It guesses no date, writes no state, and calls no model.
+(An hourly watcher, a Reddit signal and a monthly look-ahead were built on 2026-09-21, switched
+off on 2026-09-23, and removed on 2026-09-26: five festivals are added by hand. They are in the
+git history.)
 
 ### The state the publisher owns
 
@@ -370,8 +278,6 @@ edition missed. It guesses no date, writes no state, and calls no model.
 | `source/images/<hash>.<ext>` | the stored source image. Never served. |
 | `source/<key>/TRANSCRIPTION.md` | the edition's log, with every correction made on review. |
 | `state/screened.json` | every image a link's schedule check said no to, by content hash, so the same page is never asked about twice. Written only when the check said no. Nothing in the build reads it. |
-| `state/signal.json` | every subreddit post the signal has sent the owner, per edition, by post id. Written only when a post was sent. Nothing in the build reads it. |
-| `state/watch.json` | what the watcher has seen on each watched page: every image by content hash with its one-time schedule verdict, and the schedule images as of the last drop or change. Written only when an image is new. Nothing in the build reads it. |
 
 ### Over HTTP
 
@@ -379,11 +285,9 @@ edition missed. It guesses no date, writes no state, and calls no model.
 return what it said. `src/publisher-http.ts` holds what they share (field readers, the base64
 image, the gate-to-status-code map) and `src/ports.ts` holds the live ports — GitHub's Git Data
 API for the commit (one tree per intent, because a half-applied publish is an edition whose feeds
-exist and whose state does not) and for the watcher's review pull requests, the web a link points at
+exist and whose state does not), the web a link points at
 (`liveWeb()`: redirects followed by hand, every connection through a resolver that refuses a
-non-public address), a GitHub issue for the
-notification (its title and body and nothing else — the repository is public), `OWNER_SECRET`
-for the owner port, and `src/vision.ts` for both model calls. A test asserts the adapters import
+non-public address), `OWNER_SECRET` for the owner port, and `src/vision.ts` for both model calls. A test asserts the adapters import
 nothing but those three modules. All three take `owner`, and without the right one answer 403.
 Upload and confirm take an `images` list or a single `image`; confirm takes the review's hashes
 back as `reviewed`, and a rejection about one image carries its position as `image`. Link takes
@@ -539,10 +443,7 @@ scripts/provision-secrets.sh
 | `OWNER_SECRET` | What the owner's bookmarked upload link is checked against | Generated by the wizard, 32 random bytes |
 
 The wizard signs you in to the Vercel CLI, opens each page, captures the value, sets it for
-both environments, and offers to rotate anything that already exists. Re-run it to rotate. It
-also sets `ANTHROPIC_API_KEY` as a **GitHub Actions repository secret** for the hourly watcher
-(`.github/workflows/watch.yml`); the watcher's `GITHUB_TOKEN` is the workflow's own, with
-contents, pull-requests and issues write permission declared in the workflow.
+both environments, and offers to rotate anything that already exists. Re-run it to rotate.
 Nothing is committed, logged, or written to the vault; the API key alone is also written to a
 gitignored `.env` so `npm run ingest` can use it locally.
 

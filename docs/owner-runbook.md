@@ -37,17 +37,16 @@ One commit to `main`:
 - the stored source images go to `source/images/<hash>.<ext>`;
 - the edition is recorded in `state/published.json` under `<festival>-<year>` with
   **`listed: true`** in the same commit — your tap is the approval;
-- no pull request and no notification: nothing machine-initiated happened.
+- no pull request and no notification.
 
 An edition that already exists at that path is **refused**, never replaced and never suffixed.
-To change a published edition's times, merge the watcher's review pull request when there is
-one, or edit its YAML (README, "Pushing a schedule change").
+To change a published edition's times, edit its YAML (README, "Pushing a schedule change").
 
 **Stage ids are permanent from this commit** — and the commit deploys. The review screen does
 not let you rename a stage, so when the ids a reading derives are not ones you want forever
 (`tito-s-handmade-vodka-weekend-1`), build the edition locally instead: transcribe the stored
-readings with the stages you picked, each carrying `read_as:` so the watcher maps its readings
-back onto them (README, the watcher). ACL 2026 was made this way.
+readings with the stages you picked, each carrying `read_as:` so a later reading of the same
+poster maps back onto them. ACL 2026 was made this way.
 
 ## Rotating the owner secret
 

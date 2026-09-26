@@ -2,12 +2,12 @@
  * Stage Times — the almanac: what is on record about the big festivals
  * (`config/festivals.yaml`).
  *
- * Committed configuration, like the watch list: each festival's schedule
- * page, the zone its times are printed in, the form its source takes, and its
- * editions' days — and for a past edition the day its set times dropped. Two
- * readers: the monthly look-ahead (src/look-ahead.ts) reads the editions, and
- * the publisher reads the zone, so a link to a festival on record is read in
- * that festival's own zone rather than the default (src/publisher.ts).
+ * Committed configuration: each festival's schedule page, the zone its times
+ * are printed in, the form its source takes, and its editions' days — and for
+ * a past edition the day its set times dropped. One reader: the publisher
+ * reads the zone, so a link to a festival on record is read in that
+ * festival's own zone rather than the default (src/publisher.ts). The rest is
+ * kept as a record for whoever adds next year's edition by hand.
  *
  * Nothing here reads a file: the loader takes the YAML text and the callers
  * own the I/O. Nothing here is guessed either — the almanac is what somebody
@@ -21,10 +21,7 @@ import { slugify } from './transcribe.js';
 /** `YYYY-MM-DD`. The publisher's own, repeated here so this module stays below it. */
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-/**
- * Where a festival's set times appear. Only `poster` is something the watcher
- * reads; the rest reach the owner through the signal or an upload.
- */
+/** Where a festival's set times appear. */
 export const SOURCE_FORMS = {
   poster: 'Images on the site',
   web: 'Text on the site',
@@ -46,13 +43,13 @@ export interface AlmanacEdition {
 /** One festival, as committed configuration (`config/festivals.yaml`). */
 export interface AlmanacFestival {
   festival: string;
-  /** Permanent URL slug, derived from the name when omitted — the watch entry's slug. */
+  /** Permanent URL slug, derived from the name when omitted. */
   slug: string;
-  /** The page to watch: the schedule page, or the lineup page until one exists. */
+  /** The schedule page, or the lineup page until one exists. */
   source: string;
   timezone: string;
   form: SourceForm;
-  /** Carried into the watch entry as it is. */
+  /** Kept as a record; nothing reads it now. */
   match?: string;
   subreddit?: string;
   /** Oldest first. */
@@ -93,7 +90,7 @@ function almanacFestival(item: unknown, n: number): AlmanacFestival {
   if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)) fail(`slug must be lowercase words joined by hyphens, not ${JSON.stringify(slug)}`);
 
   const source = typeof obj['source'] === 'string' ? obj['source'].trim() : '';
-  if (!/^https?:\/\/\S+$/.test(source)) fail('source is required: the page to watch, as an http(s) link');
+  if (!/^https?:\/\/\S+$/.test(source)) fail('source is required: the schedule page, as an http(s) link');
 
   const timezone = typeof obj['timezone'] === 'string' ? obj['timezone'] : '';
   if (!timezone || !isValidTimeZone(timezone)) fail(`timezone is required, as an IANA zone${timezone ? ` (${timezone} is not one)` : ''}`);

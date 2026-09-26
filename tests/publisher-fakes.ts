@@ -17,13 +17,10 @@ import { join } from 'node:path';
 import {
   type ClockPort,
   type Commit,
-  type Notification,
-  type NotifyPort,
   type OwnerPort,
   type Progress,
   type ProgressPort,
   type PublisherPorts,
-  type PullRequest,
   type RandomPort,
   type RepositoryPort,
   type SavedTranscription,
@@ -33,9 +30,7 @@ import {
   type WebPort,
 } from '../src/publisher.js';
 import type { PublishedFile } from '../src/build.js';
-import type { FetchedImage, PagePort } from '../src/watcher.js';
-import type { WebPage } from '../src/web.js';
-import type { RedditPort } from '../src/signal.js';
+import type { FetchedImage, WebPage } from '../src/web.js';
 import { REPO_ROOT } from './helpers.js';
 
 // ---------------------------------------------------------------------------
@@ -145,10 +140,6 @@ export interface FakeRepository extends RepositoryPort {
   transcriptions: Map<string, SavedTranscription>;
   /** Every commit applied, in order. */
   commits: Commit[];
-  /** Every pull request opened, in order. Nothing in one is applied until `merge()`. */
-  pullRequests: PullRequest[];
-  /** Apply an opened pull request's commit, as merging it from the GitHub app would. */
-  merge(pr: PullRequest): Promise<void>;
   /** The contents of a committed text file, latest write wins. */
   file(path: string): string | undefined;
   /** Every path any commit wrote, text and images. */
@@ -158,8 +149,6 @@ export interface FakeRepository extends RepositoryPort {
 export const FIXED_PUBLISHED_AT = '20260101T000000Z';
 
 export interface FakeRepositoryOptions extends Partial<Pick<FakeRepository, 'published'>> {
-  /** Make opening a pull request fail, as GitHub would with a token missing that permission. */
-  pullRequestsFail?: boolean;
   /** Text files already on main when the test starts, by path — the almanac, say. */
   files?: Record<string, string>;
 }
@@ -170,7 +159,6 @@ export function fakeRepository(initial: FakeRepositoryOptions = {}): FakeReposit
     published: initial.published ?? { publishedAt: FIXED_PUBLISHED_AT, editions: {} },
     transcriptions: new Map(),
     commits: [],
-    pullRequests: [],
     async readPublished() {
       return repo.published;
     },
@@ -193,13 +181,6 @@ export function fakeRepository(initial: FakeRepositoryOptions = {}): FakeReposit
       }
       return `commit-${repo.commits.length}`;
     },
-    async openPullRequest(pr) {
-      if (initial.pullRequestsFail) throw new Error('GitHub pull request write answered HTTP 403: Resource not accessible');
-      repo.pullRequests.push(pr);
-    },
-    async merge(pr) {
-      await repo.commit(pr.commit);
-    },
     file(path) {
       return files.get(path);
     },
@@ -211,7 +192,7 @@ export function fakeRepository(initial: FakeRepositoryOptions = {}): FakeReposit
 }
 
 // ---------------------------------------------------------------------------
-// Clock, randomness, notifications
+// Clock and randomness
 // ---------------------------------------------------------------------------
 
 /** 2026-10-09T18:30:00Z — ACL weekend two, which is what this is all for. */
@@ -241,15 +222,6 @@ export function fakeRandom(seed = 7): RandomPort {
       return Uint8Array.from({ length: n }, (_, i) => (seed + call + i) % 256);
     },
   };
-}
-
-export interface FakeNotifier extends NotifyPort {
-  sent: Notification[];
-}
-
-export function fakeNotifier(): FakeNotifier {
-  const sent: Notification[] = [];
-  return { sent, async send(n) { sent.push(n); } };
 }
 
 // ---------------------------------------------------------------------------
@@ -288,7 +260,6 @@ export function fakeOwner(secret: string | null = OWNER_SECRET): OwnerPort {
 export interface Fakes extends PublisherPorts {
   vision: FakeVision;
   repo: FakeRepository;
-  notify: FakeNotifier;
   clock: FakeClock;
 }
 
@@ -296,7 +267,6 @@ export function fakePorts(overrides: Partial<Fakes> = {}): Fakes {
   return {
     vision: overrides.vision ?? fakeVision(),
     repo: overrides.repo ?? fakeRepository(),
-    notify: overrides.notify ?? fakeNotifier(),
     clock: overrides.clock ?? fakeClock(),
     random: overrides.random ?? fakeRandom(),
     owner: overrides.owner ?? fakeOwner(),
@@ -305,7 +275,7 @@ export function fakePorts(overrides: Partial<Fakes> = {}): Fakes {
 }
 
 // ---------------------------------------------------------------------------
-// Image bytes with real headers, for the watcher
+// Image bytes with real headers
 // ---------------------------------------------------------------------------
 
 /**
@@ -355,60 +325,6 @@ export function webpBytes(width: number, height: number, seed = 'webp'): Uint8Ar
     ...chunk,
     ...tail,
   ]);
-}
-
-// ---------------------------------------------------------------------------
-// Pages, for the watcher
-// ---------------------------------------------------------------------------
-
-export interface FakePages extends PagePort {
-  /** Every page URL asked for, in order. */
-  pageFetches: string[];
-  /** Every image URL asked for, in order. */
-  imageFetches: string[];
-  /** Change what a URL answers with between polls. */
-  pages: Record<string, string | null>;
-  images: Record<string, FetchedImage | null>;
-}
-
-/**
- * Recorded schedule pages: a URL answers with its HTML, an image URL with its
- * bytes, and anything else with nothing — as a page that is down would.
- */
-export function fakePages(initial: { pages?: Record<string, string | null>; images?: Record<string, FetchedImage | null> } = {}): FakePages {
-  const pages: FakePages = {
-    pageFetches: [],
-    imageFetches: [],
-    pages: { ...initial.pages },
-    images: { ...initial.images },
-    async page(url) {
-      pages.pageFetches.push(url);
-      return pages.pages[url] ?? null;
-    },
-    async image(url) {
-      pages.imageFetches.push(url);
-      return pages.images[url] ?? null;
-    },
-  };
-  return pages;
-}
-
-/** A schedule page showing the given images, in order, plus the logo every page has. */
-export function schedulePage(imageUrls: string[]): string {
-  return [
-    '<!DOCTYPE html><html><head><title>Schedule</title></head><body>',
-    '<img src="https://lowtide.example/img/logo.png" alt="Low Tide">',
-    ...imageUrls.map((u, i) => `<img src="${u}" alt="Day ${i + 1}">`),
-    '</body></html>',
-  ].join('\n');
-}
-
-export interface WatcherFakes extends Fakes {
-  pages: FakePages;
-}
-
-export function fakeWatcherPorts(overrides: Partial<WatcherFakes> = {}): WatcherFakes {
-  return { ...fakePorts(overrides), pages: overrides.pages ?? fakePages() };
 }
 
 // ---------------------------------------------------------------------------
@@ -467,41 +383,4 @@ export interface LinkFakes extends Fakes {
 
 export function fakeLinkPorts(overrides: Partial<LinkFakes> = {}): LinkFakes {
   return { ...fakePorts(overrides), web: overrides.web ?? fakeWeb() };
-}
-
-// ---------------------------------------------------------------------------
-// Subreddit listings, for the signal
-// ---------------------------------------------------------------------------
-
-/** A recorded subreddit listing, Reddit's `new.json` shape, from tests/fixtures/signal/. */
-export function recordedListing(name = 'lowtidefest-new.json'): string {
-  return readFileSync(join(REPO_ROOT, 'tests', 'fixtures', 'signal', name), 'utf8');
-}
-
-export interface FakeReddit extends RedditPort {
-  /** Every subreddit whose listing was asked for, in order. This is the request count. */
-  fetches: string[];
-  /** Change what a subreddit answers with between runs, by name as the entry spells it. */
-  listings: Record<string, string | null>;
-}
-
-/** Recorded listings: a subreddit answers with its JSON, anything else with nothing — as a blocked request would. */
-export function fakeReddit(listings: Record<string, string | null> = {}): FakeReddit {
-  const reddit: FakeReddit = {
-    fetches: [],
-    listings: { ...listings },
-    async listing(subreddit) {
-      reddit.fetches.push(subreddit);
-      return reddit.listings[subreddit] ?? null;
-    },
-  };
-  return reddit;
-}
-
-export interface SignalFakes extends Fakes {
-  reddit: FakeReddit;
-}
-
-export function fakeSignalPorts(overrides: Partial<SignalFakes> = {}): SignalFakes {
-  return { ...fakePorts(overrides), reddit: overrides.reddit ?? fakeReddit() };
 }

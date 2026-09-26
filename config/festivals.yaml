@@ -1,39 +1,30 @@
-# The almanac: what is on record about the big festivals, for the monthly
-# look-ahead (src/look-ahead.ts, from .github/workflows/look-ahead.yml). On the
-# 1st of each month the owner gets one issue listing every edition here whose
-# first day falls in the next ninety days, with the watch-list entry to add
-# for any edition config/watch.yaml does not have yet.
+# The almanac: what is on record about the big festivals. The upload review
+# reads it for the zone a festival on record prints its times in
+# (src/almanac.ts). The rest is a record for adding next year's edition by hand.
 #
-#   festival   display name; the watch entry's name
-#   slug       the watch entry's slug — permanent once published; derived from
-#              the name when omitted
-#   source     the page to watch: the schedule page, or the lineup page until
-#              one exists
+#   festival   display name
+#   slug       permanent once published; derived from the name when omitted
+#   source     the schedule page, or the lineup page until one exists
 #   timezone   IANA zone the times are printed in
-#   form       where the set times appear: poster (images on the site — the
-#              only form the watcher reads), web (text on the site), app,
-#              social, or unknown
-#   match      carried into the watch entry (a regular expression on the image URL)
-#   subreddit  carried into the watch entry, for the signal
+#   form       where the set times appear: poster (images on the site), web
+#              (text on the site), app, social, or unknown
+#   match      a regular expression on the schedule image URL (a record; nothing
+#              reads it now)
+#   subreddit  where fans post the set times (a record; nothing reads it now)
 #   editions   one per year on record: dates { first, last }, and once the set
-#              times are out, dropped: the day they were first posted. The
-#              look-ahead expects this year's drop at last year's lead.
+#              times are out, dropped: the day they were first posted
 #
-# Nothing here is guessed. A date nobody has checked stays out: an edition
-# without `dropped` says "No earlier drop on record", and a festival whose
-# next year is missing is listed as "Not on record" when last year's days
-# come round. Add next year's days when they are announced; add `dropped` the
-# day the set times appear.
+# Nothing here is guessed. A date nobody has checked stays out. Add next year's
+# days when they are announced; add `dropped` the day the set times appear.
 #
-# Source for the 2026 entries: the self-serve editions spec (2026-09-06
-# survey) and config/watch.yaml.
+# Source for the 2026 entries: the self-serve editions spec (2026-09-06 survey).
 
 - festival: Austin City Limits
   source: https://www.aclfestival.com/schedule
   timezone: America/Chicago
   form: poster
   # Two weekends, one edition (ADR-0004). The schedule images carry the year
-  # (ACL26-Schedule-…), so the watch entry's match is set per year.
+  # (ACL26-Schedule-…), so match is set per year.
   editions:
     - year: 2026
       dates: { first: 2026-10-02, last: 2026-10-11 }

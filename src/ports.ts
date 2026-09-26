@@ -3,10 +3,10 @@
  *
  * `src/publisher.ts` holds the rules and never touches the outside world; this
  * module is the outside world, and holds no rules. Everything here is one of
- * eight things: the vision model (through `src/vision.ts`, still the only
- * module that calls a model), the repository, notifications, the clock,
- * randomness, the schedule pages the watcher reads, the web a stranger's link
- * points at, and the subreddit listings the signal reads. Nothing here decides
+ * six things: the vision model (through `src/vision.ts`, still the only
+ * module that calls a model), the repository, the clock, randomness, the
+ * owner check, and the web a stranger's link points at.
+ * Nothing here decides
  * anything — the one exception is that the web port will not connect to an
  * address the publisher would refuse, because only the port sees where a name
  * resolves at the moment it connects.
@@ -18,8 +18,8 @@
  * Contents API calls, one file each.
  *
  * Secrets come from the environment, named in `src/secrets.ts`:
- * `ANTHROPIC_API_KEY` pays for vision, `GITHUB_TOKEN` writes the repository
- * and opens the watcher's review pull requests, `OWNER_SECRET` is what the owner port
+ * `ANTHROPIC_API_KEY` pays for vision, `GITHUB_TOKEN` writes the repository,
+ * `OWNER_SECRET` is what the owner port
  * checks a presented secret against.
  *
  * Deployment note: `config/vision-models.json` must be bundled with the
@@ -39,11 +39,8 @@ import {
   TRANSCRIPTION_STORE_DIR,
   type ClockPort,
   type Commit,
-  type Notification,
-  type NotifyPort,
   type OwnerPort,
   type PublisherPorts,
-  type PullRequest,
   type RandomPort,
   type RepositoryPort,
   type SavedTranscription,
@@ -56,9 +53,7 @@ import {
 import { ownerMatches, PUBLISHER_REPO, type Env } from './secrets.js';
 import { requireSdkBackend, screenForSchedule, transcribeBytes } from './vision.js';
 import type { PublishedFile } from './build.js';
-import type { FetchedImage, PagePort, WatcherPorts } from './watcher.js';
-import type { RedditPort, SignalPorts } from './signal.js';
-import { hostOf, isPublicAddress, type WebPage } from './web.js';
+import { hostOf, isPublicAddress, type FetchedImage, type WebPage } from './web.js';
 
 const API = 'https://api.github.com';
 const BRANCH = 'main';
@@ -140,9 +135,7 @@ export class GitHubError extends Error {
  *
  * The owner's confirm commits straight to main by design — the tap is the
  * human check, and a pull request nobody merges is a draft tier, which this
- * product does not have. The one pull request is the watcher's review: a
- * branch off the run's state commit, opened against main, for the owner to
- * merge from the GitHub app.
+ * product does not have.
  */
 export function githubRepository(
   env: Env = process.env,
@@ -245,114 +238,17 @@ export function githubRepository(
       if (commit.files.length === 0 && commit.images.length === 0) return ref.object.sha;
       return commitOnto(BRANCH, ref.object.sha, commit);
     },
-    async openPullRequest(pr: PullRequest) {
-      await call('branch write', `/repos/${repo}/git/refs`, {
-        method: 'POST',
-        body: JSON.stringify({ ref: `refs/heads/${pr.branch}`, sha: pr.from }),
-      });
-      await commitOnto(pr.branch, pr.from, pr.commit);
-      await call('pull request write', `/repos/${repo}/pulls`, {
-        method: 'POST',
-        body: JSON.stringify({ title: pr.title, body: pr.body, head: pr.branch, base: BRANCH }),
-      });
-    },
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Notifications
-// ---------------------------------------------------------------------------
-
-/**
- * GitHub is the alert channel for everything machine-initiated (spec). An issue
- * lands in the owner's inbox; nothing is ever emailed, to anyone, by anything.
- * The repository is public, so its issues are too: an issue carries the
- * notice's title and body and nothing else.
- */
-export function githubNotifier(
-  env: Env = process.env,
-  fetchFn: FetchLike = fetch,
-  repo: string = PUBLISHER_REPO,
-): NotifyPort {
-  const token = env['GITHUB_TOKEN'];
-  if (!token) throw new Error('GITHUB_TOKEN is not set — the publisher cannot reach the owner');
-  return {
-    async send(notification: Notification) {
-      const res = await fetchFn(`${API}/repos/${repo}/issues`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
-          'User-Agent': 'stage-times-publisher',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: notification.title,
-          body: notification.body,
-          labels: [notification.kind],
-        }),
-      });
-      if (!res.ok) throw new GitHubError('issue write', res.status, await res.text().catch(() => ''));
-    },
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Pages
-// ---------------------------------------------------------------------------
-
-/** How long one page or one image may take to answer. */
-export const PAGE_TIMEOUT_MS = 30_000;
-/** The most an image on a schedule page is read in; the publisher refuses anything larger anyway. */
-const MAX_FETCHED_IMAGE_BYTES = 10 * 1024 * 1024;
-
-/**
- * The watcher's read of the outside world: a festival's schedule page and the
- * images on it, over plain HTTP, identifying itself honestly. Anything that
- * does not answer with a page or an image — a timeout, a 404, a login wall
- * serving HTML for an image — is null, and the watcher treats null as
- * "not there", never as a change.
- */
-export function livePages(fetchFn: FetchLike = fetch): PagePort {
-  const agent = 'stage-times-watcher/1.0 (+https://stagetimes.app)';
-  return {
-    async page(url): Promise<string | null> {
-      try {
-        const res = await fetchFn(url, {
-          headers: { 'User-Agent': agent, Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5' },
-          signal: AbortSignal.timeout(PAGE_TIMEOUT_MS),
-        });
-        if (!res.ok) return null;
-        const type = res.headers.get('content-type') ?? '';
-        if (type && !/html|xml/i.test(type)) return null;
-        return await res.text();
-      } catch {
-        return null;
-      }
-    },
-    async image(url): Promise<FetchedImage | null> {
-      try {
-        const res = await fetchFn(url, {
-          headers: { 'User-Agent': agent, Accept: 'image/*,*/*;q=0.5' },
-          signal: AbortSignal.timeout(PAGE_TIMEOUT_MS),
-        });
-        if (!res.ok) return null;
-        if (Number(res.headers.get('content-length') ?? 0) > MAX_FETCHED_IMAGE_BYTES) return null;
-        const bytes = new Uint8Array(await res.arrayBuffer());
-        if (bytes.byteLength > MAX_FETCHED_IMAGE_BYTES) return null;
-        const type = res.headers.get('content-type')?.split(';')[0]?.trim();
-        return type ? { bytes, contentType: type } : { bytes };
-      } catch {
-        return null;
-      }
-    },
   };
 }
 
 // ---------------------------------------------------------------------------
 // The web, for a stranger's link
 // ---------------------------------------------------------------------------
+
+/** How long one page or one image may take to answer. */
+export const PAGE_TIMEOUT_MS = 30_000;
+/** The most an image on a page is read in; the publisher refuses anything larger anyway. */
+const MAX_FETCHED_IMAGE_BYTES = 10 * 1024 * 1024;
 
 /** The most of a page read in. A schedule page is a fraction of this. */
 const MAX_PAGE_BYTES = 5 * 1024 * 1024;
@@ -510,60 +406,6 @@ export function liveWeb(options: LiveWebOptions = {}): WebPort {
 }
 
 // ---------------------------------------------------------------------------
-// Subreddit listings
-// ---------------------------------------------------------------------------
-
-/**
- * Who the signal says it is, in the form Reddit's API rules ask for —
- * `<platform>:<app id>:<version>` — with the site behind it.
- */
-export const REDDIT_USER_AGENT = 'web:app.stagetimes.signal:v1.0 (+https://stagetimes.app)';
-
-/**
- * The gap between two listing requests in one run. Reddit allows a client
- * without credentials far less than an OAuth one; ten a minute is the
- * commonly stated ceiling, and this stays at it. A run asks once per
- * subreddit and runs hourly, so the spacing is the only limit that ever binds.
- */
-export const REDDIT_REQUEST_SPACING_MS = 6_000;
-
-/**
- * The signal's read of Reddit: a subreddit's newest posts over the public
- * JSON listing, with no credentials, identifying itself honestly and pacing
- * itself. After a 429, or once Reddit's `x-ratelimit-remaining` says the
- * budget is spent, it asks nothing more this run. Anything that is not a
- * JSON answer — a block page, a login wall, an error — is null, and the
- * signal treats null as "not there".
- */
-export function liveReddit(
-  fetchFn: FetchLike = fetch,
-  sleep: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-): RedditPort {
-  let asked = 0;
-  let stopped = false;
-  return {
-    async listing(subreddit): Promise<string | null> {
-      if (stopped) return null;
-      if (asked > 0) await sleep(REDDIT_REQUEST_SPACING_MS);
-      asked += 1;
-      try {
-        const res = await fetchFn(`https://www.reddit.com/r/${encodeURIComponent(subreddit)}/new.json?limit=100&raw_json=1`, {
-          headers: { 'User-Agent': REDDIT_USER_AGENT, Accept: 'application/json' },
-          signal: AbortSignal.timeout(PAGE_TIMEOUT_MS),
-        });
-        const remaining = res.headers.get('x-ratelimit-remaining');
-        if (res.status === 429 || (remaining !== null && Number(remaining) < 1)) stopped = true;
-        if (!res.ok) return null;
-        if (!/json/i.test(res.headers.get('content-type') ?? '')) return null;
-        return await res.text();
-      } catch {
-        return null;
-      }
-    },
-  };
-}
-
-// ---------------------------------------------------------------------------
 // The set
 // ---------------------------------------------------------------------------
 
@@ -572,24 +414,13 @@ export function livePorts(env: Env = process.env): PublisherPorts {
   return {
     vision: liveVision(env),
     repo: githubRepository(env),
-    notify: githubNotifier(env),
     clock: systemClock(),
     random: cryptoRandom(),
     owner: envOwner(env),
   };
 }
 
-/** The publisher's ports plus the pages. What the scheduled entrypoint hands the watcher. */
-export function watcherPorts(env: Env = process.env): WatcherPorts {
-  return { ...livePorts(env), pages: livePages() };
-}
-
 /** The publisher's ports plus the web. What the link adapter hands the publisher. */
 export function linkPorts(env: Env = process.env): LinkPorts {
   return { ...livePorts(env), web: liveWeb() };
-}
-
-/** The publisher's ports plus Reddit. What the scheduled entrypoint hands the signal. */
-export function signalPorts(env: Env = process.env): SignalPorts {
-  return { ...livePorts(env), reddit: liveReddit() };
 }

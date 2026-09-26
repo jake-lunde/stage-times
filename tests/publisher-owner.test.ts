@@ -40,12 +40,10 @@ function confirmIntent(review: Review, overrides: Partial<ConfirmIntent> = {}): 
   };
 }
 
-/** Nothing crossed the seam: no model, no write, no pull request, no notice. */
+/** Nothing crossed the seam: no model, no write. */
 function untouched(ports: Fakes, commitsBefore = 0): void {
   assert.equal(ports.vision.checks + ports.vision.transcriptions, 0, 'no model was asked anything');
   assert.equal(ports.repo.commits.length, commitsBefore, 'nothing was written');
-  assert.deepEqual(ports.repo.pullRequests, []);
-  assert.deepEqual(ports.notify.sent, []);
 }
 
 const NOT_THE_OWNER: [string, Partial<UploadIntent>, Fakes][] = [

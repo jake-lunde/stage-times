@@ -69,7 +69,7 @@ _Avoid_: approved, reviewed, confirmed (confirmed is the owner's act; verified i
 
 **Listing**:
 The owner's act of putting an edition on the homepage. His confirm of an edition is its listing,
-in the same commit; so is merging the watcher's review. A listed edition shows once its
+in the same commit; so is setting `listed: true` by hand. A listed edition shows once its
 **festival art** is committed. There is no draft tier: a feed URL that exists is always one a
 human checked. Unconfirmed transcriptions are pending review, not published.
 
@@ -91,9 +91,8 @@ could publish; the one ever made still serves there, blocked and moved, and noth
 another. An edition never moves between namespaces.
 
 **Correction**:
-A change to a published edition's sets that keeps every UID: the watcher's review of a change on
-the schedule page, merged, or a hand edit to the YAML. Subscribers receive the new times at
-their next refresh.
+A change to a published edition's sets that keeps every UID: a hand edit to the YAML.
+Subscribers receive the new times at their next refresh.
 _Avoid_: update, edit (an edit is one changed set on the review screen), overwrite
 
 **Blocked**:
@@ -106,16 +105,6 @@ _Avoid_: deleted, taken down (the request is a takedown; the state is blocked), 
 A blocked edition whose set times now live in another edition, which its page points to. The
 calendars added from it go empty; a calendar cannot be moved.
 _Avoid_: redirected, migrated, replaced
-
-**Watcher**:
-The automation that notices a drop, or a change after a drop, on a festival's official schedule
-page and produces a transcription for the owner to verify.
-_Avoid_: scraper, crawler, bot
-
-**Signal**:
-A notice that set times appear to have dropped somewhere the watcher cannot read (an app, a
-social post), sent to the owner with a link. A signal carries no image and creates nothing.
-_Avoid_: alert (an alert is how a signal is delivered), notification
 
 **Sponsor**:
 One hand-sold image-and-link card on a listed edition's subscribe page.

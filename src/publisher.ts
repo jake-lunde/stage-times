@@ -2,9 +2,9 @@
  * Stage Times — the publisher seam.
  *
  * One module, one job: take an *intent* — somebody trying to make an edition
- * exist — plus injected ports, and return the writes and notifications it would
- * make. Everything that talks to the outside world is a port: the vision model,
- * the repository, notifications, the clock, and randomness. Nothing in here
+ * exist — plus injected ports, and return the writes it would make. Everything
+ * that talks to the outside world is a port: the vision model, the repository,
+ * the clock, randomness, and the owner check. Nothing in here
  * reads a file, calls a model, opens a socket, or looks at the wall clock, so
  * every rule below is testable with fakes and no API key (`tests/publisher.test.ts`).
  *
@@ -20,10 +20,6 @@
  *   confirm  that review, with its corrections, validated through the real
  *            schema and committed to main as an edition, listed in the same
  *            commit: the owner tapping is the approval.
- *
- * The watcher (`src/watcher.ts`, ticket 11) is the same shape from the other
- * side: the same ports plus one for pages, and its review pull requests carry
- * the edition exactly as the owner's confirm commits it.
  *
  * Three rules this module exists to enforce:
  *
@@ -186,45 +182,14 @@ export interface Commit {
   images: ImageWrite[];
 }
 
-/**
- * A change proposed to the owner rather than made: a branch off `from`
- * carrying one commit, opened as a pull request against main. Merging it from
- * the GitHub app is the owner's act; nothing here ever merges one.
- */
-export interface PullRequest {
-  /** The commit the branch starts from — what `commit()` returned. */
-  from: string;
-  branch: string;
-  title: string;
-  body: string;
-  commit: Commit;
-}
-
 export interface RepositoryPort {
   readPublished(): Promise<PublishedFile>;
   /** The saved transcription for an image content hash, or null. */
   readTranscription(hash: string): Promise<SavedTranscription | null>;
-  /** A committed text file on main, or null when there is none. The watcher reads the YAML a change replaces. */
+  /** A committed text file on main, or null when there is none. */
   readFile(path: string): Promise<string | null>;
-  /** Applies the commit to main and returns an id a pull request can branch from. */
+  /** Applies the commit to main and returns its id. */
   commit(commit: Commit): Promise<string>;
-  openPullRequest(pr: PullRequest): Promise<void>;
-}
-
-/**
- * What the owner is told. GitHub is the channel — a public one, since the
- * repository is public — so a notice carries no one's address, ever.
- */
-export interface Notification {
-  kind: 'watch-failed' | 'signal' | 'look-ahead';
-  /** Absent on a notice about no one edition — the look-ahead's. */
-  editionPath?: string;
-  title: string;
-  body: string;
-}
-
-export interface NotifyPort {
-  send(notification: Notification): Promise<void>;
 }
 
 /** Epoch milliseconds. The one place real time enters the system. */
@@ -283,7 +248,6 @@ export interface ProgressPort {
 export interface PublisherPorts {
   vision: VisionPort;
   repo: RepositoryPort;
-  notify: NotifyPort;
   clock: ClockPort;
   random: RandomPort;
   owner: OwnerPort;
@@ -525,27 +489,6 @@ export interface ConfirmResult {
   commit: Commit | null;
 }
 
-/** One set as it was and as it is, local wall times. */
-export interface SetTimes {
-  artist: string;
-  start: string;
-  end: string;
-}
-
-/**
- * One set a change on the schedule page moved, keyed as the UID is — stage and
- * normalized artist — so a changed set is exactly an event whose SEQUENCE the
- * build will advance, an added one a new UID, and a removed one a UID that
- * leaves the feed. The watcher's review diff.
- */
-export interface SetChange {
-  kind: 'added' | 'removed' | 'changed';
-  stage: string;
-  stageName: string;
-  before: SetTimes | null;
-  after: SetTimes | null;
-}
-
 // ---------------------------------------------------------------------------
 // Small pure helpers
 // ---------------------------------------------------------------------------
@@ -628,7 +571,7 @@ function mb(bytes: number): string {
 /**
  * The slug an edition claims, or a rejection. It is the festival's own, never
  * minted, and an edition already there is refused rather than replaced —
- * changing one is the watcher's review or a hand edit, not this intent.
+ * changing one is a hand edit, not this intent.
  */
 function claimSlug(
   published: PublishedFile,
@@ -1374,63 +1317,6 @@ export async function confirm(intent: ConfirmIntent, ports: PublisherPorts): Pro
   // A person tapped: nothing machine-initiated happened, so nothing lands in
   // the inbox.
   return { ok: true, rejection: null, editionPath: path, commit };
-}
-
-/**
- * What a change on the schedule page moved, set by set, keyed as the UID is.
- * "Changed" means the subscriber-visible event changed — the same content hash
- * the build's sequence ledger compares — so this list and the SEQUENCE bumps
- * agree. The watcher's review diff.
- */
-export function diffSets(before: FestivalDoc, after: FestivalDoc): SetChange[] {
-  const index = (doc: FestivalDoc) => {
-    const stages = new Map(doc.stages.map((s) => [s.id, s]));
-    const out = new Map<string, { set: SetEntry; stageName: string; hash: string }>();
-    for (const set of doc.sets) {
-      const stage = stages.get(set.stage)!;
-      const content = makeEventContent(doc.festival, stage, set);
-      out.set(content.uid, { set, stageName: stage.name, hash: eventContentHash(content) });
-    }
-    return out;
-  };
-  const was = index(before);
-  const now = index(after);
-  const times = (set: SetEntry): SetTimes => ({ artist: set.artist, start: set.start.raw, end: set.end.raw });
-
-  const changes: SetChange[] = [];
-  for (const [uid, next] of now) {
-    const prev = was.get(uid);
-    if (!prev) {
-      changes.push({ kind: 'added', stage: next.set.stage, stageName: next.stageName, before: null, after: times(next.set) });
-    } else if (prev.hash !== next.hash) {
-      changes.push({ kind: 'changed', stage: next.set.stage, stageName: next.stageName, before: times(prev.set), after: times(next.set) });
-    }
-  }
-  for (const [uid, prev] of was) {
-    if (!now.has(uid)) {
-      changes.push({ kind: 'removed', stage: prev.set.stage, stageName: prev.stageName, before: times(prev.set), after: null });
-    }
-  }
-  const at = (c: SetChange) => (c.after ?? c.before)!;
-  return changes.sort((a, b) => (at(a).start < at(b).start ? -1 : at(a).start > at(b).start ? 1 : at(a).artist < at(b).artist ? -1 : 1));
-}
-
-/** `2026-10-09T22:40:00` → `Oct 9 22:40`, for a line the owner reads. */
-function wall(raw: string): string {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${months[Number(raw.slice(5, 7)) - 1]} ${Number(raw.slice(8, 10))} ${raw.slice(11, 16)}`;
-}
-
-function span(t: SetTimes): string {
-  return `${wall(t.start)}–${t.end.slice(11, 16)}`;
-}
-
-/** One changed set as a line the owner reads, in a notification or a review. */
-export function changeLine(c: SetChange): string {
-  if (c.kind === 'added') return `- Added: ${c.after!.artist} (${c.stageName}), ${span(c.after!)}`;
-  if (c.kind === 'removed') return `- Dropped: ${c.before!.artist} (${c.stageName}), was ${span(c.before!)}`;
-  const renamed = c.before!.artist !== c.after!.artist ? `${c.before!.artist} → ${c.after!.artist}` : c.after!.artist;
-  return `- ${renamed} (${c.stageName}): ${span(c.before!)} → ${span(c.after!)}`;
 }
 
 // ---------------------------------------------------------------------------

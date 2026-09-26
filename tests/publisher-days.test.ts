@@ -360,7 +360,6 @@ test('days: an edition uploaded as a list of one is byte-identical to one upload
   assert.deepEqual(list.review, one.review, 'the same review');
   const everything = (p: Fakes) => p.repo.commits.map((c) => ({ ...c, images: c.images.map((i) => ({ ...i, bytes: [...i.bytes] })) }));
   assert.deepEqual(everything(listed), everything(single), 'the same commits, byte for byte');
-  assert.deepEqual(listed.notify.sent, single.notify.sent);
 });
 
 // ---------------------------------------------------------------------------

@@ -329,4 +329,4 @@ Rules that came out of building it:
 
 Until ADR-0005 (2026-09-22) each fan edition had a page at `/update/fan/<key>/` for its
 uploader to fix a time or take it down. Nobody but the owner publishes now, so neither the page
-nor the link exists; the owner corrects through the watcher's review or the YAML.
+nor the link exists; the owner corrects through the YAML.

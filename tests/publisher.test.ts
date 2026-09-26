@@ -1,11 +1,10 @@
 /**
- * The publisher seam: an intent plus fake ports in, writes and notifications
- * out.
+ * The publisher seam: an intent plus fake ports in, writes out.
  *
  * Everything here runs with no network, no model and no clock: the vision port
  * replays a recorded reply and counts what it was asked for, the repository is
  * in memory, and time and randomness are fixtures. What each test asserts on is
- * what crossed the seam — the commit, the notification, the review payload, the
+ * what crossed the seam — the commit, the review payload, the
  * reason a gate gave — never how the module is arranged inside.
  *
  * The two intents covered are the two that make an edition exist: upload and
@@ -444,14 +443,6 @@ test('confirm: a review whose image is not in the store is refused, not guessed 
   assert.equal(result.ok, false);
   assert.equal(result.rejection!.gate, 'expired');
   assert.equal(result.rejection!.reason, "I don't have that image any more. Upload it again and check the times.");
-});
-
-test('confirm: nothing lands in the inbox and no pull request opens — a person tapped, and that was the approval', async () => {
-  const { review, ports } = await reviewOf();
-  const result = await confirm(confirmIntent(review), ports);
-  assert.ok(result.ok, result.rejection?.reason);
-  assert.deepEqual(ports.notify.sent, []);
-  assert.deepEqual(ports.repo.pullRequests, []);
 });
 
 // ---------------------------------------------------------------------------
