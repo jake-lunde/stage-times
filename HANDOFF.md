@@ -11,8 +11,10 @@ it is how the ticket 17 heading got overwritten on 21 Sep 2026.
 **Production:** https://stagetimes.app — a push to `main` triggers a production deploy, so
 `git log origin/main..main` is exactly what is not yet live
 **Vercel project:** `stage-times` @ LUNDE OS (`prj_mbuC9M3JFa5BMrEajeneh0vtLeHJ`)
-**GitHub:** https://github.com/jake-lunde/stage-times — also the alert channel (review pull
-requests, change diffs, signals, the monthly look-ahead)
+**GitHub:** https://github.com/jake-lunde/stage-times — issues are where "Wrong time? Tell me"
+lands. The watcher's review pull requests and the monthly look-ahead no longer come (Gotchas)
+**Adding a festival:** by hand — the data YAML, its art, `listed: true`, build, push (`README.md`,
+"Adding next year"). One commit per festival
 **Tracker:** the jaique vault — `Efforts/On/🎪 Stage Times (E).md` and the numbered tickets
 in `Efforts/Notes/Stage Times/`; the effort board is
 https://claude.ai/code/artifact/7729f50e-926a-484f-8d12-cbe7003b7275
@@ -22,10 +24,13 @@ https://claude.ai/code/artifact/7729f50e-926a-484f-8d12-cbe7003b7275
 
 Delegate non-taste builds to agents in their own worktrees (the ticket runner, `/run-tickets`,
 does this off the vault's frontier); taste work (new screens, copy, owner decisions) stays in
-the main session and carries `lane: jake` on its ticket. Merge to `main` locally is fine;
-**push decisions stay with Jake.** Verify work done by a different model before building on
-it. New screens come from `.claude/skills/stage-times-design/` (load `references/copy.md`
-before writing any string), not from generic taste.
+the main session and carries `lane: jake` on its ticket. Merge to `main` locally is fine.
+Verify work done by a different model before building on it. New screens come from
+`.claude/skills/stage-times-design/` (load `references/copy.md` before writing any string),
+not from generic taste.
+
+How to work with Jake (plain words first, ask before every push) lives in `~/.claude/CLAUDE.md`,
+not here.
 
 ## What NOT to do
 
@@ -41,9 +46,12 @@ before writing any string), not from generic taste.
   the build are fine. Preview fan editions another way or accept the quirk.
 - A bare `assert.ok(x)` with no message costs about three minutes on failure under `tsx`
   while Node re-parses the source for the message. Give assertions messages.
-- The GitHub Actions jobs (watch, look-ahead) exist only once `main` is pushed, and the
-  watcher needs `ANTHROPIC_API_KEY` as a repository secret (the wizard sets it, or
-  `gh secret set`).
+- The GitHub Actions jobs, Watch (hourly) and Look-ahead (monthly), are **disabled** (owner,
+  2026-09-23; `gh workflow list` shows `disabled_manually`). The watcher spent API tokens,
+  committed to `main` for festivals already added by hand, and blocked a push; five festivals
+  don't need it. The workflow files and `src/watcher.ts` are still here. Expect no watch
+  commits, review pull requests, or look-ahead issues. Turning one back on is Jake's call:
+  `gh workflow enable Watch`.
 - `webcal://` first hop is plain http → one-time "Insecure Connection" prompt on Apple
   devices. Deliberate.
 
