@@ -74,39 +74,17 @@ he's asked to structure.
 
 ## Lanes
 
-A ticket may carry `lane:` in its frontmatter. Omitted means `agent`:
-the ticket runner may claim it. `lane: jake` marks taste work (new
-screens, copy, owner decisions) that only Jake does; the runner never
-claims it and lists it as his instead. `/to-tickets` asks which tickets
-are human-lane when it publishes.
+A ticket may carry `lane:` in its frontmatter. `lane: jake` marks taste
+work (new screens, copy, owner decisions): work it with Jake, never
+alone. Omitted means a session may build it once Jake names it.
+`/to-tickets` asks which tickets are Jake's when it publishes.
 
-## The ticket runner
+## Building a ticket
 
-`/run-tickets` drives `~/.claude/skills/run-tickets/run.mjs` (source of truth: the vault at
-`AIOS/Scripts/ticket-runner/`) works the frontier unattended: claim,
-worktree, implement on one model, review on another against the
-acceptance boxes, merge to `main` locally, never push. It reads its
-tracker from the block below. Dry run first:
+One ticket at a time, in the session Jake is in, on its own branch.
+Before Jake looks, one reviewer on a different model (a subagent with no
+edit tools) reruns the tests and checks the work against the acceptance
+boxes. Then merge to `main` locally; pushing is Jake's call.
 
-```
-node ~/.claude/skills/run-tickets/run.mjs --dry-run
-```
-
-```json ticket-runner
-{
-  "tracker": "jaique",
-  "vault": "/Users/jake/jaique",
-  "effort": "Stage Times",
-  "ticketsDir": "Efforts/Notes/Stage Times",
-  "effortPage": "Efforts/On/🎪 Stage Times (E).md",
-  "main": "main",
-  "notify": ["github:jake-lunde/stage-times", "macos"],
-  "readFirst": ["CLAUDE.md", "README.md", "HANDOFF.md", "CONTEXT.md"],
-  "rules": [
-    "Never change normalizeArtist, UID derivation, UID_DOMAIN, a stage id, or an edition's namespace after first publish (README.md, the permanence contract).",
-    "Never let the build read the wall clock. No database. Never auto-list. Never delete a published slug.",
-    "Load .claude/skills/stage-times-design (and its references/copy.md) before writing any HTML, CSS, or page copy.",
-    "Don't put a feed URL, a repo path, or the word \"we\" on a page."
-  ]
-}
-```
+The unattended ticket runner (`/run-tickets`, source in the vault at
+`AIOS/Scripts/ticket-runner/`) is parked since 2026-09-26. Don't start it.

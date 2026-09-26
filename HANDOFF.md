@@ -3,7 +3,7 @@
 This file holds what no other file does: where the project runs, how Jake wants the work
 done, and the gotchas. **Ticket state does not live here.** What shipped, what is parked, and
 what is next is in the jaique vault (`docs/agents/issue-tracker.md`): each ticket's note
-carries a `## Runner` entry, and the effort page carries `**Now**` and `## Shipped`. The
+carries its `status:`, and the effort page carries `**Now**` and `## Shipped`. The
 git log says what changed. Do not add a per-ticket paragraph to this file; an agent editing
 it is how the ticket 17 heading got overwritten on 21 Sep 2026.
 
@@ -20,11 +20,12 @@ in `Efforts/Notes/Stage Times/`; the effort board is
 https://claude.ai/code/artifact/7729f50e-926a-484f-8d12-cbe7003b7275
 **Vocabulary:** `CONTEXT.md`. **Decisions:** `docs/adr/` and the effort page's `## Rulings`.
 
-## Working agreement (owner, 2026-08-09, still in force)
+## Working agreement (owner, 2026-08-09; builds in the session since 2026-09-26)
 
-Delegate non-taste builds to agents in their own worktrees (the ticket runner, `/run-tickets`,
-does this off the vault's frontier); taste work (new screens, copy, owner decisions) stays in
-the main session and carries `lane: jake` on its ticket. Merge to `main` locally is fine.
+Build one ticket at a time in the session, with one reviewer on a different model checking it
+before Jake looks (`docs/agents/issue-tracker.md`, "Building a ticket"). Taste work (new
+screens, copy, owner decisions) carries `lane: jake` and is worked with Jake, never alone.
+Merge to `main` locally is fine.
 Verify work done by a different model before building on it. New screens come from
 `.claude/skills/stage-times-design/` (load `references/copy.md` before writing any string),
 not from generic taste.
