@@ -7,7 +7,7 @@ carries its `status:`, and the effort page carries `**Now**` and `## Shipped`. T
 git log says what changed. Do not add a per-ticket paragraph to this file; an agent editing
 it is how the ticket 17 heading got overwritten on 21 Sep 2026.
 
-**Repo:** `/Users/jake/Documents/github/stage-times`
+**Repo:** `/Users/jake/code/stage-times`
 **Production:** https://stagetimes.app — a push to `main` triggers a production deploy, so
 `git log origin/main..main` is exactly what is not yet live
 **Vercel project:** `stage-times` @ LUNDE OS (`prj_mbuC9M3JFa5BMrEajeneh0vtLeHJ`)
