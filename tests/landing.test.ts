@@ -40,9 +40,14 @@ import {
   visibleText,
 } from './helpers.js';
 
-/** Every directory card on the page, in document order, as its outer HTML. */
+/** Every directory card on the page, in document order, as the outer HTML of the link around it. */
 function cards(html: string): string[] {
-  return html.match(/<a class="shelf-card"[\s\S]*?<\/a>/g) ?? [];
+  return html.match(/<a class="shelf-link"[\s\S]*?<\/a>/g) ?? [];
+}
+
+/** A card's text slots, in order: the text of every span that holds only text. */
+function slots(card: string): string[] {
+  return [...card.matchAll(/<span class="[^"]*">([^<]+)<\/span>/g)].map((m) => m[1]!);
 }
 
 /** Committed festival art for every fixture edition, as the build would find it. */
@@ -116,8 +121,9 @@ test('landing: exactly one card per listed edition, in order, each the link to i
   const html = landing(twoListed());
   const found = cards(html);
   assert.equal(found.length, 2, 'two listed editions, two cards');
-  assert.match(found[0]!, /^<a class="shelf-card" href="\/harbor-lights-2026\/"/, 'harbor first, owner namespace');
-  assert.match(found[1]!, /^<a class="shelf-card" href="\/fan\/pier-nine-2026\/"/, 'pier second, fan namespace');
+  assert.match(found[0]!, /^<a class="shelf-link" href="\/harbor-lights-2026\/"/, 'harbor first, owner namespace');
+  assert.match(found[1]!, /^<a class="shelf-link" href="\/fan\/pier-nine-2026\/"/, 'pier second, fan namespace');
+  for (const card of found) assert.match(card, /^<a [^>]*><div class="[^"]* shelf-card"/, 'the link holds the Festival Card and nothing else');
   assert.equal(html.includes('dst-check-2026'), false, 'the unlisted edition is nowhere on the page');
   assert.equal(html.includes('<button'), false, 'no button inside a card — the card is the link');
   assert.equal(html.includes('See stages'), false, 'the old featured-card pill is gone');
@@ -145,8 +151,8 @@ test('landing: nothing listed renders no shelf at all, and the page still stands
 
 test('landing: every card carries its dates in the eyebrow, and none says whose it is (ADR-0005)', () => {
   const [harbor, pier] = cards(landing(twoListed())) as [string, string];
-  assert.match(harbor, /<span class="eyebrow">Aug 14–16, 2026<\/span>/, 'dates only — the harbor fixture has no city');
-  assert.match(pier, /<span class="eyebrow">Sep 19, 2026<\/span>/, 'an edition from before the change reads the same');
+  assert.equal(slots(harbor)[0], 'Aug 14–16, 2026', 'dates only — the harbor fixture has no city');
+  assert.equal(slots(pier)[0], 'Sep 19, 2026', 'an edition from before the change reads the same');
   for (const card of [harbor, pier]) assert.doesNotMatch(card, /Fan-made|eyebrow--fan/);
 });
 
@@ -171,19 +177,18 @@ test('landing: a city joins the eyebrow when the festival has one', () => {
 test('landing: the card is text first — eyebrow, name, one bold lead with the counts, then art', () => {
   const [harbor] = cards(landing(twoListed())) as [string];
   const m = listedEditions(twoListed())[0]!;
-  const order = ['class="eyebrow"', 'class="shelf-title"', 'class="shelf-lead"', 'class="shelf-meta"', 'class="shelf-art"'];
-  const positions = order.map((needle) => harbor.indexOf(needle));
-  assert.ok(positions.every((p) => p >= 0), `every slot present: ${positions.join(',')}`);
-  assert.deepEqual([...positions].sort((a, b) => a - b), positions, 'slots in order, art last');
-  assert.ok(harbor.includes(`<span class="shelf-title">${m.festival.name}</span>`), 'the title is the festival name');
-  assert.ok(
-    harbor.includes(`<span class="shelf-lead">${m.allSetCount} sets across ${m.stages.length} stages.</span>`),
-    'the lead is the set and stage counts',
+  assert.deepEqual(
+    slots(harbor),
+    [
+      'Aug 14–16, 2026',
+      m.festival.name,
+      `${m.allSetCount} sets across ${m.stages.length} stages.`,
+      m.stages[0]!.headliners.join(' · '),
+    ],
+    'eyebrow, the festival name, the set and stage counts, then the first stage’s billed headliners',
   );
-  assert.ok(
-    harbor.includes(`<span class="shelf-meta">${m.stages[0]!.headliners.join(' · ')}</span>`),
-    'the quiet line is the first stage’s billed headliners',
-  );
+  const lastText = harbor.lastIndexOf(m.stages[0]!.headliners.join(' · '));
+  assert.ok(harbor.indexOf('class="shelf-art"') > lastText, 'art last');
 });
 
 test('landing: every section header is two sentences on one line, bold lead and quiet tail, both ending in a period', () => {
@@ -206,7 +211,7 @@ test('landing: every card is built onto the coming shelf with its first and last
   const site = twoListed();
   const html = landing(site);
   const coming = /<section class="shelf-section" data-shelf="coming">[\s\S]*?<\/section>/.exec(html)?.[0];
-  const past = /<section class="shelf-section" data-shelf="past" hidden>[\s\S]*?<\/section>/.exec(html)?.[0];
+  const past = /<section class="shelf-section" data-shelf="past" hidden="">[\s\S]*?<\/section>/.exec(html)?.[0];
   assert.ok(coming, 'the coming shelf');
   assert.ok(past, 'the happened shelf, hidden until the page finds something for it');
   assert.ok(html.indexOf(coming!) < html.indexOf(past!), 'coming first, happened below');
@@ -257,13 +262,24 @@ test('landing: a phone swipes the shelf, a wide screen shows every card two to a
   assert.match(grid, /\.shelf-art\{[^}]*aspect-ratio:6\/5\}/, 'the art keeps the 6:5 it is cut to');
 });
 
+test('landing: the card is the Subframe Festival Card, and the page carries only the CSS its classes need', () => {
+  const html = landing(twoListed());
+  const style = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1] ?? '';
+  assert.ok(style.includes('.bg-paper-sunk{background-color:var(--color-paper-sunk)}'), 'the card\u2019s fill comes from the theme token');
+  assert.ok(style.includes(':hover{scale:1.01}') && style.includes(':active{scale:.96}'), 'hover lifts to 1.01, a press shrinks to .96');
+  assert.match(style, /@media \(prefers-color-scheme:dark\)\{:root\{--color-paper:#14120f/, 'dark mode follows the system, from the theme\u2019s own dark tokens');
+  assert.equal(style.includes('border:0 solid'), false, 'no Tailwind preflight: the hand-written base stays the base');
+  assert.equal(style.includes('.bg-red{'), false, 'no class the page does not use');
+  assert.equal(landing(twoListed()), html, 'same site in, same bytes out');
+});
+
 // ===========================================================================
 // Art: the festival's own, or the edition waits off the shelf
 // ===========================================================================
 
 test('landing: the card art is the festival’s committed image, and the build draws none of its own', () => {
   const [harbor, pier] = cards(landing(twoListed())) as [string, string];
-  assert.match(harbor, /<span class="shelf-art" style="background:#[0-9a-f]{6}"><img src="\/assets\/festivals\/harbor-lights-2026\.webp" alt="" loading="lazy"><\/span>/i, 'the committed image, on a light ground while it loads');
+  assert.match(harbor, /<span class="shelf-art" style="background:#[0-9a-f]{6}"><img src="\/assets\/festivals\/harbor-lights-2026\.webp" alt="" loading="lazy"\/><\/span>/i, 'the committed image, on a light ground while it loads');
   assert.match(pier, /<img src="\/assets\/festivals\/pier-nine-2026\.jpg"/, 'whatever the extension');
   for (const card of [harbor, pier]) assert.equal(card.includes('<svg'), false, 'no generated art on a directory card');
 });

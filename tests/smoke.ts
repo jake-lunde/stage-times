@@ -174,7 +174,7 @@ async function checkPage(url: string, { blocked = false, movedTo, listed, upload
     } else if (!body.includes('Taken down')) add('blocked edition page does not say it was taken down');
   }
   if (listed) {
-    const cards = (body.match(/class="shelf-card"/g) ?? []).length;
+    const cards = (body.match(/class="shelf-link"/g) ?? []).length;
     if (cards !== listed.length) add(`homepage carries ${cards} card(s), expected one per listed edition (${listed.length})`);
     for (const m of listed) {
       if (!body.includes(`href="${m.festival.basePath}/"`)) add(`homepage has no card linking to ${m.festival.basePath}/`);

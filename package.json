@@ -12,16 +12,27 @@
     "palette": "python3 scripts/palette.py",
     "test": "tsx --test tests/*.test.ts",
     "smoke": "tsx tests/smoke.ts",
-    "vercel-build": "npm test && npm run build"
+    "vercel-build": "npm test && npm run build",
+    "ui:sync": "npx --yes @subframe/cli@latest sync --all"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.116.0",
+    "@tailwindcss/node": "^4.3.3",
+    "@tailwindcss/oxide": "^4.3.3",
     "@types/luxon": "^3.4.2",
     "@types/node": "^22.10.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "ical.js": "^2.1.0",
     "luxon": "^3.5.0",
+    "tailwindcss": "^4.3.3",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "yaml": "^2.6.1"
+  },
+  "dependencies": {
+    "@subframe/core": "^1.155.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   }
 }

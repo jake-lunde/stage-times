@@ -1,0 +1,135 @@
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* Default Colors */
+  --color-blue: rgb(4 92 172);
+  --color-yellow: rgb(236 204 12);
+
+  /* paper */
+  --color-paper: rgb(252 249 244);
+  --color-paper-line: rgb(229 222 209);
+  --color-paper-sunk: rgb(242 237 228);
+
+  /* ink */
+  --color-ink: rgb(18 24 31);
+  --color-ink-faint: rgb(167 158 144);
+  --color-ink-soft: rgb(107 100 89);
+
+  /* red */
+  --color-red: rgb(236 48 12);
+  --color-red-deep: rgb(196 36 8);
+
+  /* Fonts */
+  --text-display: 60px;
+  --text-display--font-weight: 400;
+  --text-display--letter-spacing: -0.01em;
+  --text-display--line-height: 59px;
+  --text-title: 40px;
+  --text-title--font-weight: 400;
+  --text-title--letter-spacing: -0.01em;
+  --text-title--line-height: 41px;
+  --text-card: 30px;
+  --text-card--font-weight: 400;
+  --text-card--letter-spacing: -0.01em;
+  --text-card--line-height: 32px;
+  --text-large: 24px;
+  --text-large--font-weight: 600;
+  --text-large--letter-spacing: -0.01em;
+  --text-large--line-height: 28px;
+  --text-body: 17px;
+  --text-body--font-weight: 400;
+  --text-body--letter-spacing: 0em;
+  --text-body--line-height: 26px;
+  --text-body-bold: 17px;
+  --text-body-bold--font-weight: 600;
+  --text-body-bold--letter-spacing: 0em;
+  --text-body-bold--line-height: 22px;
+  --text-small: 14px;
+  --text-small--font-weight: 400;
+  --text-small--letter-spacing: 0em;
+  --text-small--line-height: 18px;
+  --text-mono: 13px;
+  --text-mono--font-weight: 400;
+  --text-mono--letter-spacing: 0.05em;
+  --text-mono--line-height: 20px;
+  --text-micro: 12px;
+  --text-micro--font-weight: 400;
+  --text-micro--letter-spacing: 0.07em;
+  --text-micro--line-height: 19px;
+
+  /* Font families */
+  --font-display: Archivo;
+  --font-title: Archivo;
+  --font-card: Archivo;
+  --font-large: Archivo;
+  --font-body: Archivo;
+  --font-body-bold: Archivo;
+  --font-small: Archivo;
+  --font-mono: "Fragment Mono";
+  --font-micro: "Fragment Mono";
+
+  /* Box shadows */
+
+  /* Border radiuses */
+  --radius-sm: 8px;
+  --radius-card: 18px;
+  --radius-btn-sm: 22px;
+  --radius-btn: 26px;
+  --radius-full: 9999px;
+
+  /* Spacing */
+  --spacing-112: 28rem;
+  --spacing-144: 36rem;
+  --spacing-192: 48rem;
+  --spacing-256: 64rem;
+  --spacing-320: 80rem;
+}
+
+.dark {
+  /* paper */
+  --color-paper: rgb(20 18 15);
+  --color-paper-line: rgb(51 46 38);
+  --color-paper-sunk: rgb(33 30 25);
+
+  /* ink */
+  --color-ink: rgb(245 240 230);
+  --color-ink-faint: rgb(107 100 89);
+  --color-ink-soft: rgb(167 158 144);
+
+  /* red */
+  --color-red: rgb(255 74 36);
+  --color-red-deep: rgb(255 107 74);
+}
+
+/* Container */
+@utility container {
+  padding-left: 16px;
+  padding-right: 16px;
+
+  @media (width >= theme(--breakpoint-sm)) {
+    padding-left: calc((100vw + 16px - 640px) / 2);
+    padding-right: calc((100vw + 16px - 640px) / 2);
+  }
+
+  @media (width >= theme(--breakpoint-md)) {
+    padding-left: calc((100vw + 16px - 768px) / 2);
+    padding-right: calc((100vw + 16px - 768px) / 2);
+  }
+
+  @media (width >= theme(--breakpoint-lg)) {
+    padding-left: calc((100vw + 16px - 1024px) / 2);
+    padding-right: calc((100vw + 16px - 1024px) / 2);
+  }
+
+  @media (width >= theme(--breakpoint-xl)) {
+    padding-left: calc((100vw + 16px - 1280px) / 2);
+    padding-right: calc((100vw + 16px - 1280px) / 2);
+  }
+
+  @media (width >= theme(--breakpoint-2xl)) {
+    padding-left: calc((100vw + 16px - 1536px) / 2);
+    padding-right: calc((100vw + 16px - 1536px) / 2);
+  }
+}
+
+@custom-variant mobile (@media (max-width: 767px));

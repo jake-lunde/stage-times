@@ -45,6 +45,8 @@ export function visibleText(html: string): string {
     .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/g, '')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
+    // React escapes an apostrophe in text; the hand-written pages leave it bare.
+    .replace(/&#x27;/g, "'")
     .replace(/\s+/g, ' ');
 }
 

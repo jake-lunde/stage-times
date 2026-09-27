@@ -485,7 +485,7 @@ test('run(): builds every edition under data/ into dist/, both namespaces, and i
     );
     // Nothing is listed, so the landing page shows no card — never an unlisted edition.
     const landing = first.get('index.html')!.toString('utf8');
-    assert.equal(landing.includes('class="shelf-card"'), false, 'no card for an unlisted edition');
+    assert.equal(landing.includes('class="shelf-link"'), false, 'no card for an unlisted edition');
     assert.equal(landing.includes('pier-nine-2026'), false, 'the unlisted fan edition is nowhere on the landing page');
     assert.equal(landing.includes('harbor-lights-2026'), false, 'the unlisted owner edition is nowhere on the landing page');
   } finally {
@@ -510,9 +510,9 @@ test('run(): a blocked edition serves the removed page at its path and the landi
     assert.equal(feed.includes('BEGIN:VEVENT'), false);
     assert.ok(feed.includes('X-WR-CALNAME:Pier Stage — Pier Nine 26'));
     const landing = readFileSync(join(root, 'dist', 'index.html'), 'utf8');
-    assert.ok(landing.includes('<a class="shelf-card" href="/harbor-lights-2026/"'), 'the listed edition gets its card');
+    assert.ok(landing.includes('<a class="shelf-link" href="/harbor-lights-2026/"'), 'the listed edition gets its card');
     assert.equal(landing.includes('pier-nine-2026'), false, 'the landing page never lists a blocked edition');
-    assert.equal((landing.match(/class="shelf-card"/g) ?? []).length, 1, 'one card, for the one listed edition');
+    assert.equal((landing.match(/class="shelf-link"/g) ?? []).length, 1, 'one card, for the one listed edition');
     // The block is recorded verbatim; the listing survives for the revert.
     const published = readPublished(join(root, 'state', 'published.json'));
     assert.equal(published.editions[PIER_PATH]!.blocked, true);
@@ -530,7 +530,7 @@ test('run(): a listed edition with no festival art stays off the homepage, and t
     const lines: string[] = [];
     await run({ repoRoot: root, log: (line) => lines.push(line) });
     const landing = readFileSync(join(root, 'dist', 'index.html'), 'utf8');
-    assert.equal((landing.match(/class="shelf-card"/g) ?? []).length, 1, 'harbor has its art; pier waits');
+    assert.equal((landing.match(/class="shelf-link"/g) ?? []).length, 1, 'harbor has its art; pier waits');
     assert.ok(landing.includes('<img src="/assets/festivals/harbor-lights-2026.webp"'), 'the card shows the committed art');
     assert.equal(landing.includes('pier-nine-2026'), false, 'pier is off the homepage');
     assert.ok(existsSync(join(root, 'dist', 'fan', 'pier-nine-2026', 'index.html')), 'its page still publishes');

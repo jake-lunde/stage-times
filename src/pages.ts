@@ -15,6 +15,9 @@
  * it has one job — get a thumb from "I care about this stage" to "it's in my
  * calendar".
  *
+ * The landing page renders with React at build time (src/views/landing.tsx,
+ * ADR-0006); the rest are still template strings here and move one at a time.
+ *
  * Visual system: .claude/skills/stage-times-design/. Structure is measured from
  * Cash App with owner-directed revisions (2026-08-09): Archivo/Fragment Mono,
  * the stage carousel, icon buttons, press-shrink; the landing page is the shelf
@@ -31,7 +34,10 @@ import { cpSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderUploadPage } from './upload-pages.js';
-import { CREAM, HOUSE_COLORS, INK, mix, textOn } from './colors.js';
+import { CREAM, INK, mix, textOn } from './colors.js';
+import { renderLandingPage } from './views/landing.js';
+
+export { renderLandingPage };
 
 // ---------------------------------------------------------------------------
 // Manifest shape (structurally typed — build.ts owns the real type)
@@ -383,7 +389,7 @@ body{margin:0}
   --t-display:60px; --t-title:40px; --t-card:30px; --t-large:24px;
   --t-body:17px; --t-small:14px; --t-mono:13px; --t-micro:12px;
   --w-heading:630;
-  --press:scale(.96); --hover:scale(1.01); --t-press:120ms;
+  --press:scale(.96); --t-press:120ms;
   --measure:520px;
 }
 @media (min-width:735px){
@@ -436,13 +442,9 @@ h3{font-size:var(--t-card); line-height:1.05; margin:0}
 .hero p{margin:var(--gap-2) 0 0; font-size:20px; font-weight:500; opacity:.88}
 
 /* ── press feedback: everything tappable shrinks under the thumb ──────── */
-.btn,.icon-btn,.text-btn,.shelf-card,.poster{transition:transform var(--t-press) ease}
-/* Hover lifts the shelf card a touch. Real pointers only, so a tap on a phone
-   doesn't leave it stuck big. Sits before :active so a press still wins. */
-@media (hover:hover){
-  .shelf-card:hover{transform:var(--hover)}
-}
-.btn:active,.icon-btn:active,.text-btn:active,.shelf-card:active,.poster:active{transform:var(--press)}
+/* The shelf card's hover (1.01) and press (.96) are the Festival Card's own, from Subframe. */
+.btn,.icon-btn,.text-btn,.poster{transition:transform var(--t-press) ease}
+.btn:active,.icon-btn:active,.text-btn:active,.poster:active{transform:var(--press)}
 
 /* ── buttons ──────────────────────────────────────────────────────────── */
 .btn{
@@ -519,22 +521,18 @@ h3{font-size:var(--t-card); line-height:1.05; margin:0}
 }
 .shelf::-webkit-scrollbar{display:none}
 .shelf>li{flex:none; scroll-snap-align:start}
-.shelf-card{
-  display:flex; flex-direction:column; width:var(--w-shelf-card); height:var(--h-shelf-card);
-  background:var(--paper-sunk); border-radius:var(--r-card);
-  overflow:hidden; text-decoration:none; color:inherit;
-}
-.shelf-text{display:block; flex:none; padding:var(--pad-shelf) var(--pad-shelf) var(--gap-4)}
-.shelf-text .eyebrow{display:block; margin:0 0 var(--gap-1)}
-.shelf-title{
-  display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden;
-  font-size:var(--t-shelf); line-height:1.1;
-  font-stretch:125%; font-weight:600; letter-spacing:-0.01em;
-}
-.shelf-lead{display:block; margin-top:10px; font-size:var(--t-body); font-weight:600; line-height:1.3}
-.shelf-meta{display:block; margin-top:6px; font-size:var(--t-small); line-height:1.3; color:var(--ink-soft)}
+/* The card is the Subframe Festival Card (src/views/landing.tsx): its fill,
+   radius, type, and its hover and press, come from Subframe. What is here is
+   the shelf's say over it: the link around it, its size, and the art in its
+   slot. These rules are unlayered, so they win over the card's own Tailwind
+   sizing (the utilities layer). */
+.shelf-link{display:block; text-decoration:none; color:inherit; -webkit-tap-highlight-color:transparent}
+.shelf-card{width:var(--w-shelf-card); height:var(--h-shelf-card)}
+/* The art slot, the card's last child: fill what the text leaves on a phone,
+   and hold the art's own height when the card grows to fit it. */
+.shelf-card>:last-child{flex:1 0 auto}
 /* Art fills the rest of the fixed-height card, edge to edge, no padding. */
-.shelf-art{display:block; flex:1; position:relative; min-height:0; overflow:hidden}
+.shelf-art{display:block; position:absolute; inset:0}
 .shelf-art img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover}
 .art-svg{position:absolute; inset:0; width:100%; height:100%}
 .shelf-section+section{margin-top:var(--gap-section)}
@@ -545,8 +543,9 @@ h3{font-size:var(--t-card); line-height:1.05; margin:0}
 @media (min-width:735px){
   .shelf{display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); margin:0; width:auto; max-width:none; padding:0; overflow:visible; scroll-snap-type:none}
   .shelf>li{display:flex}
+  .shelf-link{display:flex; flex:1}
   .shelf-card{flex:1; width:auto; height:auto}
-  .shelf-art{flex:1 0 auto; aspect-ratio:6/5}
+  .shelf-art{position:relative; flex:1 0 auto; width:100%; aspect-ratio:6/5}
 }
 
 /* ── upload: top bar + lockup (the subscribe page has the sticky bar below) ── */
@@ -777,7 +776,9 @@ a{color:var(--red-deep)}
 
 @media (prefers-reduced-motion: reduce){
   *{transition:none !important; animation:none !important}
-  .btn:active,.icon-btn:active,.text-btn:active,.shelf-card:active,.shelf-card:hover{transform:none}
+  .btn:active,.icon-btn:active,.text-btn:active{transform:none}
+  /* Tailwind scales with the scale property, not transform. */
+  .shelf-card:hover,.shelf-card:active{scale:none}
   .pop.first{opacity:1}
 }
 @media (max-width:359px){
@@ -794,7 +795,7 @@ a{color:var(--red-deep)}
 // ---------------------------------------------------------------------------
 
 /**
- * Vercel Web Analytics, plain-HTML pattern (pages are static — no React, no
+ * Vercel Web Analytics, plain-HTML pattern (pages are static HTML — React only runs in the build — so no
  * npm package). The stub queues `va()` calls made before the deferred script
  * loads; the script is served same-origin by Vercel, so the "no external
  * requests" rule still holds. Aggregate and cookieless by design. This snippet
@@ -848,12 +849,12 @@ function numberWord(n: number): string {
 }
 
 /** `1 set`, `4 stages`. */
-function count(n: number, noun: string): string {
+export function count(n: number, noun: string): string {
   return `${n} ${noun}${n === 1 ? '' : 's'}`;
 }
 
 /** How many stages a festival-goer would count: a stage on both weekends is one. */
-function stageCount(m: Manifest): number {
+export function stageCount(m: Manifest): number {
   return new Set(m.stages.map((s) => s.name)).size;
 }
 
@@ -1374,39 +1375,6 @@ export function shelvedEditions(site: SiteManifest, images: Record<string, strin
 }
 
 /**
- * One directory card, text first: eyebrow, the festival name, one bold lead
- * with the counts, the quiet lines, then art edge to edge to the bottom of the
- * fixed-height card. The whole card is the link; nothing inside it is a button.
- *
- * The eyebrow is the dates and city. Every edition is the owner's (ADR-0005),
- * so no card carries a mark saying whose it is. The quiet line is the first
- * stage's billed headliners — the main stage by convention — as the data has
- * them.
- */
-function directoryCard(m: Manifest, image: string): string {
-  const f = m.festival;
-  const when = editionDates(m) + (f.city ? ` · ${f.city}` : '');
-  const eyebrow = `<span class="eyebrow">${esc(when)}</span>`;
-  const quiet = [m.stages[0]?.headliners.join(' · ') ?? '']
-    .filter((line) => line !== '')
-    .map((line) => `<span class="shelf-meta">${esc(line)}</span>`)
-    .join('\n        ');
-  // Behind the image while it loads: the light ground of the edition's first stage color.
-  const color = m.stages[0]?.color ?? HOUSE_COLORS[0]!;
-  // The first and last festival day, for the page to shelve the card by (`LANDING_SCRIPT`).
-  const { first, last } = m.all.dayspan;
-  return `<li data-first="${esc(first)}" data-last="${esc(last)}"><a class="shelf-card" href="${esc(f.basePath)}/">
-      <span class="shelf-text">
-        ${eyebrow}
-        <span class="shelf-title">${esc(f.name)}</span>
-        <span class="shelf-lead">${count(m.allSetCount, 'set')} across ${count(stageCount(m), 'stage')}.</span>
-        ${quiet}
-      </span>
-      <span class="shelf-art" style="background:${artGround(color)}"><img src="${esc(image)}" alt="" loading="lazy"></span>
-    </a></li>`;
-}
-
-/**
  * Two shelves: what is coming, soonest first, and what has happened, latest
  * first. The build never reads a clock (README), so it puts every card on the
  * first shelf in first-day order and the page moves the ones whose last day
@@ -1436,56 +1404,6 @@ export const LANDING_SCRIPT = `<script>
   if (!coming.querySelector('li')) coming.hidden = true;
 })();
 </script>`;
-
-export function renderLandingPage(site: SiteManifest, opts: LandingOptions = {}): string {
-  const images = opts.images ?? {};
-  const pinned = new Set(opts.pinned ?? []);
-  const isPinned = (m: Manifest) => pinned.has(m.festival.basePath.slice(1));
-  // Pinned first, the rest after; each group keeps the date order. Once a
-  // pinned edition is over, the page moves it to the happened shelf like any other.
-  const byDate = shelvedEditions(site, images);
-  const shelved = [...byDate.filter(isPinned), ...byDate.filter((m) => !isPinned(m))];
-  const shelf =
-    shelved.length === 0
-      ? ''
-      : `<section class="shelf-section" data-shelf="coming">
-    <h2 class="shelf-head"><span class="lead">Add festival stages directly to your calendar.</span> <span class="tail">That's it.</span></h2>
-    <ul class="shelf">
-    ${shelved.map((m) => directoryCard(m, images[m.festival.key]!)).join('\n    ')}
-    </ul>
-  </section>
-
-  <section class="shelf-section" data-shelf="past" hidden>
-    <h2 class="shelf-head"><span class="lead">Already happened.</span> <span class="tail">The times are still here.</span></h2>
-    <ul class="shelf"></ul>
-  </section>
-
-  `;
-
-  const body = `<header class="hero">
-  <div class="wrap wrap--wide">
-    <h1>Stage<br>Times</h1>
-    <p>Set times, by stage.</p>
-  </div>
-</header>
-
-<main class="wrap wrap--wide">
-  ${shelf}<section class="prose">
-    <p class="eyebrow">What this is</p>
-    <p>Add one calendar per stage. The sets show up in the calendar app you already use, and you
-    can color or hide each stage on its own.</p>
-  </section>
-
-  <footer>
-    <p>Times come from each festival's official schedule. Each festival page says when it was last checked.</p>
-    <p>Unofficial. Not affiliated with any festival.</p>
-    <p>Wrong time? <a href="https://github.com/jake-lunde/stage-times/issues">Tell me ↗</a></p>
-  </footer>
-</main>
-${shelved.length === 0 ? '' : LANDING_SCRIPT}`;
-
-  return page('Stage Times — set times, by stage', 'Set times for each festival stage, as a calendar you can add to your phone.', body);
-}
 
 // ---------------------------------------------------------------------------
 // Entry point for the whole site — every edition, both namespaces
