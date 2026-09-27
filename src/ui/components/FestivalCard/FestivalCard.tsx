@@ -35,7 +35,7 @@ const FestivalCardRoot = React.forwardRef<
   return (
     <div
       className={SubframeUtils.twClassNames(
-        "group/c2d0c57c flex h-[450px] cursor-pointer flex-col items-start overflow-hidden rounded-card bg-paper-sunk w-90 transition-transform duration-[120ms] ease-in-out hover:scale-[1.01] active:scale-[0.96] mobile:w-full",
+        "group/c2d0c57c flex h-[450px] cursor-pointer flex-col items-start overflow-hidden rounded-card bg-paper-sunk w-90 transition-transform duration-[120ms] ease-in-out hover:shadow-[0px_12px_32px_-4px_#00000014,0px_4px_8px_-2px_#00000014] hover:scale-[1.01] active:scale-[0.96] mobile:w-full",
         className
       )}
       ref={ref}
