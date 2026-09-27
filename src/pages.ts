@@ -383,7 +383,7 @@ body{margin:0}
   --t-display:60px; --t-title:40px; --t-card:30px; --t-large:24px;
   --t-body:17px; --t-small:14px; --t-mono:13px; --t-micro:12px;
   --w-heading:630;
-  --press:scale(.96); --t-press:120ms;
+  --press:scale(.96); --hover:scale(1.01); --t-press:120ms;
   --measure:520px;
 }
 @media (min-width:735px){
@@ -437,6 +437,11 @@ h3{font-size:var(--t-card); line-height:1.05; margin:0}
 
 /* ── press feedback: everything tappable shrinks under the thumb ──────── */
 .btn,.icon-btn,.text-btn,.shelf-card,.poster{transition:transform var(--t-press) ease}
+/* Hover lifts the shelf card a touch. Real pointers only, so a tap on a phone
+   doesn't leave it stuck big. Sits before :active so a press still wins. */
+@media (hover:hover){
+  .shelf-card:hover{transform:var(--hover)}
+}
 .btn:active,.icon-btn:active,.text-btn:active,.shelf-card:active,.poster:active{transform:var(--press)}
 
 /* ── buttons ──────────────────────────────────────────────────────────── */
@@ -772,7 +777,7 @@ a{color:var(--red-deep)}
 
 @media (prefers-reduced-motion: reduce){
   *{transition:none !important; animation:none !important}
-  .btn:active,.icon-btn:active,.text-btn:active,.shelf-card:active{transform:none}
+  .btn:active,.icon-btn:active,.text-btn:active,.shelf-card:active,.shelf-card:hover{transform:none}
   .pop.first{opacity:1}
 }
 @media (max-width:359px){
