@@ -29,6 +29,9 @@ festival:
 stages:
   - id: "camp"     # PERMANENT url slug — never change after publish
     name: "Camp Stage"
+    # Display only (card art and the homepage card's headliner line); never touches a feed.
+    # Tyler hosts and is billed on top, though Don Toliver closes Saturday after him.
+    headliners: ["TYLER, THE CREATOR", "FUTURE"]
   - id: "flog"     # PERMANENT url slug — never change after publish
     name: "Flog Stage"
   - id: "gnaw"     # PERMANENT url slug — never change after publish
