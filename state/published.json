@@ -17,7 +17,7 @@
     "it becomes DTSTAMP / LAST-MODIFIED on every event the build touches and `lastUpdated` in feeds.json.",
     "It exists so the build never reads the wall clock — output must be byte-identical across runs."
   ],
-  "publishedAt": "20261113T224136Z",
+  "publishedAt": "20261113T232312Z",
   "editions": {
     "austin-city-limits-2026": {
       "slug": "austin-city-limits",
@@ -67,6 +67,20 @@
         "daydream",
         "main",
         "neumos"
+      ]
+    },
+    "corona-capital-2026": {
+      "slug": "corona-capital",
+      "year": 2026,
+      "namespace": "owner",
+      "listed": true,
+      "blocked": false,
+      "stages": [
+        "corona",
+        "corona-cero",
+        "doritos",
+        "nivea",
+        "viva-tent"
       ]
     },
     "fan/austin-city-limits-music-festival-25-years-2026": {

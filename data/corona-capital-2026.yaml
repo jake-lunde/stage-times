@@ -1,0 +1,486 @@
+# Corona Capital 2026 — transcription of the schedule poster(s).
+#
+# Source images:
+#   bd37bd02638d4c458417947ce9e95bfab89c5d2fb4dbd3893f2209e68e76e0c9.jpg
+#   c51602927b7d7c08e7c525f4a1fa1ffc546670cd5529f6e55db83ffdedd85a11.jpg
+#   f22f05de9c154a192a30a5ab7e38e4322d125fb56bb51ef130a4c69cf4cd7739.jpg
+#   (Viernes 20, Sábado 21, Domingo 22, in that order.)
+#
+# verified: true — every set checked against the source image above, then checked
+# again by a second reader. Corrections made on review are listed in the
+# TRANSCRIPTION log next to this file.
+
+verified: true
+
+# PERMANENT — decides the URL family: owner editions live at /<slug>-<year>/, fan editions at
+# /fan/<slug>-<year>/ (docs/adr/0001-fan-namespace-prefix.md). Never changes after first publish.
+namespace: owner
+
+festival:
+  name: "Corona Capital"
+  slug: "corona-capital"     # PERMANENT — appears in every subscription URL
+  year: 2026
+  timezone: "America/Mexico_City"
+  official_url: "https://www.instagram.com/coronacapital/"   # set times posted 2026-11-12; fetched 2026-11-13
+  city: "Mexico City"                      # display only (the homepage card); never in a feed
+  # The festival's own colors, off its art: one per stage, in the order a weekend lists them.
+  # Each stage card and each stage calendar's color. Absent or short means the house colors.
+  # The day posters print only three column inks for five stages: navy (Corona, Corona Cero),
+  # lime (Doritos, Viva Tent) and blue (NIVEA). Corona, Doritos and NIVEA keep their poster
+  # ink; Corona Cero and Viva Tent take the two other blues of the festival's own art.
+  colors: ["#002357", "#E9FE19", "#043989", "#0B61EA", "#0849B0"]
+
+stages:
+  - id: "corona"     # PERMANENT url slug — never change after publish
+    name: "Corona"
+  - id: "doritos"     # PERMANENT url slug — never change after publish
+    name: "Doritos"
+  - id: "corona-cero"     # PERMANENT url slug — never change after publish
+    name: "Corona Cero"
+  - id: "nivea"     # PERMANENT url slug — never change after publish
+    name: "NIVEA"
+  - id: "viva-tent"     # PERMANENT url slug — never change after publish
+    name: "Viva Tent"
+
+sets:
+  # ═══ FRIDAY 20 NOVEMBER 2026 (VIERNES 20) ═══
+  - stage: "corona"
+    artist: "HOT MILK"
+    raw: "HOT MILK 15:20 - 16:00"
+    start: "2026-11-20T15:20:00"
+    end: "2026-11-20T16:00:00"
+    end_inferred: false
+  - stage: "corona"
+    artist: "SOFIA ISELLA"
+    raw: "SOFIA ISELLA 16:40 - 17:20"
+    start: "2026-11-20T16:40:00"
+    end: "2026-11-20T17:20:00"
+    end_inferred: false
+  - stage: "corona"
+    artist: "CHVRCHES"
+    raw: "CHVRCHES 18:10 - 19:00"
+    start: "2026-11-20T18:10:00"
+    end: "2026-11-20T19:00:00"
+    end_inferred: false
+  - stage: "corona"
+    artist: "YUNG LEAN"
+    raw: "YUNG LEAN 20:25 - 21:30"
+    start: "2026-11-20T20:25:00"
+    end: "2026-11-20T21:30:00"
+    end_inferred: false
+  - stage: "corona"
+    artist: "GORILLAZ"
+    raw: "GORILLAZ 23:00 - 1:00"
+    start: "2026-11-20T23:00:00"
+    end: "2026-11-21T01:00:00"     # shifted: crosses midnight into Saturday
+    end_inferred: false
+  - stage: "doritos"
+    artist: "FRIKO"
+    raw: "FRIKO 16:00 - 16:40"
+    start: "2026-11-20T16:00:00"
+    end: "2026-11-20T16:40:00"
+    end_inferred: false
+  - stage: "doritos"
+    artist: "CHEZILE"
+    raw: "CHEZILE 17:20 - 18:10"
+    start: "2026-11-20T17:20:00"
+    end: "2026-11-20T18:10:00"
+    end_inferred: false
+  - stage: "doritos"
+    artist: "THE KOOKS"
+    raw: "THE KOOKS 19:00 - 20:10"
+    start: "2026-11-20T19:00:00"
+    end: "2026-11-20T20:10:00"
+    end_inferred: false
+  - stage: "doritos"
+    artist: "MUMFORD & SONS"
+    raw: "MUMFORD & SONS 21:30 - 23:00"
+    start: "2026-11-20T21:30:00"
+    end: "2026-11-20T23:00:00"
+    end_inferred: false
+  - stage: "corona-cero"
+    artist: "ABSOLUTELY"
+    raw: "ABSOLUTELY 16:00 - 16:40"
+    start: "2026-11-20T16:00:00"
+    end: "2026-11-20T16:40:00"
+    end_inferred: false
+  - stage: "corona-cero"
+    artist: "VIOLET GROHL"
+    raw: "VIOLET GROHL 17:20 - 18:10"
+    start: "2026-11-20T17:20:00"
+    end: "2026-11-20T18:10:00"
+    end_inferred: false
+  - stage: "corona-cero"
+    artist: "CMAT"
+    raw: "CMAT 19:00 - 20:10"
+    start: "2026-11-20T19:00:00"
+    end: "2026-11-20T20:10:00"
+    end_inferred: false
+  - stage: "corona-cero"
+    artist: "JAMES BLAKE"
+    raw: "JAMES BLAKE 21:30 - 23:00"
+    start: "2026-11-20T21:30:00"
+    end: "2026-11-20T23:00:00"
+    end_inferred: false
+  - stage: "nivea"
+    artist: "OLIVE JONES"
+    raw: "OLIVE JONES 15:20 - 16:00"
+    start: "2026-11-20T15:20:00"
+    end: "2026-11-20T16:00:00"
+    end_inferred: false
+  - stage: "nivea"
+    artist: "THEE SINSEERS"
+    raw: "THEE SINSEERS 16:40 - 17:20"
+    start: "2026-11-20T16:40:00"
+    end: "2026-11-20T17:20:00"
+    end_inferred: false
+  - stage: "nivea"
+    artist: "GRACE IVES"
+    raw: "GRACE IVES 18:10 - 19:00"
+    start: "2026-11-20T18:10:00"
+    end: "2026-11-20T19:00:00"
+    end_inferred: false
+  - stage: "nivea"
+    artist: "DURAND JONES & THE INDICATIONS"
+    raw: "DURAND JONES & THE INDICATIONS 20:10 - 21:30"
+    start: "2026-11-20T20:10:00"
+    end: "2026-11-20T21:30:00"
+    end_inferred: false
+  - stage: "viva-tent"
+    artist: "DARIANNA EVERETT"
+    raw: "DARIANNA EVERETT 15:30 - 16:00"
+    start: "2026-11-20T15:30:00"
+    end: "2026-11-20T16:00:00"
+    end_inferred: false
+  - stage: "viva-tent"
+    artist: "ANNA LUNA"
+    raw: "ANNA LUNA 16:30 - 17:00"
+    start: "2026-11-20T16:30:00"
+    end: "2026-11-20T17:00:00"
+    end_inferred: false
+  - stage: "viva-tent"
+    artist: "MODEL/ACTRIZ"
+    raw: "MODEL/ACTRIZ 17:30 - 18:10"
+    start: "2026-11-20T17:30:00"
+    end: "2026-11-20T18:10:00"
+    end_inferred: false
+  - stage: "viva-tent"
+    artist: "RIP MAGIC"
+    raw: "RIP MAGIC 18:40 - 19:30"
+    start: "2026-11-20T18:40:00"
+    end: "2026-11-20T19:30:00"
+    end_inferred: false
+  - stage: "viva-tent"
+    artist: "JMSN"
+    raw: "JMSN 20:00 - 21:00"
+    start: "2026-11-20T20:00:00"
+    end: "2026-11-20T21:00:00"
+    end_inferred: false
+  - stage: "viva-tent"
+    artist: "FCUKERS"
+    raw: "FCUKERS 21:40 - 22:40"
+    start: "2026-11-20T21:40:00"
+    end: "2026-11-20T22:40:00"
+    end_inferred: false
+  - stage: "viva-tent"
+    artist: "JAMIE XX"
+    raw: "JAMIE XX 23:20 - 0:20"
+    start: "2026-11-20T23:20:00"
+    end: "2026-11-21T00:20:00"     # shifted: crosses midnight into Saturday
+    end_inferred: false
+  # ═══ SATURDAY 21 NOVEMBER 2026 (SÁBADO 21) ═══
+  - stage: "corona"
+    artist: "QUARTERS"
+    raw: "QUARTERS 15:20 - 16:00"
+    start: "2026-11-21T15:20:00"
+    end: "2026-11-21T16:00:00"
+    end_inferred: false
+  - stage: "corona"
+    artist: "SAWYER HILL"
+    raw: "SAWYER HILL 16:40 - 17:20"
+    start: "2026-11-21T16:40:00"
+    end: "2026-11-21T17:20:00"
+    end_inferred: false
+  - stage: "corona"
+    artist: "BALU BRIGADA"
+    raw: "BALU BRIGADA 18:10 - 19:00"
+    start: "2026-11-21T18:10:00"
+    end: "2026-11-21T19:00:00"
+    end_inferred: false
+  - stage: "corona"
+    artist: "PIERCE THE VEIL"
+    raw: "PIERCE THE VEIL 20:10 - 21:30"
+    start: "2026-11-21T20:10:00"
+    end: "2026-11-21T21:30:00"
+    end_inferred: false
+  - stage: "corona"
+    artist: "TWENTY ONE PILOTS"
+    raw: "TWENTY ONE PILOTS 23:00 - 1:00"
+    start: "2026-11-21T23:00:00"
+    end: "2026-11-22T01:00:00"     # shifted: crosses midnight into Sunday
+    end_inferred: false
+  - stage: "doritos"
+    artist: "WE ARE SCIENTISTS"
+    raw: "WE ARE SCIENTISTS 16:00 - 16:40"
+    start: "2026-11-21T16:00:00"
+    end: "2026-11-21T16:40:00"
+    end_inferred: false
+  - stage: "doritos"
+    artist: "DOPE LEMON"
+    raw: "DOPE LEMON 17:20 - 18:10"
+    start: "2026-11-21T17:20:00"
+    end: "2026-11-21T18:10:00"
+    end_inferred: false
+  - stage: "doritos"
+    artist: "MOTHER MOTHER"
+    raw: "MOTHER MOTHER 19:00 - 20:10"
+    start: "2026-11-21T19:00:00"
+    end: "2026-11-21T20:10:00"
+    end_inferred: false
+  - stage: "doritos"
+    artist: "THE OFFSPRING"
+    raw: "THE OFFSPRING 21:30 - 23:00"
+    start: "2026-11-21T21:30:00"
+    end: "2026-11-21T23:00:00"
+    end_inferred: false
+  - stage: "corona-cero"
+    artist: "MILITARIE GUN"
+    raw: "MILITARIE GUN 16:00 - 16:40"
+    start: "2026-11-21T16:00:00"
+    end: "2026-11-21T16:40:00"
+    end_inferred: false
+  - stage: "corona-cero"
+    artist: "BABY QUEEN"
+    raw: "BABY QUEEN 17:20 - 18:10"
+    start: "2026-11-21T17:20:00"
+    end: "2026-11-21T18:10:00"
+    end_inferred: false
+  - stage: "corona-cero"
+    artist: "MAISIE PETERS"
+    raw: "MAISIE PETERS 19:00 - 20:10"
+    start: "2026-11-21T19:00:00"
+    end: "2026-11-21T20:10:00"
+    end_inferred: false
+  - stage: "corona-cero"
+    artist: "UNDERWORLD"
+    raw: "UNDERWORLD 21:30 - 23:00"
+    start: "2026-11-21T21:30:00"
+    end: "2026-11-21T23:00:00"
+    end_inferred: false
+  - stage: "nivea"
+    artist: "JORDANA"
+    raw: "JORDANA 15:20 - 16:00"
+    start: "2026-11-21T15:20:00"
+    end: "2026-11-21T16:00:00"
+    end_inferred: false
+  - stage: "nivea"
+    artist: "STRAWBERRY GUY"
+    raw: "STRAWBERRY GUY 16:40 - 17:20"
+    start: "2026-11-21T16:40:00"
+    end: "2026-11-21T17:20:00"
+    end_inferred: false
+  - stage: "nivea"
+    artist: "ΣTELLA"
+    raw: "ΣTELLA 18:10 - 19:00"
+    start: "2026-11-21T18:10:00"
+    end: "2026-11-21T19:00:00"
+    end_inferred: false
+  - stage: "nivea"
+    artist: "BØRNS"
+    raw: "BØRNS 20:10 - 21:10"
+    start: "2026-11-21T20:10:00"
+    end: "2026-11-21T21:10:00"
+    end_inferred: false
+  - stage: "nivea"
+    artist: "SEBASTIEN TELLIER"
+    raw: "SEBASTIEN TELLIER 23:00 - 0:00"
+    start: "2026-11-21T23:00:00"
+    end: "2026-11-22T00:00:00"     # shifted: crosses midnight into Sunday
+    end_inferred: false
+  - stage: "viva-tent"
+    artist: "FELIPE GORDON"
+    raw: "FELIPE GORDON 15:30 - 16:00"
+    start: "2026-11-21T15:30:00"
+    end: "2026-11-21T16:00:00"
+    end_inferred: false
+  - stage: "viva-tent"
+    artist: "MS*GLOOM"
+    raw: "MS*GLOOM 16:20 - 17:00"
+    start: "2026-11-21T16:20:00"
+    end: "2026-11-21T17:00:00"
+    end_inferred: false
+  - stage: "viva-tent"
+    artist: "PRINCESS CHELSEA"
+    raw: "PRINCESS CHELSEA 17:30 - 18:10"
+    start: "2026-11-21T17:30:00"
+    end: "2026-11-21T18:10:00"
+    end_inferred: false
+  - stage: "viva-tent"
+    artist: "THE HELLP"
+    raw: "THE HELLP 18:40 - 19:30"
+    start: "2026-11-21T18:40:00"
+    end: "2026-11-21T19:30:00"
+    end_inferred: false
+  - stage: "viva-tent"
+    artist: "NEW CONSTELLATIONS"
+    raw: "NEW CONSTELLATIONS 20:00 - 21:00"
+    start: "2026-11-21T20:00:00"
+    end: "2026-11-21T21:00:00"
+    end_inferred: false
+  - stage: "viva-tent"
+    artist: "PEACHES"
+    raw: "PEACHES 21:40 - 22:40"
+    start: "2026-11-21T21:40:00"
+    end: "2026-11-21T22:40:00"
+    end_inferred: false
+  - stage: "viva-tent"
+    artist: "RIKAS"
+    raw: "RIKAS 23:20 - 0:20"
+    start: "2026-11-21T23:20:00"
+    end: "2026-11-22T00:20:00"     # shifted: crosses midnight into Sunday
+    end_inferred: false
+  # ═══ SUNDAY 22 NOVEMBER 2026 (DOMINGO 22) ═══
+  - stage: "corona"
+    artist: "RATBOYS"
+    raw: "RATBOYS 15:20 - 16:00"
+    start: "2026-11-22T15:20:00"
+    end: "2026-11-22T16:00:00"
+    end_inferred: false
+  - stage: "corona"
+    artist: "GOOD KID"
+    raw: "GOOD KID 16:40 - 17:20"
+    start: "2026-11-22T16:40:00"
+    end: "2026-11-22T17:20:00"
+    end_inferred: false
+  - stage: "corona"
+    artist: "THE BLACK CROWES"
+    raw: "THE BLACK CROWES 18:10 - 19:00"
+    start: "2026-11-22T18:10:00"
+    end: "2026-11-22T19:00:00"
+    end_inferred: false
+  - stage: "corona"
+    artist: "LOLA YOUNG"
+    raw: "LOLA YOUNG 20:20 - 21:20"
+    start: "2026-11-22T20:20:00"
+    end: "2026-11-22T21:20:00"
+    end_inferred: false
+  - stage: "corona"
+    artist: "THE STROKES"
+    raw: "THE STROKES 23:00-1:00"
+    start: "2026-11-22T23:00:00"
+    end: "2026-11-23T01:00:00"     # shifted: crosses midnight into Monday
+    end_inferred: false
+  - stage: "doritos"
+    artist: "BAD SUNS"
+    raw: "BAD SUNS 16:00 - 16:40"
+    start: "2026-11-22T16:00:00"
+    end: "2026-11-22T16:40:00"
+    end_inferred: false
+  - stage: "doritos"
+    artist: "MANIC STREET PREACHERS"
+    raw: "MANIC STREET PREACHERS 17:20 - 18:10"
+    start: "2026-11-22T17:20:00"
+    end: "2026-11-22T18:10:00"
+    end_inferred: false
+  - stage: "doritos"
+    artist: "BUNT. (IN THE ROUND)"
+    raw: "BUNT. (IN THE ROUND) 19:00 - 20:10"
+    start: "2026-11-22T19:00:00"
+    end: "2026-11-22T20:10:00"
+    end_inferred: false
+  - stage: "doritos"
+    artist: "THE XX"
+    raw: "THE XX 21:30 - 22:45"
+    start: "2026-11-22T21:30:00"
+    end: "2026-11-22T22:45:00"
+    end_inferred: false
+  - stage: "corona-cero"
+    artist: "FREAK SLUG"
+    raw: "FREAK SLUG 16:00 - 16:40"
+    start: "2026-11-22T16:00:00"
+    end: "2026-11-22T16:40:00"
+    end_inferred: false
+  - stage: "corona-cero"
+    artist: "ANGINE DE POITRINE"
+    raw: "ANGINE DE POITRINE 17:20 - 18:10"
+    start: "2026-11-22T17:20:00"
+    end: "2026-11-22T18:10:00"
+    end_inferred: false
+  - stage: "corona-cero"
+    artist: "JOHNNY MARR"
+    raw: "JOHNNY MARR 19:10 - 20:10"
+    start: "2026-11-22T19:10:00"
+    end: "2026-11-22T20:10:00"
+    end_inferred: false
+  - stage: "corona-cero"
+    artist: "LIL YACHTY"
+    raw: "LIL YACHTY 22:00 - 23:00"
+    start: "2026-11-22T22:00:00"
+    end: "2026-11-22T23:00:00"
+    end_inferred: false
+  - stage: "nivea"
+    artist: "ROAR"
+    raw: "ROAR 15:20 - 16:00"
+    start: "2026-11-22T15:20:00"
+    end: "2026-11-22T16:00:00"
+    end_inferred: false
+  - stage: "nivea"
+    artist: "TIPLING ROCK"
+    raw: "TIPLING ROCK 16:40 - 17:20"
+    start: "2026-11-22T16:40:00"
+    end: "2026-11-22T17:20:00"
+    end_inferred: false
+  - stage: "nivea"
+    artist: "LOYLE CARNER"
+    raw: "LOYLE CARNER 18:10 - 19:00"
+    start: "2026-11-22T18:10:00"
+    end: "2026-11-22T19:00:00"
+    end_inferred: false
+  - stage: "nivea"
+    artist: "TRICKY"
+    raw: "TRICKY 20:10 - 21:30"
+    start: "2026-11-22T20:10:00"
+    end: "2026-11-22T21:30:00"
+    end_inferred: false
+  - stage: "viva-tent"
+    artist: "CÉLINE DESSBERG"
+    raw: "CÉLINE DESSBERG 15:30 - 16:00"
+    start: "2026-11-22T15:30:00"
+    end: "2026-11-22T16:00:00"
+    end_inferred: false
+  - stage: "viva-tent"
+    artist: "MOYKA"
+    raw: "MOYKA 16:20 - 17:00"
+    start: "2026-11-22T16:20:00"
+    end: "2026-11-22T17:00:00"
+    end_inferred: false
+  - stage: "viva-tent"
+    artist: "NINAJIRACHI"
+    raw: "NINAJIRACHI 17:30 - 18:10"
+    start: "2026-11-22T17:30:00"
+    end: "2026-11-22T18:10:00"
+    end_inferred: false
+  - stage: "viva-tent"
+    artist: "ELA MINUS"
+    raw: "ELA MINUS 18:40 - 19:30"
+    start: "2026-11-22T18:40:00"
+    end: "2026-11-22T19:30:00"
+    end_inferred: false
+  - stage: "viva-tent"
+    artist: "PURITY RING"
+    raw: "PURITY RING 20:00 - 21:00"
+    start: "2026-11-22T20:00:00"
+    end: "2026-11-22T21:00:00"
+    end_inferred: false
+  - stage: "viva-tent"
+    artist: "REV RUN"
+    raw: "REV RUN 21:40 - 22:40"
+    start: "2026-11-22T21:40:00"
+    end: "2026-11-22T22:40:00"
+    end_inferred: false
+  - stage: "viva-tent"
+    artist: "SANTIGOLD"
+    raw: "SANTIGOLD 23:20 - 0:50"
+    start: "2026-11-22T23:20:00"
+    end: "2026-11-23T00:50:00"     # shifted: crosses midnight into Monday
+    end_inferred: false
