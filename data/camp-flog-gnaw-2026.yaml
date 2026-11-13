@@ -1,0 +1,285 @@
+# Camp Flog Gnaw 2026 — transcription of the schedule poster(s).
+#
+# Source images:
+#   15714c9ce8c0a8bc1a9368404ecd5fa9791e74510c46877b0753386e99412a74.jpg
+#   c6061f7c231feff05bc1c283776fe14f2763c651c415d4f09214cc129bc0dcee.jpg
+#
+# verified: true — every set checked against the source image above, then checked
+# again by a second reader. Corrections made on review are listed in the
+# TRANSCRIPTION log next to this file.
+
+verified: true
+
+# PERMANENT — decides the URL family: owner editions live at /<slug>-<year>/, fan editions at
+# /fan/<slug>-<year>/ (docs/adr/0001-fan-namespace-prefix.md). Never changes after first publish.
+namespace: owner
+
+festival:
+  name: "Camp Flog Gnaw"
+  slug: "camp-flog-gnaw"     # PERMANENT — appears in every subscription URL
+  year: 2026
+  timezone: "America/Los_Angeles"
+  official_url: "https://www.campfloggnaw.com/set-times"   # fetched 2026-11-13
+  city: "Los Angeles"                      # display only (the homepage card); never in a feed
+  # The festival's own colors, off its art: one per stage, in the order a weekend lists them.
+  # Each stage card and each stage calendar's color. Absent or short means the house colors.
+  # Camp, Flog and Gnaw are the three column colors of the set-times posters.
+  colors: ["#EEE5C4", "#F6B87B", "#B3DFEA"]
+
+stages:
+  - id: "camp"     # PERMANENT url slug — never change after publish
+    name: "Camp Stage"
+  - id: "flog"     # PERMANENT url slug — never change after publish
+    name: "Flog Stage"
+  - id: "gnaw"     # PERMANENT url slug — never change after publish
+    name: "Gnaw Stage"
+
+sets:
+  # ═══ 2026-11-14 ═══
+  - stage: "camp"
+    artist: "SASHA MARIE"
+    raw: "SASHA MARIE"
+    start: "2026-11-14T12:00:00"
+    end: "2026-11-14T13:00:00"
+    end_inferred: false
+  - stage: "camp"
+    artist: "WYATT WADDELL"
+    raw: "WYATT WADDELL"
+    start: "2026-11-14T13:00:00"
+    end: "2026-11-14T13:30:00"
+    end_inferred: false
+  - stage: "camp"
+    artist: "NOURISHED BY TIME"
+    raw: "NOURISHED BY TIME"
+    start: "2026-11-14T14:00:00"
+    end: "2026-11-14T14:40:00"
+    end_inferred: false
+  - stage: "camp"
+    artist: "AUDREY NUNA"
+    raw: "AUDREY NUNA"
+    start: "2026-11-14T15:10:00"
+    end: "2026-11-14T15:55:00"
+    end_inferred: false
+  - stage: "camp"
+    artist: "LOLA YOUNG"
+    raw: "LOLA YOUNG"
+    start: "2026-11-14T16:30:00"
+    end: "2026-11-14T17:15:00"
+    end_inferred: false
+  - stage: "camp"
+    artist: "TURNSTILE"
+    raw: "TURNSTILE"
+    start: "2026-11-14T18:00:00"
+    end: "2026-11-14T19:00:00"
+    end_inferred: false
+  - stage: "camp"
+    artist: "TYLER, THE CREATOR"
+    raw: "TYLER, THE CREATOR"
+    start: "2026-11-14T19:50:00"
+    end: "2026-11-14T20:50:00"
+    end_inferred: false
+  - stage: "camp"
+    artist: "DON TOLIVER"
+    raw: "DON TOLIVER"
+    start: "2026-11-14T21:45:00"
+    end: "2026-11-14T22:55:00"
+    end_inferred: false
+  - stage: "flog"
+    artist: "LIIM"
+    raw: "LIIM"
+    start: "2026-11-14T12:50:00"
+    end: "2026-11-14T13:20:00"
+    end_inferred: false
+  - stage: "flog"
+    artist: "NATANYA"
+    raw: "NATANYA"
+    start: "2026-11-14T13:50:00"
+    end: "2026-11-14T14:20:00"
+    end_inferred: false
+  - stage: "flog"
+    artist: "AMA"
+    raw: "AMA"
+    start: "2026-11-14T14:50:00"
+    end: "2026-11-14T15:25:00"
+    end_inferred: false
+  - stage: "flog"
+    artist: "JANE REMOVER"
+    raw: "JANE REMOVER"
+    start: "2026-11-14T16:05:00"
+    end: "2026-11-14T16:45:00"
+    end_inferred: false
+  - stage: "flog"
+    artist: "2HOLLIS"
+    raw: "2HOLLIS"
+    start: "2026-11-14T17:25:00"
+    end: "2026-11-14T18:10:00"
+    end_inferred: false
+  - stage: "flog"
+    artist: "J.I.D"
+    raw: "J.I.D"
+    start: "2026-11-14T18:50:00"
+    end: "2026-11-14T19:40:00"
+    end_inferred: false
+  - stage: "flog"
+    artist: "LEON THOMAS"
+    raw: "LEON THOMAS"
+    start: "2026-11-14T20:55:00"
+    end: "2026-11-14T21:45:00"
+    end_inferred: false
+  - stage: "gnaw"
+    artist: "GENA"
+    raw: "GENA"
+    start: "2026-11-14T13:30:00"
+    end: "2026-11-14T14:05:00"
+    end_inferred: false
+  - stage: "gnaw"
+    artist: "LEFT BRAIN"
+    raw: "LEFT BRAIN"
+    start: "2026-11-14T14:40:00"
+    end: "2026-11-14T15:10:00"
+    end_inferred: false
+  - stage: "gnaw"
+    artist: "DOMO GENESIS"
+    raw: "DOMO GENESIS"
+    start: "2026-11-14T15:50:00"
+    end: "2026-11-14T16:30:00"
+    end_inferred: false
+  - stage: "gnaw"
+    artist: "VINCE STAPLES"
+    raw: "VINCE STAPLES"
+    start: "2026-11-14T17:15:00"
+    end: "2026-11-14T18:00:00"
+    end_inferred: false
+  - stage: "gnaw"
+    artist: "EARL SWEATSHIRT + MIKE"
+    raw: "EARL SWEATSHIRT + MIKE"
+    start: "2026-11-14T18:55:00"
+    end: "2026-11-14T19:40:00"
+    end_inferred: false
+  - stage: "gnaw"
+    artist: "WALLOWS"
+    raw: "WALLOWS"
+    start: "2026-11-14T20:55:00"
+    end: "2026-11-14T21:45:00"
+    end_inferred: false
+  # ═══ 2026-11-15 ═══
+  - stage: "camp"
+    artist: "54 ULTRA"
+    raw: "54 ULTRA"
+    start: "2026-11-15T15:00:00"
+    end: "2026-11-15T15:45:00"
+    end_inferred: false
+  - stage: "camp"
+    artist: "THEE SACRED SOULS"
+    raw: "THEE SACRED SOULS"
+    start: "2026-11-15T16:20:00"
+    end: "2026-11-15T17:20:00"
+    end_inferred: false
+  - stage: "camp"
+    artist: "NOT FOR RADIO"
+    raw: "NOT FOR RADIO"
+    start: "2026-11-15T18:05:00"
+    end: "2026-11-15T19:05:00"
+    end_inferred: false
+  - stage: "camp"
+    artist: "STEVE LACY"
+    raw: "STEVE LACY"
+    start: "2026-11-15T19:55:00"
+    end: "2026-11-15T20:55:00"
+    end_inferred: false
+  - stage: "camp"
+    artist: "FUTURE"
+    raw: "FUTURE"
+    start: "2026-11-15T21:55:00"
+    end: "2026-11-15T22:55:00"
+    end_inferred: false
+  - stage: "flog"
+    artist: "310BABII"
+    raw: "310BABII"
+    start: "2026-11-15T12:30:00"
+    end: "2026-11-15T13:00:00"
+    end_inferred: false
+  - stage: "flog"
+    artist: "NOMI."
+    raw: "NOMI."
+    start: "2026-11-15T13:30:00"
+    end: "2026-11-15T14:00:00"
+    end_inferred: false
+  - stage: "flog"
+    artist: "MIKE G"
+    raw: "MIKE G"
+    start: "2026-11-15T14:30:00"
+    end: "2026-11-15T15:00:00"
+    end_inferred: false
+  - stage: "flog"
+    artist: "QUADECA"
+    raw: "QUADECA"
+    start: "2026-11-15T15:30:00"
+    end: "2026-11-15T16:10:00"
+    end_inferred: false
+  - stage: "flog"
+    artist: "NSQK"
+    raw: "NSQK"
+    start: "2026-11-15T16:50:00"
+    end: "2026-11-15T17:35:00"
+    end_inferred: false
+  - stage: "flog"
+    artist: "LUPE FIASCO"
+    raw: "LUPE FIASCO"
+    start: "2026-11-15T18:05:00"
+    end: "2026-11-15T18:50:00"
+    end_inferred: false
+  - stage: "flog"
+    artist: "LATIN MAFIA"
+    raw: "LATIN MAFIA"
+    start: "2026-11-15T19:25:00"
+    end: "2026-11-15T20:10:00"
+    end_inferred: false
+  - stage: "flog"
+    artist: "ISAIAH RASHAD"
+    raw: "ISAIAH RASHAD"
+    start: "2026-11-15T20:55:00"
+    end: "2026-11-15T21:55:00"
+    end_inferred: false
+  - stage: "gnaw"
+    artist: "NICK CHEO"
+    raw: "NICK CHEO"
+    start: "2026-11-15T12:00:00"
+    end: "2026-11-15T13:00:00"
+    end_inferred: false
+  - stage: "gnaw"
+    artist: "CASEY VEGGIES"
+    raw: "CASEY VEGGIES"
+    start: "2026-11-15T13:00:00"
+    end: "2026-11-15T13:35:00"
+    end_inferred: false
+  - stage: "gnaw"
+    artist: "GABRIEL JACOBY"
+    raw: "GABRIEL JACOBY"
+    start: "2026-11-15T14:10:00"
+    end: "2026-11-15T14:55:00"
+    end_inferred: false
+  - stage: "gnaw"
+    artist: "CONCRETE BOYS"
+    raw: "CONCRETE BOYS"
+    start: "2026-11-15T15:45:00"
+    end: "2026-11-15T16:35:00"
+    end_inferred: false
+  - stage: "gnaw"
+    artist: "SYD"
+    raw: "SYD"
+    start: "2026-11-15T17:25:00"
+    end: "2026-11-15T18:15:00"
+    end_inferred: false
+  - stage: "gnaw"
+    artist: "MAGDALENA BAY"
+    raw: "MAGDALENA BAY"
+    start: "2026-11-15T19:05:00"
+    end: "2026-11-15T19:50:00"
+    end_inferred: false
+  - stage: "gnaw"
+    artist: "THE ALCHEMIST & FRIENDS"
+    raw: "THE ALCHEMIST & FRIENDS"
+    start: "2026-11-15T20:55:00"
+    end: "2026-11-15T21:55:00"
+    end_inferred: false

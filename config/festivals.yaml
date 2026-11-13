@@ -51,13 +51,16 @@
       dates: { first: 2026-11-06, last: 2026-11-08 }
 
 - festival: Camp Flog Gnaw
-  source: https://www.campfloggnaw.com/lineup
+  source: https://www.campfloggnaw.com/set-times
   timezone: America/Los_Angeles
-  form: unknown
+  form: poster
   subreddit: CampFlogGnaw
   editions:
     - year: 2026
       dates: { first: 2026-11-14, last: 2026-11-15 }
+      # Both set-times images (set-times-sat.jpg, set-times-sun.jpg) were uploaded
+      # 2026-11-09 (their Last-Modified).
+      dropped: 2026-11-09
 
 - festival: Corona Capital
   # Checked 2026-09-21: the page answers, but its text does not give the 2026
